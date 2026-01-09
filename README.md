@@ -62,7 +62,7 @@ projects/My_Shot_Name/
 - `scripts/run_pipeline.py` - **Main entry point** - automated pipeline runner
 - `scripts/setup_project.py` - Project setup with workflow templating
 - `scripts/export_camera.py` - Camera data → Alembic/JSON export
-- `workflows/01_analysis.json` - Depth Anything V3 + camera estimation
+- `workflow_templates/01_analysis.json` - Depth Anything V3 + camera estimation
 
 ### Needs Testing
 - `02_segmentation.json` - SAM3 video segmentation (text prompt → masks)

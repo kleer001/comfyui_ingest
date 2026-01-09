@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 # Default workflows location (relative to this script)
-DEFAULT_WORKFLOWS_DIR = Path(__file__).parent.parent / "workflows"
+DEFAULT_WORKFLOWS_DIR = Path(__file__).parent.parent / "workflow_templates"
 
 # Path placeholders used in workflow templates
 PLACEHOLDERS = {

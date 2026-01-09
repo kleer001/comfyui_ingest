@@ -265,7 +265,7 @@ def run_pipeline(
 
     project_dir = projects_dir / project_name
     source_frames = project_dir / "source" / "frames"
-    workflows_dir = Path(__file__).parent.parent / "workflows"
+    workflows_dir = Path(__file__).parent.parent / "workflow_templates"
 
     print(f"\n{'='*60}")
     print(f"VFX Pipeline: {project_name}")
