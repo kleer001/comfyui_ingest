@@ -78,7 +78,7 @@ class TestPopulateWorkflow:
             "nodes": [
                 {
                     "inputs": [{"path": "source/frames"}],
-                    "outputs": [{"path": "depth"}]
+                    "outputs": [{"path": "depth/"}]  # Must have slash to be recognized as path
                 }
             ]
         }
@@ -86,7 +86,24 @@ class TestPopulateWorkflow:
         result = populate_workflow(workflow, project_dir)
 
         assert result["nodes"][0]["inputs"][0]["path"] == "/projects/My_Shot/source/frames"
-        assert result["nodes"][0]["outputs"][0]["path"] == "/projects/My_Shot/depth"
+        assert result["nodes"][0]["outputs"][0]["path"] == "/projects/My_Shot/depth/"
+
+    def test_preserves_filename_patterns(self):
+        """Bare names like 'depth' should NOT be replaced (could be filename patterns)."""
+        project_dir = Path("/projects/My_Shot")
+        workflow = {
+            "nodes": [
+                {
+                    "widgets_values": ["depth_%04d", "roto_mask"]
+                }
+            ]
+        }
+
+        result = populate_workflow(workflow, project_dir)
+
+        # These should NOT be modified - they're filename patterns, not paths
+        assert result["nodes"][0]["widgets_values"][0] == "depth_%04d"
+        assert result["nodes"][0]["widgets_values"][1] == "roto_mask"
 
     def test_preserves_non_path_strings(self):
         project_dir = Path("/projects/My_Shot")
