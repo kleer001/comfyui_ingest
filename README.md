@@ -14,23 +14,50 @@ Traditional VFX prep work (roto, depth, clean plates) is tedious. Modern ML mode
 - Outputs VFX-ready passes out
 - Follows real production folder conventions (frame numbering starts at 1001, etc.)
 
-## Quick Start
+## Installation
+
+**Use the interactive installation wizard** - it will guide you through the entire setup:
 
 ```bash
-# Single command - processes everything
-python scripts/run_pipeline.py /path/to/footage.mp4 --name "My_Shot"
+# Run the installation wizard
+python scripts/install_wizard.py
 
-# Or run specific stages
-python scripts/run_pipeline.py footage.mp4 --stages depth,camera
-
-# Run with COLMAP for accurate camera reconstruction + mesh
-python scripts/run_pipeline.py footage.mp4 --stages ingest,colmap,camera --colmap-dense --colmap-mesh
+# Or check what's already installed
+python scripts/install_wizard.py --check-only
 ```
 
-Requires:
+The wizard will:
+- ✓ Check system requirements (Python, GPU, Git)
+- ✓ Install core dependencies (PyTorch, NumPy, OpenCV)
+- ✓ Guide you through optional components (WHAM, TAVA, ECON)
+- ✓ Provide download links for model checkpoints
+- ✓ Show next steps for ComfyUI setup
+
+**Installation options:**
+1. **Core pipeline only** - COLMAP, segmentation, depth (no motion capture)
+2. **Core + Motion capture** - Everything including WHAM/TAVA/ECON
+3. **Custom selection** - Pick exactly what you need
+
+See [detailed installation instructions](#manual-installation) below if you prefer manual setup.
+
+## Quick Start
+
+After installation, process footage with a single command:
+
+```bash
+# Basic pipeline - depth + camera
+python scripts/run_pipeline.py /path/to/footage.mp4 --name "My_Shot"
+
+# With segmentation and clean plates
+python scripts/run_pipeline.py footage.mp4 --stages ingest,roto,cleanplate,colmap,camera
+
+# Full pipeline with motion capture
+python scripts/run_pipeline.py footage.mp4 --stages ingest,roto,colmap,mocap,camera
+```
+
+**Prerequisites:**
 - ComfyUI running: `cd /path/to/ComfyUI && python main.py --listen`
-- COLMAP (for colmap stage): `sudo apt install colmap` or `conda install -c conda-forge colmap`
-- GS-IR (for gsir stage): https://github.com/lzhnb/GS-IR
+- Dependencies installed via wizard (or manually)
 
 ## Architecture
 
@@ -564,6 +591,75 @@ python scripts/run_pipeline.py footage.mp4 --stages colmap
 - Increase `--keyframe-interval` (e.g., 15 instead of 25)
 - Check person is clearly visible in frames
 - Verify segmentation masks are accurate
+
+## Manual Installation
+
+If you prefer to install components manually instead of using the wizard:
+
+### Core Dependencies
+
+```bash
+# Python packages
+pip install numpy torch opencv-python pillow
+
+# System packages (Ubuntu)
+sudo apt install ffmpeg colmap git
+```
+
+### ComfyUI Setup
+
+```bash
+# Clone ComfyUI
+git clone https://github.com/comfyanonymous/ComfyUI.git
+cd ComfyUI && pip install -r requirements.txt
+
+# Install custom nodes
+cd custom_nodes
+git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git
+git clone https://github.com/your-repo/ComfyUI-Depth-Anything-V3.git
+git clone https://github.com/your-repo/ComfyUI-SAM2.git
+
+# Start server
+cd .. && python main.py --listen
+```
+
+### Motion Capture Dependencies (Optional)
+
+```bash
+# Core packages
+pip install smplx trimesh
+
+# WHAM (world-grounded motion)
+git clone https://github.com/yohanshin/WHAM.git
+cd WHAM && pip install -e .
+# Download checkpoints from project page
+
+# TAVA (consistent topology)
+git clone https://github.com/facebookresearch/tava.git
+cd tava && pip install -e .
+
+# ECON (clothed reconstruction)
+git clone https://github.com/YuliangXiu/ECON.git
+cd ECON && pip install -r requirements.txt
+
+# SMPL-X models
+# 1. Register at https://smpl-x.is.tue.mpg.de/
+# 2. Download models
+# 3. Place in ~/.smplx/
+```
+
+### Verify Installation
+
+```bash
+# Check core pipeline
+python scripts/run_pipeline.py --help
+
+# Check motion capture
+python scripts/run_mocap.py --check
+
+# Check all components
+python scripts/install_wizard.py --check-only
+```
 
 ## For the Agent
 
