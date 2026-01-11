@@ -123,12 +123,42 @@ def check_gpu_available() -> Tuple[bool, str]:
     return True, "GPU detected"
 
 
+def get_disk_space(path: Path = Path.home()) -> Tuple[float, float]:
+    """Get available and total disk space in GB.
+
+    Args:
+        path: Path to check (default: home directory)
+
+    Returns:
+        Tuple of (available_gb, total_gb)
+    """
+    import shutil
+    try:
+        stat = shutil.disk_usage(path)
+        available_gb = stat.free / (1024**3)
+        total_gb = stat.total / (1024**3)
+        return available_gb, total_gb
+    except:
+        return 0.0, 0.0
+
+
+def format_size_gb(size_gb: float) -> str:
+    """Format size in GB to human-readable string."""
+    if size_gb < 1:
+        return f"{size_gb * 1024:.0f} MB"
+    elif size_gb < 10:
+        return f"{size_gb:.1f} GB"
+    else:
+        return f"{size_gb:.0f} GB"
+
+
 class ComponentInstaller:
     """Base class for component installers."""
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, size_gb: float = 0.0):
         self.name = name
         self.installed = False
+        self.size_gb = size_gb  # Estimated disk space in GB
 
     def check(self) -> bool:
         """Check if component is installed."""
@@ -146,8 +176,8 @@ class ComponentInstaller:
 class PythonPackageInstaller(ComponentInstaller):
     """Installer for Python packages via pip."""
 
-    def __init__(self, name: str, package: str, import_name: Optional[str] = None):
-        super().__init__(name)
+    def __init__(self, name: str, package: str, import_name: Optional[str] = None, size_gb: float = 0.0):
+        super().__init__(name, size_gb)
         self.package = package
         self.import_name = import_name or package
 
@@ -169,8 +199,8 @@ class PythonPackageInstaller(ComponentInstaller):
 class GitRepoInstaller(ComponentInstaller):
     """Installer for Git repositories."""
 
-    def __init__(self, name: str, repo_url: str, install_dir: Optional[Path] = None):
-        super().__init__(name)
+    def __init__(self, name: str, repo_url: str, install_dir: Optional[Path] = None, size_gb: float = 0.0):
+        super().__init__(name, size_gb)
         self.repo_url = repo_url
         self.install_dir = install_dir or Path.home() / ".vfx_pipeline" / name.lower()
 
@@ -220,9 +250,9 @@ class InstallationWizard:
             'name': 'Core Pipeline',
             'required': True,
             'installers': [
-                PythonPackageInstaller('NumPy', 'numpy'),
-                PythonPackageInstaller('OpenCV', 'opencv-python', 'cv2'),
-                PythonPackageInstaller('Pillow', 'pillow', 'PIL'),
+                PythonPackageInstaller('NumPy', 'numpy', size_gb=0.1),
+                PythonPackageInstaller('OpenCV', 'opencv-python', 'cv2', size_gb=0.3),
+                PythonPackageInstaller('Pillow', 'pillow', 'PIL', size_gb=0.05),
             ]
         }
 
@@ -231,7 +261,7 @@ class InstallationWizard:
             'name': 'PyTorch',
             'required': True,
             'installers': [
-                PythonPackageInstaller('PyTorch', 'torch'),
+                PythonPackageInstaller('PyTorch', 'torch', size_gb=6.0),  # With CUDA
             ]
         }
 
@@ -240,6 +270,7 @@ class InstallationWizard:
             'name': 'COLMAP',
             'required': False,
             'installers': [],  # System install, check only
+            'size_gb': 0.5,  # If installed via conda
         }
 
         # Motion capture dependencies
@@ -247,12 +278,12 @@ class InstallationWizard:
             'name': 'Motion Capture Core',
             'required': False,
             'installers': [
-                PythonPackageInstaller('SMPL-X', 'smplx'),
-                PythonPackageInstaller('Trimesh', 'trimesh'),
+                PythonPackageInstaller('SMPL-X', 'smplx', size_gb=0.1),
+                PythonPackageInstaller('Trimesh', 'trimesh', size_gb=0.05),
             ]
         }
 
-        # WHAM
+        # WHAM (code ~0.1GB + checkpoints ~2.5GB)
         self.components['wham'] = {
             'name': 'WHAM',
             'required': False,
@@ -260,12 +291,13 @@ class InstallationWizard:
                 GitRepoInstaller(
                     'WHAM',
                     'https://github.com/yohanshin/WHAM.git',
-                    Path.home() / ".vfx_pipeline" / "WHAM"
+                    Path.home() / ".vfx_pipeline" / "WHAM",
+                    size_gb=3.0  # Code + checkpoints
                 )
             ]
         }
 
-        # TAVA
+        # TAVA (code ~0.05GB + checkpoints ~1.5GB)
         self.components['tava'] = {
             'name': 'TAVA',
             'required': False,
@@ -273,12 +305,13 @@ class InstallationWizard:
                 GitRepoInstaller(
                     'TAVA',
                     'https://github.com/facebookresearch/tava.git',
-                    Path.home() / ".vfx_pipeline" / "tava"
+                    Path.home() / ".vfx_pipeline" / "tava",
+                    size_gb=2.0  # Code + checkpoints
                 )
             ]
         }
 
-        # ECON
+        # ECON (code ~0.2GB + dependencies ~1GB + checkpoints ~4GB + SMPL-X models ~0.5GB)
         self.components['econ'] = {
             'name': 'ECON',
             'required': False,
@@ -286,7 +319,8 @@ class InstallationWizard:
                 GitRepoInstaller(
                     'ECON',
                     'https://github.com/YuliangXiu/ECON.git',
-                    Path.home() / ".vfx_pipeline" / "ECON"
+                    Path.home() / ".vfx_pipeline" / "ECON",
+                    size_gb=6.0  # Code + dependencies + checkpoints + models
                 )
             ]
         }
@@ -309,6 +343,22 @@ class InstallationWizard:
         else:
             print_error("Git not found (required for cloning repositories)")
             return False
+
+        # Disk space
+        available_gb, total_gb = get_disk_space()
+        if available_gb > 0:
+            used_pct = ((total_gb - available_gb) / total_gb) * 100
+            if available_gb >= 50:
+                print_success(f"Disk space: {format_size_gb(available_gb)} available ({used_pct:.0f}% used)")
+            elif available_gb >= 20:
+                print_warning(f"Disk space: {format_size_gb(available_gb)} available ({used_pct:.0f}% used)")
+                print_info("Full installation requires ~40 GB")
+            else:
+                print_error(f"Disk space: {format_size_gb(available_gb)} available ({used_pct:.0f}% used)")
+                print_info("Insufficient space - full installation requires ~40 GB")
+                return False
+        else:
+            print_warning("Could not check disk space")
 
         # GPU
         has_gpu, gpu_info = check_gpu_available()
@@ -359,6 +409,76 @@ class InstallationWizard:
                     print_error(f"{comp_info['name']}{required}")
                 else:
                     print_warning(f"{comp_info['name']} - not installed")
+
+    def calculate_space_needed(self, component_ids: List[str]) -> float:
+        """Calculate total disk space needed for components.
+
+        Args:
+            component_ids: List of component IDs to install
+
+        Returns:
+            Total disk space needed in GB
+        """
+        total_gb = 0.0
+        for comp_id in component_ids:
+            comp_info = self.components.get(comp_id, {})
+            for installer in comp_info.get('installers', []):
+                total_gb += installer.size_gb
+            # Add component-level size (for things like COLMAP)
+            total_gb += comp_info.get('size_gb', 0.0)
+        return total_gb
+
+    def show_space_estimate(self, component_ids: List[str]):
+        """Show disk space estimate for installation.
+
+        Args:
+            component_ids: List of component IDs to install
+        """
+        print_header("Disk Space Estimate")
+
+        # Calculate per-component
+        breakdown = []
+        total_gb = 0.0
+
+        for comp_id in component_ids:
+            comp_info = self.components.get(comp_id, {})
+            comp_size = sum(inst.size_gb for inst in comp_info.get('installers', []))
+            comp_size += comp_info.get('size_gb', 0.0)
+
+            if comp_size > 0:
+                breakdown.append((comp_info['name'], comp_size))
+                total_gb += comp_size
+
+        # Sort by size (largest first)
+        breakdown.sort(key=lambda x: x[1], reverse=True)
+
+        # Print breakdown
+        for name, size_gb in breakdown:
+            print(f"  {name:30s} {format_size_gb(size_gb):>10s}")
+
+        print("  " + "-" * 42)
+        print(f"  {'Total':30s} {format_size_gb(total_gb):>10s}")
+
+        # Additional space for working data
+        working_space = 10.0  # ~10 GB per project
+        print(f"\n  {'Working space (per project)':30s} ~{format_size_gb(working_space):>9s}")
+        print(f"  {'Recommended total':30s} ~{format_size_gb(total_gb + working_space):>9s}")
+
+        # Check available space
+        available_gb, _ = get_disk_space()
+        if available_gb > 0:
+            print(f"\n  Available disk space: {format_size_gb(available_gb)}")
+
+            if available_gb >= total_gb + working_space:
+                print_success("Sufficient disk space available")
+            elif available_gb >= total_gb:
+                print_warning("Sufficient for installation, but limited working space")
+            else:
+                print_error(f"Insufficient disk space (need {format_size_gb(total_gb)})")
+                return False
+
+        print()
+        return True
 
     def install_component(self, comp_id: str) -> bool:
         """Install a component."""
@@ -427,6 +547,17 @@ class InstallationWizard:
                     return True
                 else:
                     print("Invalid choice")
+
+        # Show disk space estimate
+        if to_install:
+            if not self.show_space_estimate(to_install):
+                print_error("\nInsufficient disk space for installation")
+                return False
+
+            # Confirm installation
+            if not ask_yes_no("\nProceed with installation?", default=True):
+                print_info("Installation cancelled")
+                return True
 
         # Install components
         print_header("Installing Components")
