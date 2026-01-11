@@ -106,7 +106,28 @@ Requires manual download due to registration:
 
 ## Quick Start
 
-### 1. Install Prerequisites
+### Option A: One-Liner Install (Fastest) ⚡
+
+**Just run this:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap.sh | bash
+```
+
+This will:
+1. Clone the repository to `~/comfyui_ingest`
+2. Launch the installation wizard automatically
+3. Handle everything for you
+
+**Or if you prefer wget:**
+```bash
+wget -qO- https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap.sh | bash
+```
+
+---
+
+### Option B: Manual Install (If You Prefer Control)
+
+#### 1. Install Prerequisites
 ```bash
 # Install conda (if not already installed)
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
@@ -117,13 +138,13 @@ sudo apt update
 sudo apt install git ffmpeg colmap
 ```
 
-### 2. Clone Repository
+#### 2. Clone Repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/comfyui_ingest.git
+git clone https://github.com/kleer001/comfyui_ingest.git
 cd comfyui_ingest
 ```
 
-### 3. Run Installation Wizard
+#### 3. Run Installation Wizard
 ```bash
 # Interactive installation (recommended)
 python scripts/install_wizard.py
@@ -134,24 +155,27 @@ python scripts/install_wizard.py --check-only
 
 **Follow the prompts:**
 - Option 1: Core pipeline only (~7GB)
-- Option 2: Core + Motion capture (~38GB) ← Choose this for full testing
-- Option 3: Custom selection
+- Option 2: Core + ComfyUI (~10GB) ← Choose this for workflow testing
+- Option 3: Full stack (~42GB) ← Choose this for complete testing
+- Option 4: Custom selection
+- Option 5: Nothing (check only)
 
 The wizard will:
 1. Create conda environment (`vfx-pipeline`)
-2. Install packages
-3. Download checkpoints (if URLs work)
-4. Validate installation
-5. Generate activation script
+2. Install Python packages
+3. Clone ComfyUI and custom nodes (if selected)
+4. Download checkpoints (if URLs work)
+5. Validate installation
+6. Generate activation script
 
-### 4. Activate Environment
+#### 4. Activate Environment
 ```bash
 conda activate vfx-pipeline
 # Or use generated script
 source ~/.vfx_pipeline/activate.sh
 ```
 
-### 5. Test Pipeline
+#### 5. Test Pipeline
 ```bash
 # Create test project
 python scripts/run_pipeline.py init test_project
@@ -182,6 +206,12 @@ Please test and report results for:
 - [ ] Depth analysis completes
 - [ ] Segmentation works
 - [ ] COLMAP reconstruction works
+
+### ComfyUI (if testing)
+- [ ] ComfyUI cloned successfully
+- [ ] Custom nodes installed (VideoHelperSuite, Depth-Anything-V3, SAM2)
+- [ ] Server starts: `python main.py --listen`
+- [ ] Can load workflow from `workflows/` directory
 
 ### Motion Capture (if testing)
 - [ ] WHAM checkpoint downloads

@@ -1160,6 +1160,39 @@ class InstallationWizard:
             ]
         }
 
+        # ComfyUI and custom nodes
+        comfyui_dir = Path.home() / ".vfx_pipeline" / "ComfyUI"
+        self.components['comfyui'] = {
+            'name': 'ComfyUI',
+            'required': False,
+            'installers': [
+                GitRepoInstaller(
+                    'ComfyUI',
+                    'https://github.com/comfyanonymous/ComfyUI.git',
+                    comfyui_dir,
+                    size_gb=2.0
+                ),
+                GitRepoInstaller(
+                    'ComfyUI-VideoHelperSuite',
+                    'https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git',
+                    comfyui_dir / "custom_nodes" / "ComfyUI-VideoHelperSuite",
+                    size_gb=0.1
+                ),
+                GitRepoInstaller(
+                    'ComfyUI-Depth-Anything-V3',
+                    'https://github.com/neverbiasu/ComfyUI-Depth-Anything-V3.git',
+                    comfyui_dir / "custom_nodes" / "ComfyUI-Depth-Anything-V3",
+                    size_gb=0.5
+                ),
+                GitRepoInstaller(
+                    'ComfyUI-SAM2',
+                    'https://github.com/neverbiasu/ComfyUI-SAM2.git',
+                    comfyui_dir / "custom_nodes" / "ComfyUI-SAM2",
+                    size_gb=1.0
+                )
+            ]
+        }
+
     def setup_conda_environment(self) -> bool:
         """Set up conda environment."""
         print_header("Conda Environment Setup")
@@ -1438,25 +1471,29 @@ class InstallationWizard:
             print("What would you like to install?")
             print("="*60)
             print("1. Core pipeline only (COLMAP, segmentation)")
-            print("2. Core + Motion capture (WHAM, TAVA, ECON)")
-            print("3. Custom selection")
-            print("4. Nothing (check only)")
+            print("2. Core + ComfyUI (workflows ready to use)")
+            print("3. Full stack (Core + ComfyUI + Motion capture)")
+            print("4. Custom selection")
+            print("5. Nothing (check only)")
 
             while True:
-                choice = input("\nChoice [1-4]: ").strip()
+                choice = input("\nChoice [1-5]: ").strip()
                 if choice == '1':
                     to_install = ['core', 'pytorch']
                     break
                 elif choice == '2':
-                    to_install = ['core', 'pytorch', 'mocap_core', 'wham', 'tava', 'econ']
+                    to_install = ['core', 'pytorch', 'comfyui']
                     break
                 elif choice == '3':
+                    to_install = ['core', 'pytorch', 'comfyui', 'mocap_core', 'wham', 'tava', 'econ']
+                    break
+                elif choice == '4':
                     to_install = []
                     for comp_id, comp_info in self.components.items():
                         if ask_yes_no(f"Install {comp_info['name']}?", default=False):
                             to_install.append(comp_id)
                     break
-                elif choice == '4':
+                elif choice == '5':
                     return True
                 else:
                     print("Invalid choice")
@@ -1543,13 +1580,17 @@ class InstallationWizard:
                     print("    https://github.com/YuliangXiu/ECON")
 
         # ComfyUI
-        print("\n🎨 ComfyUI Setup:")
-        print("  1. Clone ComfyUI: git clone https://github.com/comfyanonymous/ComfyUI.git")
-        print("  2. Install custom nodes:")
-        print("     - ComfyUI-VideoHelperSuite")
-        print("     - ComfyUI-Depth-Anything-V3")
-        print("     - ComfyUI-SAM2 (for segmentation)")
-        print("  3. Start server: python main.py --listen")
+        if status.get('comfyui', False):
+            comfyui_path = Path.home() / ".vfx_pipeline" / "ComfyUI"
+            print("\n🎨 ComfyUI:")
+            print(f"  ✓ Installed at {comfyui_path}")
+            print("  ✓ Custom nodes installed")
+            print("\n  Start server:")
+            print(f"    cd {comfyui_path}")
+            print("    python main.py --listen")
+        else:
+            print("\n🎨 ComfyUI (Optional):")
+            print("  Not installed. Run wizard again to add ComfyUI support.")
 
         # Testing
         print("\n✅ Test Installation:")
@@ -1572,7 +1613,7 @@ def main():
     parser.add_argument(
         "--component",
         type=str,
-        choices=['core', 'pytorch', 'colmap', 'mocap_core', 'wham', 'tava', 'econ'],
+        choices=['core', 'pytorch', 'colmap', 'mocap_core', 'wham', 'tava', 'econ', 'comfyui'],
         help="Install specific component"
     )
     parser.add_argument(
