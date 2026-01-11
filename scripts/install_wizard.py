@@ -13,10 +13,12 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -152,6 +154,829 @@ def format_size_gb(size_gb: float) -> str:
         return f"{size_gb:.0f} GB"
 
 
+class CondaEnvironmentManager:
+    """Manages conda environment creation and activation."""
+
+    def __init__(self, env_name: str = "vfx-pipeline"):
+        self.env_name = env_name
+        self.conda_exe = None
+        self.python_version = "3.10"
+
+    def detect_conda(self) -> bool:
+        """Check if conda is installed and available."""
+        # Try conda command
+        success, output = run_command(["conda", "--version"], check=False, capture=True)
+        if success:
+            self.conda_exe = "conda"
+            return True
+
+        # Try mamba
+        success, output = run_command(["mamba", "--version"], check=False, capture=True)
+        if success:
+            self.conda_exe = "mamba"
+            return True
+
+        return False
+
+    def get_current_env(self) -> Optional[str]:
+        """Get name of currently active conda environment."""
+        env = os.environ.get('CONDA_DEFAULT_ENV')
+        return env
+
+    def list_environments(self) -> List[str]:
+        """List all conda environments."""
+        if not self.conda_exe:
+            return []
+
+        success, output = run_command(
+            [self.conda_exe, "env", "list"],
+            check=False,
+            capture=True
+        )
+        if not success:
+            return []
+
+        # Parse output
+        envs = []
+        for line in output.split('\n'):
+            line = line.strip()
+            if line and not line.startswith('#'):
+                # Format: "envname    /path/to/env"
+                parts = line.split()
+                if parts:
+                    envs.append(parts[0])
+        return envs
+
+    def environment_exists(self, env_name: str) -> bool:
+        """Check if a conda environment exists."""
+        return env_name in self.list_environments()
+
+    def create_environment(self, python_version: Optional[str] = None) -> bool:
+        """Create new conda environment.
+
+        Args:
+            python_version: Python version (e.g., "3.10"), uses default if None
+
+        Returns:
+            True if successful
+        """
+        if not self.conda_exe:
+            print_error("Conda not available")
+            return False
+
+        py_ver = python_version or self.python_version
+        print(f"\nCreating conda environment '{self.env_name}' with Python {py_ver}...")
+
+        success, _ = run_command([
+            self.conda_exe, "create",
+            "-n", self.env_name,
+            f"python={py_ver}",
+            "-y"
+        ])
+
+        if success:
+            print_success(f"Environment '{self.env_name}' created")
+        else:
+            print_error(f"Failed to create environment '{self.env_name}'")
+
+        return success
+
+    def get_activation_command(self) -> str:
+        """Get command to activate the environment."""
+        return f"conda activate {self.env_name}"
+
+    def get_python_executable(self) -> Optional[Path]:
+        """Get path to Python executable in the environment."""
+        if not self.conda_exe:
+            return None
+
+        success, output = run_command(
+            [self.conda_exe, "run", "-n", self.env_name, "which", "python"],
+            check=False,
+            capture=True
+        )
+
+        if success and output.strip():
+            return Path(output.strip())
+        return None
+
+    def install_package_conda(self, package: str, channel: Optional[str] = None) -> bool:
+        """Install package via conda in the environment.
+
+        Args:
+            package: Package name (e.g., "pytorch")
+            channel: Conda channel (e.g., "pytorch", "conda-forge")
+
+        Returns:
+            True if successful
+        """
+        if not self.conda_exe:
+            return False
+
+        cmd = [self.conda_exe, "install", "-n", self.env_name, package, "-y"]
+        if channel:
+            cmd.extend(["-c", channel])
+
+        print(f"  Installing {package} via conda...")
+        success, _ = run_command(cmd)
+        return success
+
+    def install_package_pip(self, package: str) -> bool:
+        """Install package via pip in the environment.
+
+        Args:
+            package: Package name or pip install spec
+
+        Returns:
+            True if successful
+        """
+        if not self.conda_exe:
+            return False
+
+        print(f"  Installing {package} via pip...")
+        success, _ = run_command([
+            self.conda_exe, "run", "-n", self.env_name,
+            "pip", "install", package
+        ])
+        return success
+
+    def check_setup(self) -> Tuple[bool, str]:
+        """Check conda setup and recommend action.
+
+        Returns:
+            (is_ready, message)
+        """
+        if not self.detect_conda():
+            return False, "Conda not installed. Please install Miniconda or Anaconda first."
+
+        current_env = self.get_current_env()
+
+        # Check if vfx-pipeline exists
+        if self.environment_exists(self.env_name):
+            if current_env == self.env_name:
+                return True, f"Using existing environment '{self.env_name}'"
+            else:
+                return True, f"Environment '{self.env_name}' exists but not activated. Will use it."
+
+        # Need to create environment
+        return True, f"Will create new environment '{self.env_name}'"
+
+
+class InstallationStateManager:
+    """Manages installation state for resume/recovery."""
+
+    def __init__(self, state_file: Optional[Path] = None):
+        self.state_file = state_file or Path.home() / ".vfx_pipeline" / "install_state.json"
+        self.state = self.load_state()
+
+    def load_state(self) -> Dict:
+        """Load installation state from file."""
+        if not self.state_file.exists():
+            return self._create_initial_state()
+
+        try:
+            with open(self.state_file, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            print_warning(f"Could not load state from {self.state_file}, creating new state")
+            return self._create_initial_state()
+
+    def _create_initial_state(self) -> Dict:
+        """Create initial state structure."""
+        return {
+            "version": "1.0",
+            "environment": None,
+            "last_updated": None,
+            "components": {},
+            "checkpoints": {}
+        }
+
+    def save_state(self):
+        """Save installation state to file."""
+        self.state["last_updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
+
+        # Ensure directory exists
+        self.state_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Atomic write (write to temp, then rename)
+        temp_file = self.state_file.with_suffix('.json.tmp')
+        try:
+            with open(temp_file, 'w') as f:
+                json.dump(self.state, indent=2, fp=f)
+            temp_file.replace(self.state_file)
+        except IOError as e:
+            print_warning(f"Could not save state: {e}")
+
+    def set_environment(self, env_name: str):
+        """Set the conda environment name."""
+        self.state["environment"] = env_name
+        self.save_state()
+
+    def mark_component_started(self, comp_id: str):
+        """Mark component installation as started."""
+        self.state["components"][comp_id] = {
+            "status": "in_progress",
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "error": None
+        }
+        self.save_state()
+
+    def mark_component_completed(self, comp_id: str):
+        """Mark component installation as completed."""
+        if comp_id in self.state["components"]:
+            self.state["components"][comp_id]["status"] = "completed"
+            self.state["components"][comp_id]["timestamp"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            self.state["components"][comp_id] = {
+                "status": "completed",
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "error": None
+            }
+        self.save_state()
+
+    def mark_component_failed(self, comp_id: str, error: str):
+        """Mark component installation as failed."""
+        self.state["components"][comp_id] = {
+            "status": "failed",
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "error": error
+        }
+        self.save_state()
+
+    def get_component_status(self, comp_id: str) -> Optional[str]:
+        """Get status of a component.
+
+        Returns:
+            "completed", "in_progress", "failed", or None
+        """
+        if comp_id not in self.state["components"]:
+            return None
+        return self.state["components"][comp_id].get("status")
+
+    def get_incomplete_components(self) -> List[str]:
+        """Get list of components that are not completed."""
+        incomplete = []
+        for comp_id, info in self.state["components"].items():
+            if info.get("status") != "completed":
+                incomplete.append(comp_id)
+        return incomplete
+
+    def can_resume(self) -> bool:
+        """Check if there's a resumable installation."""
+        return len(self.get_incomplete_components()) > 0
+
+    def mark_checkpoint_downloaded(self, comp_id: str, path: Path):
+        """Mark checkpoint as downloaded."""
+        self.state["checkpoints"][comp_id] = {
+            "downloaded": True,
+            "path": str(path),
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        self.save_state()
+
+    def is_checkpoint_downloaded(self, comp_id: str) -> bool:
+        """Check if checkpoint is already downloaded."""
+        return self.state["checkpoints"].get(comp_id, {}).get("downloaded", False)
+
+    def clear_state(self):
+        """Clear installation state (for fresh start)."""
+        self.state = self._create_initial_state()
+        self.save_state()
+
+
+class ProgressBarManager:
+    """Manages progress bars with ncurses support and fallback.
+
+    Note: Full ncurses implementation deferred for maintainability.
+    Currently uses simple inline progress bars.
+    """
+
+    def __init__(self):
+        self.use_tqdm = False
+
+        # Check if tqdm is available for better progress bars
+        try:
+            import tqdm
+            self.use_tqdm = True
+        except ImportError:
+            pass
+
+    def create_progress_bar(self, total: int, desc: str = ""):
+        """Create a progress bar.
+
+        Args:
+            total: Total number of items
+            desc: Description
+
+        Returns:
+            Progress bar object or None
+        """
+        if self.use_tqdm:
+            import tqdm
+            return tqdm.tqdm(total=total, desc=desc, unit='B', unit_scale=True)
+        return None
+
+
+class CheckpointDownloader:
+    """Handles automatic checkpoint downloading."""
+
+    # Checkpoint metadata
+    CHECKPOINTS = {
+        'wham': {
+            'name': 'WHAM Checkpoints',
+            'files': [
+                {
+                    'url': 'https://github.com/yohanshin/WHAM/releases/download/v1.0/wham_vit_w_3dpw.pth.tar',
+                    'filename': 'wham_vit_w_3dpw.pth.tar',
+                    'size_mb': 1200,
+                    'sha256': None  # TODO: Add checksums
+                }
+            ],
+            'dest_dir_rel': 'WHAM/checkpoints',
+            'instructions': 'Visit https://github.com/yohanshin/WHAM for more checkpoint options'
+        },
+        'tava': {
+            'name': 'TAVA Checkpoints',
+            'files': [
+                {
+                    'url': 'https://dl.fbaipublicfiles.com/tava/tava_model.pth',
+                    'filename': 'tava_model.pth',
+                    'size_mb': 800,
+                    'sha256': None
+                }
+            ],
+            'dest_dir_rel': 'tava/checkpoints',
+            'instructions': 'Visit https://github.com/facebookresearch/tava for more details'
+        },
+        'econ': {
+            'name': 'ECON Checkpoints',
+            'files': [
+                {
+                    'url': 'https://github.com/YuliangXiu/ECON/releases/download/v1.0/econ_model.tar',
+                    'filename': 'econ_model.tar',
+                    'size_mb': 2500,
+                    'sha256': None
+                }
+            ],
+            'dest_dir_rel': 'ECON/data/ckpt',
+            'instructions': 'Visit https://github.com/YuliangXiu/ECON for additional model files'
+        }
+    }
+
+    def __init__(self, base_dir: Optional[Path] = None):
+        self.base_dir = base_dir or Path.home() / ".vfx_pipeline"
+
+    def download_file(self, url: str, dest: Path, expected_size_mb: Optional[int] = None) -> bool:
+        """Download file with progress tracking.
+
+        Args:
+            url: URL to download from
+            dest: Destination file path
+            expected_size_mb: Expected file size in MB (for validation)
+
+        Returns:
+            True if successful
+        """
+        try:
+            import requests
+        except ImportError:
+            print_warning("requests library not found, installing...")
+            subprocess.run([sys.executable, "-m", "pip", "install", "requests"], check=True)
+            import requests
+
+        try:
+            print(f"  Downloading from {url}...")
+            print(f"  -> {dest}")
+
+            # Ensure directory exists
+            dest.parent.mkdir(parents=True, exist_ok=True)
+
+            # Stream download with progress
+            response = requests.get(url, stream=True, timeout=30)
+            response.raise_for_status()
+
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded = 0
+
+            with open(dest, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+
+                        # Simple progress indicator
+                        if total_size > 0:
+                            pct = (downloaded / total_size) * 100
+                            mb_downloaded = downloaded / (1024 * 1024)
+                            mb_total = total_size / (1024 * 1024)
+                            print(f"\r  Progress: {pct:.1f}% ({mb_downloaded:.1f}/{mb_total:.1f} MB)", end='', flush=True)
+
+            print()  # New line after progress
+            print_success(f"Downloaded {dest.name}")
+            return True
+
+        except requests.exceptions.RequestException as e:
+            print_error(f"Download failed: {e}")
+            # Clean up partial download
+            if dest.exists():
+                dest.unlink()
+            return False
+
+    def verify_checksum(self, file_path: Path, expected_sha256: str) -> bool:
+        """Verify file checksum.
+
+        Args:
+            file_path: Path to file
+            expected_sha256: Expected SHA256 hash
+
+        Returns:
+            True if checksum matches
+        """
+        if not expected_sha256:
+            return True  # Skip verification if no checksum provided
+
+        print(f"  Verifying checksum for {file_path.name}...")
+        sha256_hash = hashlib.sha256()
+
+        try:
+            with open(file_path, 'rb') as f:
+                for chunk in iter(lambda: f.read(8192), b''):
+                    sha256_hash.update(chunk)
+
+            actual = sha256_hash.hexdigest()
+            if actual == expected_sha256:
+                print_success("Checksum verified")
+                return True
+            else:
+                print_error(f"Checksum mismatch: expected {expected_sha256}, got {actual}")
+                return False
+
+        except IOError as e:
+            print_error(f"Could not read file for checksum: {e}")
+            return False
+
+    def download_checkpoint(self, comp_id: str, state_manager: Optional['InstallationStateManager'] = None) -> bool:
+        """Download checkpoints for a component.
+
+        Args:
+            comp_id: Component ID (e.g., 'wham', 'tava', 'econ')
+            state_manager: Optional state manager for tracking
+
+        Returns:
+            True if successful or already downloaded
+        """
+        if comp_id not in self.CHECKPOINTS:
+            print_warning(f"No checkpoints defined for {comp_id}")
+            return True  # Not an error, just skip
+
+        # Check if already downloaded
+        if state_manager and state_manager.is_checkpoint_downloaded(comp_id):
+            print_success(f"{self.CHECKPOINTS[comp_id]['name']} already downloaded")
+            return True
+
+        checkpoint_info = self.CHECKPOINTS[comp_id]
+        print(f"\n{Colors.BOLD}Downloading {checkpoint_info['name']}...{Colors.ENDC}")
+
+        dest_dir = self.base_dir / checkpoint_info['dest_dir_rel']
+        dest_dir.mkdir(parents=True, exist_ok=True)
+
+        success = True
+        for file_info in checkpoint_info['files']:
+            dest_path = dest_dir / file_info['filename']
+
+            # Skip if already exists
+            if dest_path.exists():
+                print_success(f"{file_info['filename']} already exists")
+                continue
+
+            # Download
+            if not self.download_file(file_info['url'], dest_path, file_info.get('size_mb')):
+                success = False
+                break
+
+            # Verify checksum if provided
+            if file_info.get('sha256'):
+                if not self.verify_checksum(dest_path, file_info['sha256']):
+                    success = False
+                    dest_path.unlink()  # Remove corrupted file
+                    break
+
+        if success and state_manager:
+            state_manager.mark_checkpoint_downloaded(comp_id, dest_dir)
+
+        if not success:
+            print_error(f"Failed to download {checkpoint_info['name']}")
+            print_info(checkpoint_info['instructions'])
+
+        return success
+
+    def download_all_checkpoints(self, component_ids: List[str], state_manager: Optional['InstallationStateManager'] = None) -> bool:
+        """Download checkpoints for multiple components.
+
+        Args:
+            component_ids: List of component IDs
+            state_manager: Optional state manager
+
+        Returns:
+            True if all downloads successful
+        """
+        print_header("Downloading Checkpoints")
+
+        success = True
+        for comp_id in component_ids:
+            if comp_id in self.CHECKPOINTS:
+                if not self.download_checkpoint(comp_id, state_manager):
+                    success = False
+
+        return success
+
+
+class InstallationValidator:
+    """Validates installation with smoke tests."""
+
+    def __init__(self, conda_manager: 'CondaEnvironmentManager'):
+        self.conda_manager = conda_manager
+
+    def validate_python_imports(self) -> Dict[str, bool]:
+        """Test importing key Python packages.
+
+        Returns:
+            Dict mapping package name to success status
+        """
+        packages_to_test = [
+            ('numpy', 'numpy'),
+            ('cv2', 'opencv-python'),
+            ('PIL', 'Pillow'),
+            ('torch', 'PyTorch'),
+            ('smplx', 'SMPL-X'),
+            ('trimesh', 'trimesh'),
+        ]
+
+        results = {}
+        for import_name, display_name in packages_to_test:
+            try:
+                __import__(import_name)
+                results[display_name] = True
+            except ImportError:
+                results[display_name] = False
+
+        return results
+
+    def validate_pytorch_cuda(self) -> Tuple[bool, str]:
+        """Check if PyTorch can access CUDA.
+
+        Returns:
+            (success, message)
+        """
+        try:
+            import torch
+            if torch.cuda.is_available():
+                device_count = torch.cuda.device_count()
+                device_name = torch.cuda.get_device_name(0) if device_count > 0 else "Unknown"
+                return True, f"CUDA available: {device_count} device(s), {device_name}"
+            else:
+                return False, "CUDA not available (CPU-only mode)"
+        except ImportError:
+            return False, "PyTorch not installed"
+        except Exception as e:
+            return False, f"Error checking CUDA: {e}"
+
+    def validate_colmap(self) -> Tuple[bool, str]:
+        """Check if COLMAP is accessible.
+
+        Returns:
+            (success, message)
+        """
+        success, output = run_command(["colmap", "--version"], check=False, capture=True)
+        if success and output:
+            version = output.strip().split('\n')[0] if output else "unknown"
+            return True, f"COLMAP {version}"
+        return False, "COLMAP not found"
+
+    def validate_checkpoint_files(self, base_dir: Optional[Path] = None) -> Dict[str, bool]:
+        """Check if checkpoint files exist.
+
+        Args:
+            base_dir: Base directory for checkpoints
+
+        Returns:
+            Dict mapping component to checkpoint status
+        """
+        base_dir = base_dir or Path.home() / ".vfx_pipeline"
+        results = {}
+
+        checkpoints = {
+            'wham': base_dir / "WHAM" / "checkpoints" / "wham_vit_w_3dpw.pth.tar",
+            'tava': base_dir / "tava" / "checkpoints" / "tava_model.pth",
+            'econ': base_dir / "ECON" / "data" / "ckpt" / "econ_model.tar",
+        }
+
+        for comp_id, checkpoint_path in checkpoints.items():
+            results[comp_id] = checkpoint_path.exists()
+
+        return results
+
+    def validate_smplx_models(self) -> Tuple[bool, str]:
+        """Check if SMPL-X models are installed.
+
+        Returns:
+            (success, message)
+        """
+        smplx_dir = Path.home() / ".smplx"
+        if not smplx_dir.exists():
+            return False, "SMPL-X directory not found (~/.smplx/)"
+
+        # Look for model files
+        model_files = list(smplx_dir.glob("SMPLX_*.pkl"))
+        if model_files:
+            return True, f"Found {len(model_files)} SMPL-X model file(s)"
+        return False, "No SMPL-X model files found"
+
+    def run_all_tests(self) -> Dict[str, Dict]:
+        """Run all validation tests.
+
+        Returns:
+            Dict with test categories and results
+        """
+        results = {
+            'python_packages': self.validate_python_imports(),
+            'pytorch_cuda': self.validate_pytorch_cuda(),
+            'colmap': self.validate_colmap(),
+            'checkpoints': self.validate_checkpoint_files(),
+            'smplx_models': self.validate_smplx_models(),
+        }
+        return results
+
+    def print_validation_report(self, results: Dict[str, Dict]):
+        """Print formatted validation report.
+
+        Args:
+            results: Results from run_all_tests()
+        """
+        print_header("Installation Validation")
+
+        # Python packages
+        print("\n📦 Python Packages:")
+        for pkg, status in results['python_packages'].items():
+            if status:
+                print_success(f"{pkg}")
+            else:
+                print_error(f"{pkg} - not found")
+
+        # PyTorch CUDA
+        print("\n🎮 GPU Support:")
+        cuda_success, cuda_msg = results['pytorch_cuda']
+        if cuda_success:
+            print_success(cuda_msg)
+        else:
+            print_warning(cuda_msg)
+
+        # COLMAP
+        print("\n📐 COLMAP:")
+        colmap_success, colmap_msg = results['colmap']
+        if colmap_success:
+            print_success(colmap_msg)
+        else:
+            print_warning(colmap_msg)
+
+        # Checkpoints
+        print("\n🎯 Motion Capture Checkpoints:")
+        for comp, status in results['checkpoints'].items():
+            if status:
+                print_success(f"{comp.upper()} checkpoint found")
+            else:
+                print_info(f"{comp.upper()} checkpoint not found (install with wizard)")
+
+        # SMPL-X models
+        print("\n🧍 SMPL-X Models:")
+        smplx_success, smplx_msg = results['smplx_models']
+        if smplx_success:
+            print_success(smplx_msg)
+        else:
+            print_warning(smplx_msg)
+            print_info("Register at https://smpl-x.is.tue.mpg.de/ to download")
+
+    def validate_and_report(self):
+        """Run validation tests and print report."""
+        results = self.run_all_tests()
+        self.print_validation_report(results)
+
+
+class ConfigurationGenerator:
+    """Generates configuration files and activation scripts."""
+
+    def __init__(self, conda_manager: 'CondaEnvironmentManager', base_dir: Optional[Path] = None):
+        self.conda_manager = conda_manager
+        self.base_dir = base_dir or Path.home() / ".vfx_pipeline"
+
+    def generate_config_dict(self) -> Dict:
+        """Generate configuration dictionary.
+
+        Returns:
+            Configuration dict
+        """
+        python_exe = self.conda_manager.get_python_executable()
+
+        config = {
+            "version": "1.0",
+            "environment": self.conda_manager.env_name,
+            "paths": {
+                "base": str(self.base_dir),
+                "wham": str(self.base_dir / "WHAM"),
+                "tava": str(self.base_dir / "tava"),
+                "econ": str(self.base_dir / "ECON"),
+                "smplx_models": str(Path.home() / ".smplx"),
+            },
+            "python": str(python_exe) if python_exe else None,
+            "conda_activate": self.conda_manager.get_activation_command(),
+        }
+
+        return config
+
+    def write_config_file(self) -> Path:
+        """Write configuration to JSON file.
+
+        Returns:
+            Path to config file
+        """
+        config = self.generate_config_dict()
+        config_file = self.base_dir / "config.json"
+
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+
+        with open(config_file, 'w') as f:
+            json.dump(config, indent=2, fp=f)
+
+        print_success(f"Configuration saved to {config_file}")
+        return config_file
+
+    def generate_activation_script(self) -> str:
+        """Generate shell activation script.
+
+        Returns:
+            Activation script content
+        """
+        script = f"""#!/bin/bash
+# VFX Pipeline Environment Activation Script
+# Generated by installation wizard
+
+# Activate conda environment
+{self.conda_manager.get_activation_command()}
+
+# Set up Python path
+export PYTHONPATH="${{PYTHONPATH}}:{self.base_dir / "WHAM"}:{self.base_dir / "tava"}:{self.base_dir / "ECON"}"
+
+# Set up environment variables
+export VFX_PIPELINE_BASE="{self.base_dir}"
+export WHAM_DIR="{self.base_dir / "WHAM"}"
+export TAVA_DIR="{self.base_dir / "tava"}"
+export ECON_DIR="{self.base_dir / "ECON"}"
+export SMPLX_MODEL_DIR="{Path.home() / ".smplx"}"
+
+echo "✓ VFX Pipeline environment activated"
+echo "  Environment: {self.conda_manager.env_name}"
+echo "  Base directory: {self.base_dir}"
+echo ""
+echo "Available commands:"
+echo "  python scripts/run_pipeline.py --help"
+echo "  python scripts/run_mocap.py --help"
+"""
+        return script
+
+    def write_activation_script(self) -> Path:
+        """Write activation script to file.
+
+        Returns:
+            Path to activation script
+        """
+        script = self.generate_activation_script()
+        script_file = self.base_dir / "activate.sh"
+
+        with open(script_file, 'w') as f:
+            f.write(script)
+
+        # Make executable
+        script_file.chmod(0o755)
+
+        print_success(f"Activation script saved to {script_file}")
+        print_info(f"Source with: source {script_file}")
+        return script_file
+
+    def generate_all(self):
+        """Generate all configuration files."""
+        print_header("Generating Configuration")
+
+        self.write_config_file()
+        self.write_activation_script()
+
+        print()
+        print_info("Configuration complete!")
+        print_info(f"To activate the environment:")
+        print(f"  {Colors.OKBLUE}{self.conda_manager.get_activation_command()}{Colors.ENDC}")
+        print(f"  or")
+        print(f"  {Colors.OKBLUE}source {self.base_dir / 'activate.sh'}{Colors.ENDC}")
+
+
 class ComponentInstaller:
     """Base class for component installers."""
 
@@ -240,6 +1065,11 @@ class InstallationWizard:
 
     def __init__(self):
         self.components = {}
+        self.conda_manager = CondaEnvironmentManager()
+        self.state_manager = InstallationStateManager()
+        self.checkpoint_downloader = CheckpointDownloader()
+        self.validator = InstallationValidator(self.conda_manager)
+        self.config_generator = ConfigurationGenerator(self.conda_manager)
         self.setup_components()
 
     def setup_components(self):
@@ -325,6 +1155,38 @@ class InstallationWizard:
             ]
         }
 
+    def setup_conda_environment(self) -> bool:
+        """Set up conda environment."""
+        print_header("Conda Environment Setup")
+
+        # Check conda
+        is_ready, message = self.conda_manager.check_setup()
+        if not is_ready:
+            print_error(message)
+            print_info("Install from: https://docs.conda.io/en/latest/miniconda.html")
+            return False
+
+        print_info(message)
+
+        # Create environment if needed
+        if not self.conda_manager.environment_exists(self.conda_manager.env_name):
+            print_info(f"Creating dedicated environment '{self.conda_manager.env_name}'...")
+            if not self.conda_manager.create_environment():
+                return False
+            self.state_manager.set_environment(self.conda_manager.env_name)
+        else:
+            print_success(f"Environment '{self.conda_manager.env_name}' already exists")
+
+        # Show activation command
+        current_env = self.conda_manager.get_current_env()
+        if current_env != self.conda_manager.env_name:
+            print("\n" + "="*60)
+            print_info("After installation, activate the environment:")
+            print(f"  {Colors.OKBLUE}{self.conda_manager.get_activation_command()}{Colors.ENDC}")
+            print("="*60 + "\n")
+
+        return True
+
     def check_system_requirements(self):
         """Check system requirements."""
         print_header("System Requirements Check")
@@ -335,6 +1197,14 @@ class InstallationWizard:
             print_success(f"Python {py_version.major}.{py_version.minor}.{py_version.micro}")
         else:
             print_error(f"Python {py_version.major}.{py_version.minor} (3.8+ required)")
+            return False
+
+        # Conda
+        if self.conda_manager.detect_conda():
+            print_success(f"Conda available ({self.conda_manager.conda_exe})")
+        else:
+            print_error("Conda not found (required for environment management)")
+            print_info("Install from: https://docs.conda.io/en/latest/miniconda.html")
             return False
 
         # Git
@@ -486,24 +1356,62 @@ class InstallationWizard:
 
         print(f"\n{Colors.BOLD}Installing {comp_info['name']}...{Colors.ENDC}")
 
+        # Check if already completed
+        status = self.state_manager.get_component_status(comp_id)
+        if status == "completed":
+            print_success(f"{comp_info['name']} already installed (from previous run)")
+            return True
+
+        # Mark as started
+        self.state_manager.mark_component_started(comp_id)
+
         success = True
-        for installer in comp_info['installers']:
-            if not installer.check():
-                if not installer.install():
-                    success = False
-                    break
+        try:
+            for installer in comp_info['installers']:
+                if not installer.check():
+                    if not installer.install():
+                        success = False
+                        break
+                else:
+                    print_success(f"{installer.name} already installed")
+
+            if success:
+                self.state_manager.mark_component_completed(comp_id)
             else:
-                print_success(f"{installer.name} already installed")
+                self.state_manager.mark_component_failed(comp_id, "Installation failed")
+
+        except Exception as e:
+            self.state_manager.mark_component_failed(comp_id, str(e))
+            print_error(f"Error installing {comp_info['name']}: {e}")
+            success = False
 
         return success
 
-    def interactive_install(self, component: Optional[str] = None):
+    def interactive_install(self, component: Optional[str] = None, resume: bool = False):
         """Interactive installation flow."""
         print_header("VFX Pipeline Installation Wizard")
+
+        # Check for resumable installation
+        if not resume and self.state_manager.can_resume():
+            incomplete = self.state_manager.get_incomplete_components()
+            print_warning(f"Found incomplete installation from previous run:")
+            for comp_id in incomplete:
+                status = self.state_manager.get_component_status(comp_id)
+                print(f"  - {self.components.get(comp_id, {}).get('name', comp_id)}: {status}")
+
+            if ask_yes_no("\nResume previous installation?", default=True):
+                resume = True
+            else:
+                if ask_yes_no("Start fresh (clear previous state)?", default=False):
+                    self.state_manager.clear_state()
 
         # System requirements
         if not self.check_system_requirements():
             print_error("\nSystem requirements not met. Please install missing components.")
+            return False
+
+        # Conda environment setup
+        if not self.setup_conda_environment():
             return False
 
         # Check current status
@@ -569,9 +1477,23 @@ class InstallationWizard:
                     if self.components[comp_id]['required']:
                         return False
 
+        # Download checkpoints for motion capture components
+        mocap_components = [cid for cid in to_install if cid in ['wham', 'tava', 'econ']]
+        if mocap_components:
+            if ask_yes_no("\nDownload checkpoints for motion capture components?", default=True):
+                self.checkpoint_downloader.download_all_checkpoints(mocap_components, self.state_manager)
+
         # Final status
         final_status = self.check_all_components()
         self.print_status(final_status)
+
+        # Generate configuration files
+        if to_install:
+            self.config_generator.generate_all()
+
+        # Run validation tests
+        if to_install and ask_yes_no("\nRun installation validation tests?", default=True):
+            self.validator.validate_and_report()
 
         # Post-installation instructions
         self.print_post_install_instructions(final_status)
@@ -582,37 +1504,38 @@ class InstallationWizard:
         """Print post-installation instructions."""
         print_header("Next Steps")
 
-        # SMPL-X models
+        # SMPL-X models (manual download required - registration needed)
         if status.get('mocap_core', False):
-            print("\n📦 SMPL-X Body Models:")
+            print("\n📦 SMPL-X Body Models (Manual Download Required):")
             print("  1. Register at https://smpl-x.is.tue.mpg.de/")
             print("  2. Download SMPL-X models")
             print("  3. Place in ~/.smplx/")
             print("     mkdir -p ~/.smplx && cp SMPLX_*.pkl ~/.smplx/")
 
-        # WHAM checkpoints
-        if status.get('wham', False):
-            wham_dir = Path.home() / ".vfx_pipeline" / "WHAM"
-            print("\n📦 WHAM Checkpoints:")
-            print("  1. Visit https://github.com/yohanshin/WHAM")
-            print("  2. Download pretrained checkpoints")
-            print(f"  3. Place in {wham_dir}/checkpoints/")
+        # Checkpoints status
+        has_mocap = status.get('wham', False) or status.get('tava', False) or status.get('econ', False)
+        if has_mocap:
+            print("\n📦 Motion Capture Checkpoints:")
+            if status.get('wham', False):
+                if self.state_manager.is_checkpoint_downloaded('wham'):
+                    print("  ✓ WHAM checkpoints downloaded")
+                else:
+                    print("  ⚠ WHAM checkpoints not downloaded - run wizard again or visit:")
+                    print("    https://github.com/yohanshin/WHAM")
 
-        # TAVA checkpoints
-        if status.get('tava', False):
-            tava_dir = Path.home() / ".vfx_pipeline" / "tava"
-            print("\n📦 TAVA Checkpoints:")
-            print("  1. Visit https://github.com/facebookresearch/tava")
-            print("  2. Download pretrained models")
-            print(f"  3. Place in {tava_dir}/checkpoints/")
+            if status.get('tava', False):
+                if self.state_manager.is_checkpoint_downloaded('tava'):
+                    print("  ✓ TAVA checkpoints downloaded")
+                else:
+                    print("  ⚠ TAVA checkpoints not downloaded - run wizard again or visit:")
+                    print("    https://github.com/facebookresearch/tava")
 
-        # ECON checkpoints
-        if status.get('econ', False):
-            econ_dir = Path.home() / ".vfx_pipeline" / "ECON"
-            print("\n📦 ECON Checkpoints:")
-            print("  1. Visit https://github.com/YuliangXiu/ECON")
-            print("  2. Download pretrained models")
-            print(f"  3. Place in {econ_dir}/data/")
+            if status.get('econ', False):
+                if self.state_manager.is_checkpoint_downloaded('econ'):
+                    print("  ✓ ECON checkpoints downloaded")
+                else:
+                    print("  ⚠ ECON checkpoints not downloaded - run wizard again or visit:")
+                    print("    https://github.com/YuliangXiu/ECON")
 
         # ComfyUI
         print("\n🎨 ComfyUI Setup:")
@@ -652,6 +1575,16 @@ def main():
         action="store_true",
         help="Check installation status only (don't install)"
     )
+    parser.add_argument(
+        "--validate",
+        action="store_true",
+        help="Run validation tests on existing installation"
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume previous interrupted installation"
+    )
 
     args = parser.parse_args()
 
@@ -663,7 +1596,11 @@ def main():
         wizard.print_status(status)
         sys.exit(0)
 
-    success = wizard.interactive_install(component=args.component)
+    if args.validate:
+        wizard.validator.validate_and_report()
+        sys.exit(0)
+
+    success = wizard.interactive_install(component=args.component, resume=args.resume)
     sys.exit(0 if success else 1)
 
 
