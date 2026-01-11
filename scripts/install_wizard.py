@@ -456,7 +456,7 @@ class ProgressBarManager:
 
         # Check if tqdm is available for better progress bars
         try:
-            import tqdm
+            __import__('tqdm')
             self.use_tqdm = True
         except ImportError:
             pass
@@ -971,9 +971,9 @@ echo "  python scripts/run_mocap.py --help"
 
         print()
         print_info("Configuration complete!")
-        print_info(f"To activate the environment:")
+        print_info("To activate the environment:")
         print(f"  {Colors.OKBLUE}{self.conda_manager.get_activation_command()}{Colors.ENDC}")
-        print(f"  or")
+        print("  or")
         print(f"  {Colors.OKBLUE}source {self.base_dir / 'activate.sh'}{Colors.ENDC}")
 
 
@@ -1235,7 +1235,7 @@ class InstallationWizard:
         if has_gpu:
             print_success(f"GPU: {gpu_info}")
         else:
-            print_warning(f"No GPU detected - CPU-only mode (slower)")
+            print_warning("No GPU detected - CPU-only mode (slower)")
             print_info("Motion capture requires NVIDIA GPU with 12GB+ VRAM")
 
         # ffmpeg
@@ -1394,7 +1394,7 @@ class InstallationWizard:
         # Check for resumable installation
         if not resume and self.state_manager.can_resume():
             incomplete = self.state_manager.get_incomplete_components()
-            print_warning(f"Found incomplete installation from previous run:")
+            print_warning("Found incomplete installation from previous run:")
             for comp_id in incomplete:
                 status = self.state_manager.get_component_status(comp_id)
                 print(f"  - {self.components.get(comp_id, {}).get('name', comp_id)}: {status}")
