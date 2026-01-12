@@ -1732,6 +1732,92 @@ class InstallationWizard:
 
         return success
 
+    def setup_credentials(self, repo_root: Path) -> None:
+        """Prompt user to set up credentials for authenticated downloads.
+
+        Sets up:
+        - HF_TOKEN.dat for HuggingFace (SAM3, etc.)
+        - SMPL.login.dat for SMPL-X models (motion capture)
+        """
+        print_header("Credentials Setup")
+        print("Some components require authentication to download:")
+        print("  - SAM3 segmentation model (HuggingFace)")
+        print("  - SMPL-X body models (smpl-x.is.tue.mpg.de)")
+        print("")
+
+        # Check existing credentials
+        hf_token_file = repo_root / "HF_TOKEN.dat"
+        smpl_creds_file = repo_root / "SMPL.login.dat"
+
+        hf_exists = hf_token_file.exists()
+        smpl_exists = smpl_creds_file.exists()
+
+        if hf_exists and smpl_exists:
+            print_success("All credential files already exist")
+            if ask_yes_no("Update credentials?", default=False):
+                hf_exists = False
+                smpl_exists = False
+            else:
+                return
+
+        # HuggingFace token setup
+        if not hf_exists:
+            print(f"\n{Colors.BOLD}HuggingFace Token Setup{Colors.ENDC}")
+            print("Required for: SAM3 segmentation model")
+            print("Steps:")
+            print("  1. Request access at https://huggingface.co/facebook/sam3")
+            print("  2. Get token from https://huggingface.co/settings/tokens")
+            print("")
+
+            if ask_yes_no("Set up HuggingFace token now?", default=True):
+                token = tty_input("Enter your HuggingFace token (hf_...): ").strip()
+                if token:
+                    if token.startswith("hf_") or len(token) > 20:
+                        with open(hf_token_file, 'w') as f:
+                            f.write(token + '\n')
+                        hf_token_file.chmod(0o600)
+                        print_success(f"Token saved to {hf_token_file}")
+                    else:
+                        print_warning("Token looks invalid (should start with 'hf_')")
+                        if ask_yes_no("Save anyway?", default=False):
+                            with open(hf_token_file, 'w') as f:
+                                f.write(token + '\n')
+                            hf_token_file.chmod(0o600)
+                            print_success(f"Token saved to {hf_token_file}")
+                else:
+                    print_info("Skipped - you can add HF_TOKEN.dat later")
+            else:
+                print_info("Skipped - you can add HF_TOKEN.dat later")
+
+        # SMPL-X credentials setup
+        if not smpl_exists:
+            print(f"\n{Colors.BOLD}SMPL-X Credentials Setup{Colors.ENDC}")
+            print("Required for: Motion capture (WHAM, TAVA, ECON)")
+            print("Steps:")
+            print("  1. Register at https://smpl-x.is.tue.mpg.de/")
+            print("  2. Wait for approval email (usually within 24 hours)")
+            print("")
+
+            if ask_yes_no("Set up SMPL-X credentials now?", default=True):
+                email = tty_input("Enter your SMPL-X email: ").strip()
+                if email and '@' in email:
+                    password = tty_input("Enter your SMPL-X password: ").strip()
+                    if password:
+                        with open(smpl_creds_file, 'w') as f:
+                            f.write(email + '\n')
+                            f.write(password + '\n')
+                        # Set restrictive permissions
+                        smpl_creds_file.chmod(0o600)
+                        print_success(f"Credentials saved to {smpl_creds_file}")
+                    else:
+                        print_info("Skipped - you can add SMPL.login.dat later")
+                else:
+                    print_info("Skipped - you can add SMPL.login.dat later")
+            else:
+                print_info("Skipped - you can add SMPL.login.dat later")
+
+        print("")
+
     def interactive_install(self, component: Optional[str] = None, resume: bool = False):
         """Interactive installation flow."""
         print_header("VFX Pipeline Installation Wizard")
@@ -1762,6 +1848,9 @@ class InstallationWizard:
         # Check current status
         status = self.check_all_components()
         self.print_status(status)
+
+        # Set up credentials for authenticated downloads
+        self.setup_credentials(self.repo_root)
 
         # Determine what to install
         if component:
