@@ -208,8 +208,8 @@ def generate_smplx_meshes(
     print(f"\n  Generating {n_frames} SMPL-X meshes...")
 
     # Parse SMPL-X pose parameters
-    # WHAM outputs 72 values: 3 (global) + 21*3 (body joints) + 3*3 (jaw/leye/reye) = 72
-    # But SMPL-X expects separate body_pose, global_orient, etc.
+    # WHAM outputs 72 values: 3 (global) + 23*3 (body joints) = 72 (SMPL format)
+    # SMPL-X uses 21 body joints (63 values), so we take pose[3:66]
 
     for frame_idx in range(n_frames):
         # Extract pose components
@@ -315,7 +315,7 @@ def run_generation_pipeline(
         print(f"  SMPL-X models: {model_path}")
 
         # Load motion data
-        print(f"\nLoading motion data...")
+        print("\nLoading motion data...")
         motion_data = load_motion_data(motion_path)
 
         # Generate meshes
@@ -329,7 +329,7 @@ def run_generation_pipeline(
         )
 
         if success:
-            print(f"\n  SMPL-X mesh generation complete")
+            print("\n  SMPL-X mesh generation complete")
 
         return success
 

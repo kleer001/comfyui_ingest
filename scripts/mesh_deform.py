@@ -30,7 +30,6 @@ Example:
 """
 
 import argparse
-import json
 import sys
 from pathlib import Path
 from typing import Optional, Tuple, List, Dict
@@ -151,7 +150,9 @@ class UVTriangleLookup:
 
                     bary = self._compute_barycentric(uv, tri_uvs)
 
-                    if bary is not None and np.all(bary >= -1e-6):
+                    # Check if point is inside triangle (same criteria as main search)
+                    if (bary is not None and np.all(bary >= -1e-6)
+                            and np.abs(bary.sum() - 1.0) < 1e-6):
                         return face_idx, np.clip(bary, 0, 1)
 
         return -1, None
@@ -392,7 +393,7 @@ def build_correspondence(
         print(f"    Valid correspondence: {valid_count}/{n_target} ({coverage:.1f}%)")
 
         if coverage < 90:
-            print(f"    Warning: Low coverage - check UV overlap between meshes")
+            print("    Warning: Low coverage - check UV overlap between meshes")
 
     return corr
 
@@ -560,7 +561,7 @@ def create_default_smoothing_map(output_path: Path, resolution: int = 1024):
     img = Image.new('L', (resolution, resolution), color=128)
     img.save(output_path)
     print(f"  Created default smoothing map: {output_path}")
-    print(f"    Paint white for more smoothing, black for rigid")
+    print("    Paint white for more smoothing, black for rigid")
 
 
 # =============================================================================
@@ -651,7 +652,9 @@ def run_deformation_pipeline(
         source_faces = np.array(smplx_rest.faces)
         target_rest_verts = np.array(econ_rest.vertices)
         target_faces = np.array(econ_rest.faces)
-        target_uvs = np.array(econ_rest.visual.uv) if hasattr(econ_rest.visual, 'uv') else None
+        target_uvs = None
+        if hasattr(econ_rest.visual, 'uv') and econ_rest.visual.uv is not None:
+            target_uvs = np.array(econ_rest.visual.uv)
 
         # Process each frame
         print(f"\nDeforming {len(smplx_frames)} frames...")
@@ -745,7 +748,7 @@ def main():
         "--offset-mode",
         choices=["smooth", "rigid", "normal"],
         default="smooth",
-        help="How to transform offsets: smooth (linear), rigid (local frame), normal (along surface)"
+        help="How to transform offsets: smooth (linear), rigid (frame), normal (surface)"
     )
     parser.add_argument(
         "--cache",
