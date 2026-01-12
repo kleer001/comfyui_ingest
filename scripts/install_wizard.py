@@ -22,6 +22,9 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+# Import centralized environment configuration
+from env_config import CONDA_ENV_NAME, PYTHON_VERSION
+
 # Global TTY file handle for reading input when piped
 _tty_handle = None
 
@@ -184,10 +187,10 @@ def format_size_gb(size_gb: float) -> str:
 class CondaEnvironmentManager:
     """Manages conda environment creation and activation."""
 
-    def __init__(self, env_name: str = "vfx-pipeline"):
+    def __init__(self, env_name: str = CONDA_ENV_NAME):
         self.env_name = env_name
         self.conda_exe = None
-        self.python_version = "3.10"
+        self.python_version = PYTHON_VERSION
 
     def detect_conda(self) -> bool:
         """Check if conda is installed and available."""
