@@ -22,6 +22,33 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+# Global TTY file handle for reading input when piped
+_tty_handle = None
+
+
+def tty_input(prompt: str = "") -> str:
+    """Read input from TTY, even when stdin is piped.
+
+    This allows the script to work when run via: curl ... | bash
+    """
+    global _tty_handle
+
+    if sys.stdin.isatty():
+        # Normal interactive mode
+        return input(prompt)
+
+    # stdin is a pipe, read from /dev/tty instead
+    if _tty_handle is None:
+        try:
+            _tty_handle = open('/dev/tty', 'r')
+        except OSError:
+            # No TTY available (non-interactive), raise EOFError
+            raise EOFError("No TTY available for input")
+
+    if prompt:
+        print(prompt, end='', flush=True)
+    return _tty_handle.readline().rstrip('\n')
+
 
 class Colors:
     """Terminal colors for pretty output."""
@@ -67,7 +94,7 @@ def ask_yes_no(question: str, default: bool = True) -> bool:
     """Ask user yes/no question."""
     default_str = "Y/n" if default else "y/N"
     while True:
-        response = input(f"{question} [{default_str}]: ").strip().lower()
+        response = tty_input(f"{question} [{default_str}]: ").strip().lower()
         if not response:
             return default
         if response in ('y', 'yes'):
@@ -1705,6 +1732,92 @@ class InstallationWizard:
 
         return success
 
+    def setup_credentials(self, repo_root: Path) -> None:
+        """Prompt user to set up credentials for authenticated downloads.
+
+        Sets up:
+        - HF_TOKEN.dat for HuggingFace (SAM3, etc.)
+        - SMPL.login.dat for SMPL-X models (motion capture)
+        """
+        print_header("Credentials Setup")
+        print("Some components require authentication to download:")
+        print("  - SAM3 segmentation model (HuggingFace)")
+        print("  - SMPL-X body models (smpl-x.is.tue.mpg.de)")
+        print("")
+
+        # Check existing credentials
+        hf_token_file = repo_root / "HF_TOKEN.dat"
+        smpl_creds_file = repo_root / "SMPL.login.dat"
+
+        hf_exists = hf_token_file.exists()
+        smpl_exists = smpl_creds_file.exists()
+
+        if hf_exists and smpl_exists:
+            print_success("All credential files already exist")
+            if ask_yes_no("Update credentials?", default=False):
+                hf_exists = False
+                smpl_exists = False
+            else:
+                return
+
+        # HuggingFace token setup
+        if not hf_exists:
+            print(f"\n{Colors.BOLD}HuggingFace Token Setup{Colors.ENDC}")
+            print("Required for: SAM3 segmentation model")
+            print("Steps:")
+            print("  1. Request access at https://huggingface.co/facebook/sam3")
+            print("  2. Get token from https://huggingface.co/settings/tokens")
+            print("")
+
+            if ask_yes_no("Set up HuggingFace token now?", default=True):
+                token = tty_input("Enter your HuggingFace token (hf_...): ").strip()
+                if token:
+                    if token.startswith("hf_") or len(token) > 20:
+                        with open(hf_token_file, 'w') as f:
+                            f.write(token + '\n')
+                        hf_token_file.chmod(0o600)
+                        print_success(f"Token saved to {hf_token_file}")
+                    else:
+                        print_warning("Token looks invalid (should start with 'hf_')")
+                        if ask_yes_no("Save anyway?", default=False):
+                            with open(hf_token_file, 'w') as f:
+                                f.write(token + '\n')
+                            hf_token_file.chmod(0o600)
+                            print_success(f"Token saved to {hf_token_file}")
+                else:
+                    print_info("Skipped - you can add HF_TOKEN.dat later")
+            else:
+                print_info("Skipped - you can add HF_TOKEN.dat later")
+
+        # SMPL-X credentials setup
+        if not smpl_exists:
+            print(f"\n{Colors.BOLD}SMPL-X Credentials Setup{Colors.ENDC}")
+            print("Required for: Motion capture (WHAM, TAVA, ECON)")
+            print("Steps:")
+            print("  1. Register at https://smpl-x.is.tue.mpg.de/")
+            print("  2. Wait for approval email (usually within 24 hours)")
+            print("")
+
+            if ask_yes_no("Set up SMPL-X credentials now?", default=True):
+                email = tty_input("Enter your SMPL-X email: ").strip()
+                if email and '@' in email:
+                    password = tty_input("Enter your SMPL-X password: ").strip()
+                    if password:
+                        with open(smpl_creds_file, 'w') as f:
+                            f.write(email + '\n')
+                            f.write(password + '\n')
+                        # Set restrictive permissions
+                        smpl_creds_file.chmod(0o600)
+                        print_success(f"Credentials saved to {smpl_creds_file}")
+                    else:
+                        print_info("Skipped - you can add SMPL.login.dat later")
+                else:
+                    print_info("Skipped - you can add SMPL.login.dat later")
+            else:
+                print_info("Skipped - you can add SMPL.login.dat later")
+
+        print("")
+
     def interactive_install(self, component: Optional[str] = None, resume: bool = False):
         """Interactive installation flow."""
         print_header("VFX Pipeline Installation Wizard")
@@ -1736,6 +1849,9 @@ class InstallationWizard:
         status = self.check_all_components()
         self.print_status(status)
 
+        # Set up credentials for authenticated downloads
+        self.setup_credentials(self.repo_root)
+
         # Determine what to install
         if component:
             # Specific component requested
@@ -1757,7 +1873,7 @@ class InstallationWizard:
             print("5. Nothing (check only)")
 
             while True:
-                choice = input("\nChoice [1-5]: ").strip()
+                choice = tty_input("\nChoice [1-5]: ").strip()
                 if choice == '1':
                     to_install = ['core', 'pytorch']
                     break
