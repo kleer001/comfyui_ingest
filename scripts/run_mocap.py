@@ -27,14 +27,11 @@ Example:
 """
 
 import argparse
-import json
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional, List, Dict, Tuple
-
-import numpy as np
+from typing import Optional, List, Dict
 
 
 # Dependencies check results (cached)
@@ -346,89 +343,10 @@ def export_econ_meshes_to_sequence(
         return False
 
 
-def export_mesh_sequence_to_alembic(
-    mesh_sequence_file: Path,
-    output_file: Path,
-    fps: float = 24.0
-) -> bool:
-    """Export mesh sequence to Alembic format.
-
-    Args:
-        mesh_sequence_file: Mesh sequence file (.pkl)
-        output_file: Output Alembic file (.abc)
-        fps: Frame rate
-
-    Returns:
-        True if successful
-    """
-    print(f"\n{'=' * 60}")
-    print("Alembic Export")
-    print("=" * 60)
-    print(f"Input: {mesh_sequence_file}")
-    print(f"Output: {output_file}")
-    print(f"FPS: {fps}")
-    print()
-
-    try:
-        import pickle
-        import trimesh
-
-        # Load mesh sequence
-        with open(mesh_sequence_file, "rb") as f:
-            data = pickle.load(f)
-
-        meshes = data.get("meshes", [])
-        if not meshes:
-            print("Error: No meshes in sequence file", file=sys.stderr)
-            return False
-
-        print(f"  Frames: {len(meshes)}")
-        print(f"  Vertices: {len(meshes[0].vertices)}")
-        print(f"  Faces: {len(meshes[0].faces)}")
-
-        # Check for Alembic support
-        if not check_dependency("alembic", "alembic"):
-            print("Warning: Alembic support not available", file=sys.stderr)
-            print("Falling back to OBJ sequence export", file=sys.stderr)
-
-            # Export as OBJ sequence
-            obj_dir = output_file.parent / "obj_sequence"
-            obj_dir.mkdir(exist_ok=True)
-
-            for i, mesh in enumerate(meshes):
-                obj_file = obj_dir / f"frame_{i+1:04d}.obj"
-                mesh.export(str(obj_file))
-
-            print(f"  ✓ Exported to OBJ sequence: {obj_dir}")
-            return True
-
-        # TODO: Implement actual Alembic export
-        # This would use alembic-python or similar
-        print("  Note: Alembic export not yet implemented")
-        print("  Exporting as OBJ sequence instead")
-
-        obj_dir = output_file.parent / "obj_sequence"
-        obj_dir.mkdir(exist_ok=True)
-
-        for i, mesh in enumerate(meshes):
-            obj_file = obj_dir / f"frame_{i+1:04d}.obj"
-            mesh.export(str(obj_file))
-
-        print(f"  ✓ Exported: {obj_dir}")
-        return True
-
-    except Exception as e:
-        print(f"Error exporting mesh: {e}", file=sys.stderr)
-        import traceback
-        traceback.print_exc()
-        return False
-
-
 def run_mocap_pipeline(
     project_dir: Path,
     skip_texture: bool = False,
     keyframe_interval: int = 25,
-    fps: float = 24.0,
     test_stage: Optional[str] = None
 ) -> bool:
     """Run full motion capture pipeline.
@@ -437,7 +355,6 @@ def run_mocap_pipeline(
         project_dir: Project directory
         skip_texture: Skip texture projection (faster)
         keyframe_interval: ECON keyframe interval
-        fps: Frame rate for export
         test_stage: Test only specific stage (motion, econ, texture)
 
     Returns:
@@ -557,7 +474,7 @@ def run_mocap_pipeline(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Human motion capture with consistent topology",
+        description="Human motion capture with SMPL-X topology",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__
     )
@@ -582,12 +499,6 @@ def main():
         type=int,
         default=25,
         help="ECON keyframe interval in frames (default: 25)"
-    )
-    parser.add_argument(
-        "--fps",
-        type=float,
-        default=24.0,
-        help="Frame rate for export (default: 24.0)"
     )
     parser.add_argument(
         "--test-stage",
@@ -616,7 +527,6 @@ def main():
         project_dir=project_dir,
         skip_texture=args.skip_texture,
         keyframe_interval=args.keyframe_interval,
-        fps=args.fps,
         test_stage=args.test_stage
     )
 
