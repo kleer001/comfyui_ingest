@@ -4,7 +4,7 @@
 Guides users through installing all dependencies for:
 - Core pipeline (ComfyUI workflows, COLMAP, etc.)
 - Dynamic scene segmentation (SAM3)
-- Human motion capture (WHAM, TAVA, ECON)
+- Human motion capture (WHAM, ECON)
 
 Usage:
     python scripts/install_wizard.py
@@ -527,19 +527,6 @@ If automatic download fails, manually download from:
 Or run the fetch_demo_data.sh script from the WHAM repository:
   cd .vfx_pipeline/WHAM && bash fetch_demo_data.sh'''
         },
-        'tava': {
-            'name': 'TAVA',
-            'skip_download': True,  # No public pretrained checkpoints available
-            'files': [],
-            'dest_dir_rel': 'tava/checkpoints',
-            'instructions': '''TAVA does not provide pretrained model checkpoints.
-The repository (now archived) requires training from scratch using:
-  - ZJU-MoCap dataset (request access from ZJU authors)
-  - Synthetic animal datasets from the project website
-
-See https://github.com/facebookresearch/tava for training instructions.
-Note: TAVA requires SMPL models which need separate registration.'''
-        },
         'econ': {
             'name': 'ECON Checkpoints',
             'requires_auth': True,
@@ -930,7 +917,7 @@ Alternatively, run the fetch_data.sh script from the ECON repository.'''
         """Download checkpoints for a component.
 
         Args:
-            comp_id: Component ID (e.g., 'wham', 'tava', 'econ', 'smplx')
+            comp_id: Component ID (e.g., 'wham', 'econ', 'smplx')
             state_manager: Optional state manager for tracking
             repo_root: Repository root for finding credentials
 
@@ -949,7 +936,7 @@ Alternatively, run the fetch_data.sh script from the ECON repository.'''
         checkpoint_info = self.CHECKPOINTS[comp_id]
         print(f"\n{Colors.BOLD}Downloading {checkpoint_info['name']}...{Colors.ENDC}")
 
-        # Handle skip_download flag (e.g., TAVA has no public pretrained checkpoints)
+        # Handle skip_download flag (for components without available checkpoints)
         if checkpoint_info.get('skip_download'):
             print_warning(f"Automatic download not available for {checkpoint_info['name']}")
             print_info(checkpoint_info['instructions'])
@@ -1164,11 +1151,6 @@ class InstallationValidator:
         wham_ckpt = base_dir / "WHAM" / "checkpoints" / "wham_vit_w_3dpw.pth.tar"
         results['wham'] = wham_ckpt.exists()
 
-        # TAVA: No public pretrained checkpoints available
-        # Just check if the repository exists (training from scratch required)
-        tava_dir = base_dir / "tava"
-        results['tava'] = tava_dir.exists()
-
         # ECON: Check for extracted data from econ_data.zip
         econ_data_dir = base_dir / "ECON" / "data"
         if econ_data_dir.exists():
@@ -1289,7 +1271,6 @@ class ConfigurationGenerator:
             "paths": {
                 "base": str(self.base_dir),
                 "wham": str(self.base_dir / "WHAM"),
-                "tava": str(self.base_dir / "tava"),
                 "econ": str(self.base_dir / "ECON"),
                 "smplx_models": str(self.base_dir / "smplx_models"),
             },
@@ -1330,12 +1311,11 @@ class ConfigurationGenerator:
 {self.conda_manager.get_activation_command()}
 
 # Set up Python path
-export PYTHONPATH="${{PYTHONPATH}}:{self.base_dir / "WHAM"}:{self.base_dir / "tava"}:{self.base_dir / "ECON"}"
+export PYTHONPATH="${{PYTHONPATH}}:{self.base_dir / "WHAM"}:{self.base_dir / "ECON"}"
 
 # Set up environment variables
 export VFX_PIPELINE_BASE="{self.base_dir}"
 export WHAM_DIR="{self.base_dir / "WHAM"}"
-export TAVA_DIR="{self.base_dir / "tava"}"
 export ECON_DIR="{self.base_dir / "ECON"}"
 export SMPLX_MODEL_DIR="{self.base_dir / "smplx_models"}"
 
@@ -1568,20 +1548,6 @@ class InstallationWizard:
                     'https://github.com/yohanshin/WHAM.git',
                     self.install_dir / "WHAM",
                     size_gb=3.0  # Code + checkpoints
-                )
-            ]
-        }
-
-        # TAVA (code ~0.05GB + checkpoints ~1.5GB)
-        self.components['tava'] = {
-            'name': 'TAVA',
-            'required': False,
-            'installers': [
-                GitRepoInstaller(
-                    'TAVA',
-                    'https://github.com/facebookresearch/tava.git',
-                    self.install_dir / "tava",
-                    size_gb=2.0  # Code + checkpoints
                 )
             ]
         }
@@ -1935,7 +1901,7 @@ class InstallationWizard:
         # SMPL-X credentials setup
         if not smpl_exists:
             print(f"\n{Colors.BOLD}SMPL-X Credentials Setup{Colors.ENDC}")
-            print("Required for: Motion capture (WHAM, TAVA, ECON)")
+            print("Required for: Motion capture (WHAM, ECON)")
             print("Steps:")
             print("  1. Register at https://smpl-x.is.tue.mpg.de/")
             print("  2. Wait for approval email (usually within 24 hours)")
@@ -2024,7 +1990,7 @@ class InstallationWizard:
                     to_install = ['core', 'pytorch', 'comfyui']
                     break
                 elif choice == '3':
-                    to_install = ['core', 'pytorch', 'comfyui', 'mocap_core', 'wham', 'tava', 'econ']
+                    to_install = ['core', 'pytorch', 'comfyui', 'mocap_core', 'wham', 'econ']
                     break
                 elif choice == '4':
                     to_install = []
@@ -2059,7 +2025,7 @@ class InstallationWizard:
                         return False
 
         # Download checkpoints for motion capture components
-        mocap_components = [cid for cid in to_install if cid in ['wham', 'tava', 'econ']]
+        mocap_components = [cid for cid in to_install if cid in ['wham', 'econ']]
         if mocap_components:
             if ask_yes_no("\nDownload checkpoints for motion capture components?", default=True):
                 self.checkpoint_downloader.download_all_checkpoints(mocap_components, self.state_manager)
@@ -2094,7 +2060,7 @@ class InstallationWizard:
             print("     mkdir -p .vfx_pipeline/smplx_models && cp SMPLX_*.pkl .vfx_pipeline/smplx_models/")
 
         # Checkpoints status
-        has_mocap = status.get('wham', False) or status.get('tava', False) or status.get('econ', False)
+        has_mocap = status.get('wham', False) or status.get('econ', False)
         if has_mocap:
             print("\n📦 Motion Capture Checkpoints:")
             if status.get('wham', False):
@@ -2103,11 +2069,6 @@ class InstallationWizard:
                 else:
                     print("  ⚠ WHAM checkpoints not downloaded - run wizard again or visit:")
                     print("    https://github.com/yohanshin/WHAM")
-
-            if status.get('tava', False):
-                # TAVA has no public pretrained checkpoints - training from scratch required
-                print("  ℹ TAVA installed (no pretrained checkpoints available)")
-                print("    Training from scratch required - see https://github.com/facebookresearch/tava")
 
             if status.get('econ', False):
                 if self.state_manager.is_checkpoint_downloaded('econ'):
@@ -2150,7 +2111,7 @@ def main():
     parser.add_argument(
         "--component", "-C",
         type=str,
-        choices=['core', 'pytorch', 'colmap', 'mocap_core', 'wham', 'tava', 'econ', 'comfyui'],
+        choices=['core', 'pytorch', 'colmap', 'mocap_core', 'wham', 'econ', 'comfyui'],
         help="Install specific component"
     )
     parser.add_argument(
