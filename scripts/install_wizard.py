@@ -2280,12 +2280,13 @@ class InstallationWizard:
 
         Sets up:
         - HF_TOKEN.dat for HuggingFace (SAM3, etc.)
-        - SMPL.login.dat for SMPL-X models (motion capture)
+        - SMPL.login.dat for SMPL-X/ICON models (motion capture)
         """
         print_header("Credentials Setup")
         print("Some components require authentication to download:")
         print("  - SAM3 segmentation model (HuggingFace)")
         print("  - SMPL-X body models (smpl-x.is.tue.mpg.de)")
+        print("  - ECON checkpoints (icon.is.tue.mpg.de) - SEPARATE registration!")
         print("")
 
         # Check existing credentials
@@ -2307,9 +2308,12 @@ class InstallationWizard:
         if not hf_exists:
             print(f"\n{Colors.BOLD}HuggingFace Token Setup{Colors.ENDC}")
             print("Required for: SAM3 segmentation model")
+            print("")
             print("Steps:")
-            print("  1. Request access at https://huggingface.co/facebook/sam3")
-            print("  2. Get token from https://huggingface.co/settings/tokens")
+            print("  1. Go to https://huggingface.co/facebook/sam2.1-hiera-large")
+            print("  2. Click 'Agree and access repository' to accept the license")
+            print("  3. Go to https://huggingface.co/settings/tokens")
+            print("  4. Create a new token with 'Read' access")
             print("")
 
             if ask_yes_no("Set up HuggingFace token now?", default=True):
@@ -2332,19 +2336,29 @@ class InstallationWizard:
             else:
                 print_info("Skipped - you can add HF_TOKEN.dat later")
 
-        # SMPL-X credentials setup
+        # SMPL-X / ICON credentials setup
         if not smpl_exists:
-            print(f"\n{Colors.BOLD}SMPL-X Credentials Setup{Colors.ENDC}")
-            print("Required for: Motion capture (WHAM, ECON)")
+            print(f"\n{Colors.BOLD}SMPL-X / ICON Credentials Setup{Colors.ENDC}")
+            print("Required for: Motion capture (WHAM, ECON, SMPL-X body models)")
+            print("")
+            print(f"{Colors.WARNING}IMPORTANT: You need to register at TWO separate websites!{Colors.ENDC}")
+            print("")
+            print("Registration sites (same credentials work for both after registering):")
+            print("  1. SMPL-X models:    https://smpl-x.is.tue.mpg.de/")
+            print("  2. ECON checkpoints: https://icon.is.tue.mpg.de/")
+            print("")
             print("Steps:")
-            print("  1. Register at https://smpl-x.is.tue.mpg.de/")
-            print("  2. Wait for approval email (usually within 24 hours)")
+            print("  1. Register at https://smpl-x.is.tue.mpg.de/ (for SMPL-X body models)")
+            print("  2. Register at https://icon.is.tue.mpg.de/ (for ECON checkpoints)")
+            print("     NOTE: Use the SAME email/password for both registrations")
+            print("  3. Wait for approval emails (usually within 24-48 hours)")
+            print("  4. Once approved, enter your credentials below")
             print("")
 
-            if ask_yes_no("Set up SMPL-X credentials now?", default=True):
-                email = tty_input("Enter your SMPL-X email: ").strip()
+            if ask_yes_no("Set up SMPL-X/ICON credentials now?", default=True):
+                email = tty_input("Enter your registered email: ").strip()
                 if email and '@' in email:
-                    password = tty_input("Enter your SMPL-X password: ").strip()
+                    password = tty_input("Enter your password: ").strip()
                     if password:
                         with open(smpl_creds_file, 'w') as f:
                             f.write(email + '\n')
@@ -2352,6 +2366,7 @@ class InstallationWizard:
                         # Set restrictive permissions
                         smpl_creds_file.chmod(0o600)
                         print_success(f"Credentials saved to {smpl_creds_file}")
+                        print_info("These credentials work for both SMPL-X and ICON downloads")
                     else:
                         print_info("Skipped - you can add SMPL.login.dat later")
                 else:
