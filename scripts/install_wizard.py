@@ -692,6 +692,102 @@ Alternatively, run the fetch_data.sh script from the ECON repository.'''
             print_error(f"Could not read file for checksum: {e}")
             return False
 
+    def _install_gdown(self) -> Optional['module']:
+        """Install gdown handling PEP 668 externally-managed environments.
+
+        Tries multiple installation methods in order:
+        1. pipx (preferred for CLI tools)
+        2. pip with --user flag
+        3. pip with --break-system-packages (last resort)
+
+        Returns:
+            The gdown module if successful, None otherwise
+        """
+        install_methods = [
+            # Method 1: Try pipx (best for externally-managed environments)
+            {
+                'name': 'pipx',
+                'cmd': ['pipx', 'install', 'gdown'],
+                'check_cmd': ['pipx', 'list'],
+            },
+            # Method 2: Try pip with --user flag
+            {
+                'name': 'pip --user',
+                'cmd': [sys.executable, '-m', 'pip', 'install', '--user', 'gdown'],
+                'check_cmd': None,
+            },
+            # Method 3: Try pip with --break-system-packages (last resort)
+            {
+                'name': 'pip --break-system-packages',
+                'cmd': [sys.executable, '-m', 'pip', 'install', '--break-system-packages', 'gdown'],
+                'check_cmd': None,
+            },
+        ]
+
+        for method in install_methods:
+            # Check if the tool is available (for pipx)
+            if method['check_cmd']:
+                check_result = subprocess.run(
+                    method['check_cmd'],
+                    capture_output=True,
+                    text=True
+                )
+                if check_result.returncode != 0:
+                    continue
+
+            print_info(f"Trying to install gdown via {method['name']}...")
+            result = subprocess.run(
+                method['cmd'],
+                capture_output=True,
+                text=True
+            )
+
+            if result.returncode == 0:
+                print_success(f"Installed gdown via {method['name']}")
+                try:
+                    import gdown
+                    return gdown
+                except ImportError:
+                    # pipx installs to a different location, need to use subprocess
+                    # Check if gdown CLI is available
+                    gdown_check = subprocess.run(
+                        ['gdown', '--version'],
+                        capture_output=True,
+                        text=True
+                    )
+                    if gdown_check.returncode == 0:
+                        # gdown CLI is available, use wrapper class
+                        return self._create_gdown_cli_wrapper()
+                    continue
+            else:
+                # Check for PEP 668 error and try next method
+                if 'externally-managed-environment' in result.stderr:
+                    continue
+                # Other errors, log and try next method
+                print_warning(f"Failed with {method['name']}: {result.stderr[:100]}")
+
+        # All methods failed - provide manual instructions
+        print_error("Could not install gdown automatically.")
+        print_info("To install gdown manually, try one of these options:")
+        print("  1. Using pipx (recommended): pipx install gdown")
+        print("  2. Using pip with user flag: pip install --user gdown")
+        print("  3. In a virtual environment: python -m venv venv && source venv/bin/activate && pip install gdown")
+        return None
+
+    def _create_gdown_cli_wrapper(self):
+        """Create a wrapper object that mimics gdown module using CLI."""
+        class GdownCLIWrapper:
+            @staticmethod
+            def download(url, output, quiet=False):
+                cmd = ['gdown', url, '-O', output]
+                if quiet:
+                    cmd.append('--quiet')
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                if result.returncode == 0:
+                    return output
+                return None
+        return GdownCLIWrapper()
+
     def download_file_gdown(self, url: str, dest: Path, expected_size_mb: Optional[int] = None) -> bool:
         """Download file from Google Drive using gdown.
 
@@ -707,15 +803,9 @@ Alternatively, run the fetch_data.sh script from the ECON repository.'''
             import gdown
         except ImportError:
             print_warning("gdown library not found, installing...")
-            result = subprocess.run(
-                [sys.executable, "-m", "pip", "install", "gdown"],
-                capture_output=True,
-                text=True
-            )
-            if result.returncode != 0:
-                print_error(f"Failed to install gdown: {result.stderr}")
+            gdown = self._install_gdown()
+            if gdown is None:
                 return False
-            import gdown
 
         try:
             print(f"  Downloading from Google Drive...")
@@ -821,7 +911,20 @@ Alternatively, run the fetch_data.sh script from the ECON repository.'''
             import requests
         except ImportError:
             print_warning("requests library not found, installing...")
-            subprocess.run([sys.executable, "-m", "pip", "install", "requests"], check=True)
+            # Try pip with --user to handle PEP 668 externally-managed environments
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "--user", "requests"],
+                capture_output=True, text=True
+            )
+            if result.returncode != 0:
+                # Fall back to --break-system-packages if --user fails
+                result = subprocess.run(
+                    [sys.executable, "-m", "pip", "install", "--break-system-packages", "requests"],
+                    capture_output=True, text=True
+                )
+                if result.returncode != 0:
+                    print_error(f"Failed to install requests: {result.stderr}")
+                    return False
             import requests
 
         try:
@@ -841,6 +944,16 @@ Alternatively, run the fetch_data.sh script from the ECON repository.'''
             # Stream download with progress
             response = session.get(url, stream=True, timeout=30)
             response.raise_for_status()
+
+            # Check content-type to catch HTML error pages early
+            content_type = response.headers.get('content-type', '').lower()
+            if 'text/html' in content_type:
+                print_error("Server returned HTML instead of the expected file")
+                print_info("This usually means:")
+                print("  - Your credentials may be invalid or expired")
+                print("  - You may not have been approved for access yet")
+                print("  - The download URL may have changed")
+                return False
 
             total_size = int(response.headers.get('content-length', 0))
             downloaded = 0
@@ -887,6 +1000,59 @@ Alternatively, run the fetch_data.sh script from the ECON repository.'''
                 dest.unlink()
             return False
 
+    def _validate_zip_file(self, file_path: Path) -> Tuple[bool, str]:
+        """Validate that a file is actually a zip archive.
+
+        Args:
+            file_path: Path to the file to validate
+
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        import zipfile
+
+        # Check file exists and has content
+        if not file_path.exists():
+            return False, "File does not exist"
+
+        file_size = file_path.stat().st_size
+        if file_size == 0:
+            return False, "File is empty"
+
+        # Check magic bytes (PK signature for zip files)
+        try:
+            with open(file_path, 'rb') as f:
+                magic = f.read(4)
+
+            # Zip files start with PK\x03\x04 (regular) or PK\x05\x06 (empty archive)
+            if not (magic[:2] == b'PK'):
+                # Check if it's an HTML response (common error)
+                with open(file_path, 'rb') as f:
+                    start = f.read(500)
+
+                if b'<!DOCTYPE' in start or b'<html' in start.lower() or b'<HTML' in start:
+                    # Try to extract error message from HTML
+                    try:
+                        text = start.decode('utf-8', errors='ignore')
+                        return False, f"Server returned HTML instead of zip file. This usually means:\n" \
+                                      f"  - Authentication failed or session expired\n" \
+                                      f"  - You haven't been approved for access yet\n" \
+                                      f"  - The download link has changed"
+                    except Exception:
+                        pass
+                    return False, "Server returned HTML instead of zip file"
+
+                return False, f"File is not a zip archive (magic bytes: {magic.hex()})"
+
+            # Verify it's a valid zip structure
+            if not zipfile.is_zipfile(file_path):
+                return False, "File has zip signature but is not a valid zip archive (possibly truncated)"
+
+            return True, ""
+
+        except IOError as e:
+            return False, f"Could not read file: {e}"
+
     def extract_zip(self, zip_path: Path, dest_dir: Path) -> bool:
         """Extract zip file.
 
@@ -897,13 +1063,35 @@ Alternatively, run the fetch_data.sh script from the ECON repository.'''
         Returns:
             True if successful
         """
+        import zipfile
+
+        # Validate the zip file first
+        is_valid, error_msg = self._validate_zip_file(zip_path)
+        if not is_valid:
+            print_error(f"Invalid zip file: {error_msg}")
+            # Show file size for debugging
+            if zip_path.exists():
+                size_kb = zip_path.stat().st_size / 1024
+                print_info(f"Downloaded file size: {size_kb:.1f} KB")
+                if size_kb < 100:
+                    # Small file - likely an error page, show first few lines
+                    try:
+                        with open(zip_path, 'r', errors='ignore') as f:
+                            preview = f.read(500)
+                        print_info(f"File preview:\n{preview[:300]}...")
+                    except Exception:
+                        pass
+            return False
+
         try:
-            import zipfile
             print(f"  Extracting {zip_path.name}...")
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(dest_dir)
             print_success(f"Extracted to {dest_dir}")
             return True
+        except zipfile.BadZipFile as e:
+            print_error(f"Extraction failed - corrupted zip file: {e}")
+            return False
         except Exception as e:
             print_error(f"Extraction failed: {e}")
             return False
