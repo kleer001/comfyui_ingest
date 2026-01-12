@@ -22,6 +22,33 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+# Global TTY file handle for reading input when piped
+_tty_handle = None
+
+
+def tty_input(prompt: str = "") -> str:
+    """Read input from TTY, even when stdin is piped.
+
+    This allows the script to work when run via: curl ... | bash
+    """
+    global _tty_handle
+
+    if sys.stdin.isatty():
+        # Normal interactive mode
+        return input(prompt)
+
+    # stdin is a pipe, read from /dev/tty instead
+    if _tty_handle is None:
+        try:
+            _tty_handle = open('/dev/tty', 'r')
+        except OSError:
+            # No TTY available (non-interactive), raise EOFError
+            raise EOFError("No TTY available for input")
+
+    if prompt:
+        print(prompt, end='', flush=True)
+    return _tty_handle.readline().rstrip('\n')
+
 
 class Colors:
     """Terminal colors for pretty output."""
@@ -67,7 +94,7 @@ def ask_yes_no(question: str, default: bool = True) -> bool:
     """Ask user yes/no question."""
     default_str = "Y/n" if default else "y/N"
     while True:
-        response = input(f"{question} [{default_str}]: ").strip().lower()
+        response = tty_input(f"{question} [{default_str}]: ").strip().lower()
         if not response:
             return default
         if response in ('y', 'yes'):
@@ -1757,7 +1784,7 @@ class InstallationWizard:
             print("5. Nothing (check only)")
 
             while True:
-                choice = input("\nChoice [1-5]: ").strip()
+                choice = tty_input("\nChoice [1-5]: ").strip()
                 if choice == '1':
                     to_install = ['core', 'pytorch']
                     break

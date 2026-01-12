@@ -38,7 +38,7 @@ echo ""
 # Clone or update repository
 if [ -d "$INSTALL_DIR" ]; then
     echo "Directory $INSTALL_DIR already exists."
-    read -p "Update existing installation? (y/N): " -n 1 -r
+    read -p "Update existing installation? (y/N): " -n 1 -r < /dev/tty
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         echo "Updating repository..."
