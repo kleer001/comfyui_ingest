@@ -108,7 +108,7 @@ SAM3 requires requesting access on HuggingFace:
    your.email@example.com
    your_password_here
    ```
-4. Run wizard - models download automatically to `~/.smplx/`
+4. Run wizard - models download automatically to `.vfx_pipeline/smplx_models/`
 
 **Template file**: Copy `SMPL.login.dat.template` and fill in credentials.
 
