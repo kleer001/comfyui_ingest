@@ -228,8 +228,7 @@ python scripts/run_mocap.py <project_dir> [options]
 **Options**:
 - `--skip-texture` - Skip texture projection (faster)
 - `--keyframe-interval` - ECON keyframe interval (default: 25)
-- `--fps` - Frame rate (default: 24.0)
-- `--gender` - SMPL-X gender: `neutral`, `male`, `female` (default: `neutral`)
+- `--test-stage` - Test specific stage: `motion`, `econ`, `texture`
 - `--check` - Validate installation without processing
 
 ### Examples
