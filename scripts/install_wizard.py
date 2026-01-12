@@ -534,7 +534,7 @@ Or run the fetch_demo_data.sh script from the WHAM repository:
             'name': 'ECON Checkpoints',
             'requires_auth': True,
             'auth_type': 'basic',
-            'auth_file': 'SMPL.login.dat',
+            'auth_file': 'ECON.login.dat',
             'files': [
                 {
                     'url': 'https://download.is.tue.mpg.de/download.php?domain=icon&sfile=econ_data.zip&resume=1',
@@ -545,10 +545,10 @@ Or run the fetch_demo_data.sh script from the WHAM repository:
                 }
             ],
             'dest_dir_rel': 'ECON/data',
-            'instructions': '''ECON checkpoints require registration (same as SMPL-X):
+            'instructions': '''ECON checkpoints require SEPARATE registration from SMPL-X:
 1. Register at https://icon.is.tue.mpg.de/
 2. Wait for approval email (usually within 24 hours)
-3. Create SMPL.login.dat in repository root with:
+3. Create ECON.login.dat in repository root with:
    Line 1: your email
    Line 2: your password
 4. Re-run the wizard to download models
@@ -2280,7 +2280,8 @@ class InstallationWizard:
 
         Sets up:
         - HF_TOKEN.dat for HuggingFace (SAM3, etc.)
-        - SMPL.login.dat for SMPL-X/ICON models (motion capture)
+        - SMPL.login.dat for SMPL-X body models (motion capture)
+        - ECON.login.dat for ECON checkpoints (clothed human reconstruction)
         """
         print_header("Credentials Setup")
         print("Some components require authentication to download:")
@@ -2292,15 +2293,18 @@ class InstallationWizard:
         # Check existing credentials
         hf_token_file = repo_root / "HF_TOKEN.dat"
         smpl_creds_file = repo_root / "SMPL.login.dat"
+        econ_creds_file = repo_root / "ECON.login.dat"
 
         hf_exists = hf_token_file.exists()
         smpl_exists = smpl_creds_file.exists()
+        econ_exists = econ_creds_file.exists()
 
-        if hf_exists and smpl_exists:
+        if hf_exists and smpl_exists and econ_exists:
             print_success("All credential files already exist")
             if ask_yes_no("Update credentials?", default=False):
                 hf_exists = False
                 smpl_exists = False
+                econ_exists = False
             else:
                 return
 
@@ -2336,34 +2340,26 @@ class InstallationWizard:
             else:
                 print_info("Skipped - you can add HF_TOKEN.dat later")
 
-        # SMPL-X / ICON credentials setup
+        # SMPL-X credentials setup
         if not smpl_exists:
-            print(f"\n{Colors.BOLD}SMPL-X / ICON Credentials Setup{Colors.ENDC}")
-            print("Required for: Motion capture pipeline")
+            print(f"\n{Colors.BOLD}SMPL-X Credentials Setup{Colors.ENDC}")
+            print("Required for: Body model (skeleton, mesh topology, UV layout)")
             print("")
-            print(f"{Colors.WARNING}IMPORTANT: You need to register at TWO separate websites!{Colors.ENDC}")
+            print("SMPL-X provides the parametric body model - the 'rigged character'")
+            print("that can be posed and animated with consistent vertex ordering.")
             print("")
-            print("What each provides:")
-            print("  SMPL-X: Parametric body model - defines the skeleton, mesh topology,")
-            print("          and UV layout. This is the 'rigged character' that gets animated.")
-            print("")
-            print("  ECON:   Clothed human reconstruction - takes video frames and creates")
-            print("          a detailed 3D mesh with clothing, using SMPL-X as the body prior.")
-            print("")
-            print("Registration sites:")
-            print("  1. SMPL-X: https://smpl-x.is.tue.mpg.de/")
-            print("  2. ECON:   https://icon.is.tue.mpg.de/")
+            print("Registration: https://smpl-x.is.tue.mpg.de/")
             print("")
             print("Steps:")
-            print("  1. Register at both websites (separate accounts)")
-            print("  2. Wait for approval emails (usually within 24-48 hours each)")
-            print("  3. Once approved, enter your credentials below")
+            print("  1. Register at the website above")
+            print("  2. Wait for approval email (usually within 24-48 hours)")
+            print("  3. Enter your credentials below")
             print("")
 
-            if ask_yes_no("Set up SMPL-X/ICON credentials now?", default=True):
-                email = tty_input("Enter your registered email: ").strip()
+            if ask_yes_no("Set up SMPL-X credentials now?", default=True):
+                email = tty_input("Enter your SMPL-X registered email: ").strip()
                 if email and '@' in email:
-                    password = tty_input("Enter your password: ").strip()
+                    password = tty_input("Enter your SMPL-X password: ").strip()
                     if password:
                         with open(smpl_creds_file, 'w') as f:
                             f.write(email + '\n')
@@ -2377,6 +2373,42 @@ class InstallationWizard:
                     print_info("Skipped - you can add SMPL.login.dat later")
             else:
                 print_info("Skipped - you can add SMPL.login.dat later")
+
+        # ECON credentials setup (separate from SMPL-X)
+        if not econ_exists:
+            print(f"\n{Colors.BOLD}ECON Credentials Setup{Colors.ENDC}")
+            print("Required for: Clothed human reconstruction from video")
+            print("")
+            print("ECON takes video frames and creates a detailed 3D mesh with clothing,")
+            print("using SMPL-X as the underlying body prior.")
+            print("")
+            print(f"{Colors.WARNING}NOTE: This is a SEPARATE registration from SMPL-X!{Colors.ENDC}")
+            print("")
+            print("Registration: https://icon.is.tue.mpg.de/")
+            print("")
+            print("Steps:")
+            print("  1. Register at the website above (separate from SMPL-X)")
+            print("  2. Wait for approval email (usually within 24-48 hours)")
+            print("  3. Enter your credentials below")
+            print("")
+
+            if ask_yes_no("Set up ECON credentials now?", default=True):
+                email = tty_input("Enter your ECON registered email: ").strip()
+                if email and '@' in email:
+                    password = tty_input("Enter your ECON password: ").strip()
+                    if password:
+                        with open(econ_creds_file, 'w') as f:
+                            f.write(email + '\n')
+                            f.write(password + '\n')
+                        # Set restrictive permissions
+                        econ_creds_file.chmod(0o600)
+                        print_success(f"Credentials saved to {econ_creds_file}")
+                    else:
+                        print_info("Skipped - you can add ECON.login.dat later")
+                else:
+                    print_info("Skipped - you can add ECON.login.dat later")
+            else:
+                print_info("Skipped - you can add ECON.login.dat later")
 
         print("")
 
