@@ -115,16 +115,16 @@ Alternatively, run the fetch_data.sh script from the ECON repository.'''
             'name': 'Video Depth Anything Model',
             'requires_auth': False,  # Public model
             'use_huggingface': True,  # Use huggingface_hub snapshot_download
-            'hf_repo_id': 'depth-anything/Metric-Video-Depth-Anything-Large',
+            'hf_repo_id': 'depth-anything/Video-Depth-Anything-Small',
             'files': [
                 {
-                    'filename': 'metric_video_depth_anything_vitl.pth',
-                    'size_mb': 1000,
+                    'filename': 'video_depth_anything_vits.pth',
+                    'size_mb': 120,  # Small model is ~116MB
                 }
             ],
             'dest_dir_rel': 'ComfyUI/models/videodepthanything',
-            'instructions': '''Video Depth Anything model will be downloaded from HuggingFace.
-This is a public model designed for temporally consistent video depth estimation.'''
+            'instructions': '''Video Depth Anything Small model will be downloaded from HuggingFace.
+This model uses ~6.8GB VRAM (vs 23.6GB for Large), suitable for most GPUs.'''
         }
     }
 

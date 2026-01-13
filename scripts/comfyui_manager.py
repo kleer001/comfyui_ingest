@@ -21,9 +21,9 @@ COMFYUI_DIR = INSTALL_DIR / "ComfyUI"
 _comfyui_process: Optional[subprocess.Popen] = None
 
 # Video Depth Anything model configuration
-# For temporally consistent depth estimation on long videos
-VIDEO_DEPTH_MODEL_REPO = "depth-anything/Metric-Video-Depth-Anything-Large"
-VIDEO_DEPTH_MODEL_NAME = "metric_video_depth_anything_vitl.pth"
+# Using Small model (~6.8GB VRAM) instead of Large (~23.6GB VRAM)
+VIDEO_DEPTH_MODEL_REPO = "depth-anything/Video-Depth-Anything-Small"
+VIDEO_DEPTH_MODEL_NAME = "video_depth_anything_vits.pth"
 VIDEO_DEPTH_MODEL_DIR = "videodepthanything"
 
 

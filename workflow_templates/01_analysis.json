@@ -33,7 +33,7 @@
         {"name": "VDAMODEL", "type": "VDAMODEL", "links": [2], "slot_index": 0}
       ],
       "properties": {"Node name for S&R": "LoadVideoDepthAnythingModel"},
-      "widgets_values": ["metric_video_depth_anything_vitl.pth"],
+      "widgets_values": ["video_depth_anything_vits.pth"],
       "title": "Load Video Depth Model"
     },
     {
