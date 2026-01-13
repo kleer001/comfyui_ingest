@@ -44,6 +44,8 @@ def parse_progress_line(line: str, current_stage: str, stages: list) -> Optional
         "stage_complete": r"(?:Completed|Finished|Done):\s*(\w+)",
         # COLMAP specific
         "colmap_progress": r"Registered\s+(\d+)\s*/\s*(\d+)\s+images",
+        # FFmpeg progress: "frame=  142 fps=..." or "[FFmpeg] Extracting frame 42/200"
+        "ffmpeg_progress": r"\[FFmpeg\]\s*Extracting\s+frame\s+(\d+)\s*/\s*(\d+)",
     }
 
     result = {}
@@ -77,6 +79,15 @@ def parse_progress_line(line: str, current_stage: str, stages: list) -> Optional
 
     # Check for COLMAP progress
     match = re.search(patterns["colmap_progress"], line)
+    if match:
+        current = int(match.group(1))
+        total = int(match.group(2))
+        result["frame"] = current
+        result["total_frames"] = total
+        result["progress"] = current / total if total > 0 else 0
+
+    # Check for FFmpeg progress
+    match = re.search(patterns["ffmpeg_progress"], line)
     if match:
         current = int(match.group(1))
         total = int(match.group(2))

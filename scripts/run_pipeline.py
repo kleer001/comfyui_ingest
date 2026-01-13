@@ -55,6 +55,24 @@ def run_command(cmd: list[str], description: str, check: bool = True) -> subproc
     return result
 
 
+def get_frame_count(input_path: Path) -> int:
+    """Get total frame count from video using ffprobe."""
+    cmd = [
+        "ffprobe", "-v", "error",
+        "-select_streams", "v:0",
+        "-count_frames",
+        "-show_entries", "stream=nb_read_frames",
+        "-of", "csv=p=0",
+        str(input_path)
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        return int(result.stdout.strip())
+    except (ValueError, AttributeError):
+        # Fallback: try duration-based estimate
+        return 0
+
+
 def extract_frames(
     input_path: Path,
     output_dir: Path,
@@ -66,8 +84,18 @@ def extract_frames(
     Returns:
         Number of frames extracted
     """
+    import re
+
     output_dir.mkdir(parents=True, exist_ok=True)
     output_pattern = output_dir / "frame_%04d.png"
+
+    # Get total frame count for progress reporting
+    print(f"  → Analyzing video for frame count...")
+    total_frames = get_frame_count(input_path)
+    if total_frames > 0:
+        print(f"    Video contains {total_frames} frames")
+    else:
+        print(f"    Frame count unknown, progress will be estimated")
 
     cmd = ["ffmpeg", "-i", str(input_path)]
 
@@ -81,7 +109,43 @@ def extract_frames(
         "-y"  # Overwrite
     ])
 
-    run_command(cmd, f"Extracting frames to {output_dir}")
+    print(f"  → Extracting frames to {output_dir}")
+    print(f"    $ {' '.join(cmd)}")
+
+    # Run FFmpeg with progress streaming (FFmpeg outputs to stderr)
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    # Parse FFmpeg stderr for frame progress
+    # FFmpeg outputs: "frame=  142 fps=145 q=2.0 Lsize=N/A..."
+    frame_pattern = re.compile(r'frame=\s*(\d+)')
+    last_reported = 0
+    report_interval = max(1, total_frames // 100) if total_frames > 0 else 10  # Report ~100 updates
+
+    for line in process.stderr:
+        match = frame_pattern.search(line)
+        if match:
+            current_frame = int(match.group(1))
+            # Only report progress periodically to avoid flooding
+            if current_frame - last_reported >= report_interval or current_frame == total_frames:
+                if total_frames > 0:
+                    print(f"[FFmpeg] Extracting frame {current_frame}/{total_frames}")
+                else:
+                    print(f"[FFmpeg] Extracting frame {current_frame}")
+                last_reported = current_frame
+                sys.stdout.flush()
+
+    process.wait()
+
+    if process.returncode != 0:
+        # Read any remaining stderr
+        stderr_output = process.stderr.read() if process.stderr else ""
+        print(f"    Error during extraction: {stderr_output}", file=sys.stderr)
+        raise subprocess.CalledProcessError(process.returncode, cmd)
 
     # Count extracted frames
     frames = list(output_dir.glob("frame_*.png"))
@@ -342,7 +406,7 @@ def run_pipeline(
 
     # Stage: Ingest
     if "ingest" in stages:
-        print("\n[Ingest]")
+        print("\n=== Stage: ingest ===")
         if skip_existing and list(source_frames.glob("frame_*.png")):
             print("  → Skipping (frames exist)")
         else:
@@ -351,7 +415,7 @@ def run_pipeline(
 
     # Stage: Depth
     if "depth" in stages:
-        print("\n[Depth Analysis]")
+        print("\n=== Stage: depth ===")
         workflow_path = project_dir / "workflows" / "01_analysis.json"
         if not workflow_path.exists():
             print("  → Skipping (workflow not found)")
@@ -364,7 +428,7 @@ def run_pipeline(
 
     # Stage: Roto
     if "roto" in stages:
-        print("\n[Segmentation]")
+        print("\n=== Stage: roto ===")
         workflow_path = project_dir / "workflows" / "02_segmentation.json"
         if not workflow_path.exists():
             print("  → Skipping (workflow not found)")
@@ -377,7 +441,7 @@ def run_pipeline(
 
     # Stage: Cleanplate
     if "cleanplate" in stages:
-        print("\n[Clean Plate]")
+        print("\n=== Stage: cleanplate ===")
         workflow_path = project_dir / "workflows" / "03_cleanplate.json"
         if not workflow_path.exists():
             print("  → Skipping (workflow not found)")
@@ -390,7 +454,7 @@ def run_pipeline(
 
     # Stage: COLMAP reconstruction
     if "colmap" in stages:
-        print("\n[COLMAP Reconstruction]")
+        print("\n=== Stage: colmap ===")
         colmap_sparse = project_dir / "colmap" / "sparse" / "0"
         if skip_existing and colmap_sparse.exists():
             print("  → Skipping (COLMAP sparse model exists)")
@@ -408,7 +472,7 @@ def run_pipeline(
 
     # Stage: Motion capture
     if "mocap" in stages:
-        print("\n[Motion Capture]")
+        print("\n=== Stage: mocap ===")
         mocap_output = project_dir / "mocap" / "econ" / "mesh_sequence"
         camera_dir = project_dir / "camera"
         if not camera_dir.exists() or not (camera_dir / "extrinsics.json").exists():
@@ -426,7 +490,7 @@ def run_pipeline(
 
     # Stage: GS-IR material decomposition
     if "gsir" in stages:
-        print("\n[GS-IR Material Decomposition]")
+        print("\n=== Stage: gsir ===")
         colmap_sparse = project_dir / "colmap" / "sparse" / "0"
         gsir_checkpoint = project_dir / "gsir" / "model" / f"chkpnt{gsir_iterations}.pth"
         if not colmap_sparse.exists():
@@ -445,7 +509,7 @@ def run_pipeline(
 
     # Stage: Camera export
     if "camera" in stages:
-        print("\n[Camera Export]")
+        print("\n=== Stage: camera ===")
         camera_dir = project_dir / "camera"
         if not (camera_dir / "extrinsics.json").exists():
             print("  → Skipping (no camera data - run depth or colmap stage first)")
