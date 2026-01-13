@@ -139,6 +139,22 @@ python scripts/run_pipeline.py footage.mp4 -s all -e
 
 See **[docs/run_pipeline.md](docs/run_pipeline.md)** for complete documentation.
 
+## Web Interface
+
+Prefer a GUI? Launch the web interface:
+
+```bash
+./start_web.py
+```
+
+This opens a browser-based interface where you can:
+- **Drag-and-drop** or **browse** to upload videos
+- Select processing stages with presets (Quick/Full/Everything)
+- Monitor real-time progress with WebSocket updates
+- Browse and download outputs when complete
+
+The web server runs locally at `http://localhost:5000`. See **[docs/web_gui_plan.md](docs/web_gui_plan.md)** for architecture details.
+
 ## Maintenance
 
 Keep your installation healthy with the janitor tool:
