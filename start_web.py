@@ -22,6 +22,25 @@ def main():
     parser.add_argument("--host", default="127.0.0.1", help="Server host (default: 127.0.0.1)")
     args = parser.parse_args()
 
+    # Check conda environment first
+    try:
+        from env_config import require_conda_env
+        require_conda_env()  # Exits with helpful message if wrong env
+    except ImportError:
+        # env_config not found - check manually
+        import os
+        conda_env = os.environ.get("CONDA_DEFAULT_ENV")
+        if conda_env != "vfx-pipeline":
+            print("""
+ERROR: Wrong conda environment.
+
+Please activate the VFX Pipeline environment first:
+    conda activate vfx-pipeline
+
+Then re-run this script.
+""")
+            sys.exit(1)
+
     # Check for required dependencies
     try:
         import uvicorn
@@ -30,19 +49,12 @@ def main():
 ERROR: Web GUI dependencies not installed.
 
 Install them with:
-    pip install fastapi uvicorn python-multipart websockets
+    pip install fastapi uvicorn python-multipart websockets jinja2
 
-Or run the janitor to install all updates:
-    python scripts/janitor.py -u
+Or run the install wizard:
+    python scripts/install_wizard.py
 """)
         sys.exit(1)
-
-    # Check conda environment
-    try:
-        from env_config import check_conda_env_or_warn
-        check_conda_env_or_warn()
-    except ImportError:
-        pass  # Not critical, continue anyway
 
     url = f"http://{args.host}:{args.port}"
 
