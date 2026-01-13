@@ -145,6 +145,9 @@ def convert_workflow_to_api_format(workflow: dict, comfyui_url: str = DEFAULT_CO
 
             for i, value in enumerate(widget_values):
                 if i < len(non_connected_widgets) and value is not None:
+                    # Skip UI-only state indicators that shouldn't be passed to the API
+                    if isinstance(value, str) and value in ("Disabled", "disabled", "None", "none"):
+                        continue
                     inputs[non_connected_widgets[i]] = value
 
         api_workflow[node_id] = {
