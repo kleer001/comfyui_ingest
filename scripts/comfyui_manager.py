@@ -43,6 +43,9 @@ def _predownload_depth_model(comfyui_path: Path, model_name: str = DEFAULT_DA3_M
     This avoids the BrokenPipeError that occurs when HuggingFace downloads
     happen during ComfyUI workflow execution (when stderr is wrapped).
 
+    Downloads to HF cache via snapshot_download(), then copies to ComfyUI models
+    folder so the DepthAnythingV3 node finds it without calling snapshot_download().
+
     Args:
         comfyui_path: Path to ComfyUI installation
         model_name: Model filename (e.g., "da3metric_large.safetensors")
@@ -50,36 +53,47 @@ def _predownload_depth_model(comfyui_path: Path, model_name: str = DEFAULT_DA3_M
     Returns:
         True if model is available (downloaded or already exists)
     """
+    import shutil
+
     if model_name not in DA3_MODEL_REPOS:
         print(f"  Unknown model: {model_name}", file=sys.stderr)
         return False
 
+    # Check if model already exists in ComfyUI models folder
     models_dir = comfyui_path / "models" / "depthanything3"
     model_path = models_dir / model_name
-
-    # Check if already downloaded
     if model_path.exists():
         return True
 
     repo_id = DA3_MODEL_REPOS[model_name]
-    print(f"  Downloading {model_name} from HuggingFace ({repo_id})...")
-
-    # Ensure models directory exists
-    models_dir.mkdir(parents=True, exist_ok=True)
+    print(f"  Pre-downloading {model_name} from HuggingFace ({repo_id})...")
 
     try:
         # Import here to avoid import errors if huggingface_hub not installed
-        from huggingface_hub import hf_hub_download
+        from huggingface_hub import snapshot_download
 
-        # Download with progress bars enabled (safe before ComfyUI starts)
-        downloaded_path = hf_hub_download(
+        # Download to HF cache (with progress bar - safe before ComfyUI starts)
+        cache_dir = snapshot_download(
             repo_id=repo_id,
-            filename=model_name,
-            local_dir=str(models_dir),
-            local_dir_use_symlinks=False,
+            allow_patterns=["*.safetensors"],
         )
-        print(f"  Model downloaded: {model_name}")
-        return True
+
+        # Find the downloaded safetensors file and copy to ComfyUI models folder
+        cache_path = Path(cache_dir)
+        safetensor_files = list(cache_path.glob("*.safetensors"))
+
+        if safetensor_files:
+            # Ensure models directory exists
+            models_dir.mkdir(parents=True, exist_ok=True)
+
+            # Copy the first safetensors file (repos typically have one)
+            src_file = safetensor_files[0]
+            shutil.copy2(src_file, model_path)
+            print(f"  Model ready: {model_name}")
+            return True
+        else:
+            print(f"  Warning: No safetensors file found in {repo_id}", file=sys.stderr)
+            return False
 
     except ImportError:
         print("  Warning: huggingface_hub not installed, skipping pre-download", file=sys.stderr)
