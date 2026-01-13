@@ -84,8 +84,6 @@ def extract_frames(
     Returns:
         Number of frames extracted
     """
-    import re
-
     output_dir.mkdir(parents=True, exist_ok=True)
     output_pattern = output_dir / "frame_%04d.png"
 
@@ -105,6 +103,8 @@ def extract_frames(
     cmd.extend([
         "-start_number", str(start_frame),
         "-q:v", "2",  # High quality
+        "-progress", "pipe:1",  # Output progress to stdout in parseable format
+        "-nostats",  # Disable default stderr stats (we use -progress instead)
         str(output_pattern),
         "-y"  # Overwrite
     ])
@@ -112,37 +112,40 @@ def extract_frames(
     print(f"  → Extracting frames to {output_dir}")
     print(f"    $ {' '.join(cmd)}")
 
-    # Run FFmpeg with progress streaming (FFmpeg outputs to stderr)
+    # Run FFmpeg with progress streaming
+    # Using -progress pipe:1 outputs line-by-line "key=value" format to stdout
     process = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        bufsize=1,  # Line buffered
     )
 
-    # Parse FFmpeg stderr for frame progress
-    # FFmpeg outputs: "frame=  142 fps=145 q=2.0 Lsize=N/A..."
-    frame_pattern = re.compile(r'frame=\s*(\d+)')
+    # Parse FFmpeg progress output (format: "frame=142\nfps=30.0\n...progress=continue\n")
     last_reported = 0
-    report_interval = max(1, total_frames // 100) if total_frames > 0 else 10  # Report ~100 updates
+    report_interval = max(1, total_frames // 100) if total_frames > 0 else 10
 
-    for line in process.stderr:
-        match = frame_pattern.search(line)
-        if match:
-            current_frame = int(match.group(1))
-            # Only report progress periodically to avoid flooding
-            if current_frame - last_reported >= report_interval or current_frame == total_frames:
-                if total_frames > 0:
-                    print(f"[FFmpeg] Extracting frame {current_frame}/{total_frames}")
-                else:
-                    print(f"[FFmpeg] Extracting frame {current_frame}")
-                last_reported = current_frame
-                sys.stdout.flush()
+    for line in process.stdout:
+        line = line.strip()
+        if line.startswith("frame="):
+            try:
+                current_frame = int(line.split("=")[1])
+                # Only report progress periodically to avoid flooding
+                if current_frame - last_reported >= report_interval or current_frame == total_frames:
+                    if total_frames > 0:
+                        print(f"[FFmpeg] Extracting frame {current_frame}/{total_frames}")
+                    else:
+                        print(f"[FFmpeg] Extracting frame {current_frame}")
+                    last_reported = current_frame
+                    sys.stdout.flush()
+            except (ValueError, IndexError):
+                pass
 
     process.wait()
 
     if process.returncode != 0:
-        # Read any remaining stderr
+        # Read stderr for error message
         stderr_output = process.stderr.read() if process.stderr else ""
         print(f"    Error during extraction: {stderr_output}", file=sys.stderr)
         raise subprocess.CalledProcessError(process.returncode, cmd)
