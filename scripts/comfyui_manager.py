@@ -17,8 +17,49 @@ from comfyui_utils import DEFAULT_COMFYUI_URL, check_comfyui_running
 # ComfyUI installation path
 COMFYUI_DIR = INSTALL_DIR / "ComfyUI"
 
+# Path to our custom node that patches flush errors
+REPO_ROOT = Path(__file__).parent.parent
+PATCH_NODE_SRC = REPO_ROOT / "comfyui_custom_nodes" / "vfx_pipeline_patch"
+
 # Global process handle
 _comfyui_process: Optional[subprocess.Popen] = None
+
+
+def _install_patch_node(comfyui_path: Path) -> bool:
+    """Install our custom node that patches flush errors.
+
+    Creates a symlink from ComfyUI's custom_nodes to our patch node.
+    This automatically applies the BrokenPipeError fix when ComfyUI starts.
+    """
+    custom_nodes_dir = comfyui_path / "custom_nodes"
+    patch_link = custom_nodes_dir / "vfx_pipeline_patch"
+
+    # Check if source exists
+    if not PATCH_NODE_SRC.exists():
+        return False
+
+    # Create custom_nodes dir if needed
+    custom_nodes_dir.mkdir(parents=True, exist_ok=True)
+
+    # Check if already installed
+    if patch_link.exists():
+        if patch_link.is_symlink() and patch_link.resolve() == PATCH_NODE_SRC.resolve():
+            return True  # Already correctly linked
+        # Remove old link/dir
+        if patch_link.is_symlink():
+            patch_link.unlink()
+        elif patch_link.is_dir():
+            import shutil
+            shutil.rmtree(patch_link)
+
+    # Create symlink
+    try:
+        patch_link.symlink_to(PATCH_NODE_SRC)
+        print("  Installed VFX Pipeline patch node")
+        return True
+    except OSError as e:
+        print(f"  Warning: Could not install patch node: {e}", file=sys.stderr)
+        return False
 
 
 def get_comfyui_path() -> Optional[Path]:
@@ -135,27 +176,19 @@ def start_comfyui(
     """
     global _comfyui_process
 
-    # Find ComfyUI installation first (needed for patching)
+    # Find ComfyUI installation first
     comfyui_path = get_comfyui_path()
     if not comfyui_path:
         print(f"ComfyUI not found at {COMFYUI_DIR}", file=sys.stderr)
         print("Run the install wizard to install ComfyUI", file=sys.stderr)
         return False
 
-    # Check and apply logger patch if needed (fixes BrokenPipeError)
-    needs_patch, reason = _check_comfyui_needs_patch(comfyui_path)
-    patch_applied = False
-
-    if needs_patch:
-        print(f"  ComfyUI logger needs patch: {reason}")
-        patch_applied = _patch_comfyui_logger(comfyui_path)
+    # Install our patch node (fixes BrokenPipeError via custom node)
+    _install_patch_node(comfyui_path)
 
     # Check if already running
     if is_comfyui_running(url):
         print("ComfyUI already running")
-        if patch_applied:
-            print("  Warning: Logger patch applied - restart ComfyUI to take effect!")
-            print("  Run: pkill -f 'ComfyUI/main.py' && restart the pipeline")
         return True
 
     print(f"Starting ComfyUI from {comfyui_path}...")
