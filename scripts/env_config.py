@@ -35,11 +35,15 @@ PYTHON_VERSION = "3.10"
 # Repo root directory (comfyui_ingest/)
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# Installation directory for tools (ComfyUI, WHAM, ECON, models)
+# This stays inside/near the repo as it's tooling, not project data
+INSTALL_DIR = _REPO_ROOT / ".vfx_pipeline"
+
 # Default location for VFX projects (sibling to repo, not inside it)
 DEFAULT_PROJECTS_DIR = _REPO_ROOT.parent / "vfx_projects"
 
-# Path to the generated activation script (inside repo)
-ACTIVATION_SCRIPT = _REPO_ROOT / "activate.sh"
+# Path to the generated activation script
+ACTIVATION_SCRIPT = INSTALL_DIR / "activate.sh"
 
 
 # =============================================================================
