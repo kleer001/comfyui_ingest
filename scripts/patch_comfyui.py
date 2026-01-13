@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Patch ComfyUI to fix BrokenPipeError during model downloads.
 
-This script patches ComfyUI's logger.py to handle flush errors gracefully,
-which prevents crashes when HuggingFace downloads models with tqdm progress bars.
+This script checks if ComfyUI needs patching and applies fixes if necessary.
+It only patches if the vulnerable code pattern is detected - does nothing
+if already patched or if ComfyUI has the fix upstream.
 
 Usage:
     python scripts/patch_comfyui.py
+    python scripts/patch_comfyui.py --check  # Just check, don't patch
+    python scripts/patch_comfyui.py --comfyui-path /path/to/ComfyUI
 
 Run this once after installing ComfyUI, then restart ComfyUI for changes to take effect.
 """
@@ -23,73 +26,97 @@ except ImportError:
     DEFAULT_COMFYUI_DIR = Path(__file__).parent.parent / ".vfx_pipeline" / "ComfyUI"
 
 
-def patch_logger(comfyui_path: Path) -> bool:
+def check_needs_patch(logger_path: Path) -> tuple[bool, str]:
+    """Check if logger.py needs the BrokenPipeError patch.
+
+    Returns:
+        (needs_patch, reason) tuple
+    """
+    if not logger_path.exists():
+        return False, "file not found"
+
+    content = logger_path.read_text()
+
+    # Check if already has error handling (patched or fixed upstream)
+    if "except (OSError, ValueError)" in content:
+        return False, "already patched by this script"
+
+    if "except OSError" in content or "except BrokenPipeError" in content:
+        return False, "already fixed upstream (has OSError/BrokenPipeError handling)"
+
+    # Check for the vulnerable pattern: flush without try/except
+    vulnerable_patterns = [
+        r"def flush\(self\):\n        super\(\)\.flush\(\)",  # 8-space indent
+        r"def flush\(self\):\n    super\(\)\.flush\(\)",      # 4-space indent
+    ]
+
+    for pattern in vulnerable_patterns:
+        if re.search(pattern, content):
+            return True, "vulnerable pattern found (flush without error handling)"
+
+    # Check if flush method exists at all
+    if "def flush(self)" in content:
+        return False, "flush method exists but has different structure (may be safe)"
+
+    return False, "no flush method found"
+
+
+def patch_logger(comfyui_path: Path, dry_run: bool = False) -> bool:
     """Patch ComfyUI's logger.py to handle flush errors gracefully.
 
-    This fixes BrokenPipeError that occurs when tqdm/progress bars
-    try to write to stderr and the flush fails.
+    Args:
+        comfyui_path: Path to ComfyUI installation
+        dry_run: If True, only check and report, don't modify
 
-    See: https://github.com/Comfy-Org/ComfyUI/pull/11629
+    Returns:
+        True if patch was applied (or would be applied in dry_run)
     """
     logger_path = comfyui_path / "app" / "logger.py"
 
-    if not logger_path.exists():
-        print(f"  Logger file not found: {logger_path}")
+    print(f"  Checking: {logger_path}")
+    needs_patch, reason = check_needs_patch(logger_path)
+
+    if not needs_patch:
+        print(f"  Status: No patch needed ({reason})")
         return False
 
-    print(f"  Checking: {logger_path}")
-    content = logger_path.read_text()
+    print(f"  Status: {reason}")
 
-    # Check if already patched
-    if "except (OSError, ValueError)" in content:
-        print("  Already patched!")
+    if dry_run:
+        print("  Action: Would patch (dry-run mode)")
         return True
 
-    # Try different patterns that might exist in logger.py
-    patterns = [
-        # Pattern 1: Simple flush with 8-space indent
-        (
-            r"def flush\(self\):\n        super\(\)\.flush\(\)",
-            """def flush(self):
-        try:
-            super().flush()
-        except (OSError, ValueError):
-            pass  # Ignore flush errors (BrokenPipe, etc.)"""
-        ),
-        # Pattern 2: With 4-space indent
-        (
-            r"def flush\(self\):\n    super\(\)\.flush\(\)",
-            """def flush(self):
     try:
-        super().flush()
-    except (OSError, ValueError):
-        pass  # Ignore flush errors (BrokenPipe, etc.)"""
-        ),
-    ]
+        content = logger_path.read_text()
 
-    for pattern, replacement in patterns:
-        if re.search(pattern, content):
-            patched = re.sub(pattern, replacement, content)
-            logger_path.write_text(patched)
-            print("  Patched successfully!")
-            return True
+        # Apply patch based on detected pattern
+        patterns = [
+            ("def flush(self):\n        super().flush()", "        "),
+            ("def flush(self):\n    super().flush()", "    "),
+        ]
 
-    # If no pattern matched, show what we found
-    print("  Could not find flush method to patch.")
-    print("  Looking for 'def flush' in the file...")
+        for old_pattern, indent in patterns:
+            if old_pattern in content:
+                new_pattern = f"""def flush(self):
+{indent}try:
+{indent}    super().flush()
+{indent}except (OSError, ValueError):
+{indent}    pass  # Ignore flush errors (BrokenPipe, etc.)"""
+                patched = content.replace(old_pattern, new_pattern)
+                logger_path.write_text(patched)
+                print("  Action: Patched successfully!")
+                return True
 
-    # Find any flush method
-    flush_match = re.search(r"(def flush\(self\):.*?)(?=\n    def |\n        def |\Z)", content, re.DOTALL)
-    if flush_match:
-        print(f"  Found flush method:\n{flush_match.group(1)[:200]}")
-    else:
-        print("  No flush method found in logger.py")
+        print("  Action: Pattern not found for patching")
+        return False
 
-    return False
+    except Exception as e:
+        print(f"  Error: {e}")
+        return False
 
 
-def patch_prestartup(comfyui_path: Path) -> bool:
-    """Check for and patch ComfyUI-Manager's prestartup_script.py if present."""
+def patch_prestartup(comfyui_path: Path, dry_run: bool = False) -> bool:
+    """Check for and patch ComfyUI-Manager's prestartup_script.py if needed."""
     prestartup_paths = [
         comfyui_path / "custom_nodes" / "ComfyUI-Manager" / "prestartup_script.py",
         comfyui_path / "custom_nodes" / "comfyui-manager" / "prestartup_script.py",
@@ -103,34 +130,77 @@ def patch_prestartup(comfyui_path: Path) -> bool:
         content = prestartup_path.read_text()
 
         # Check if already patched
-        if "except (OSError, ValueError)" in content and "flush" in content:
-            print("  Already patched!")
+        if "except (OSError, ValueError)" in content and "original_stderr.flush" in content:
+            print("  Status: Already patched")
+            return False
+
+        # Look for vulnerable flush function
+        pattern = r"def flush\(self\):\n        self\.original_stderr\.flush\(\)"
+        if not re.search(pattern, content):
+            print("  Status: No vulnerable pattern found")
+            return False
+
+        print("  Status: Vulnerable pattern found")
+
+        if dry_run:
+            print("  Action: Would patch (dry-run mode)")
             return True
 
-        # Look for flush function that needs patching
-        pattern = r"def flush\(self\):\n        self\.original_stderr\.flush\(\)"
         replacement = """def flush(self):
         try:
             self.original_stderr.flush()
         except (OSError, ValueError):
             pass  # Ignore flush errors"""
 
-        if re.search(pattern, content):
-            patched = re.sub(pattern, replacement, content)
-            prestartup_path.write_text(patched)
-            print("  Patched successfully!")
-            return True
+        patched = re.sub(pattern, replacement, content)
+        prestartup_path.write_text(patched)
+        print("  Action: Patched successfully!")
+        return True
 
-        print("  No patchable flush method found")
-
+    print("  ComfyUI-Manager prestartup_script.py not found (optional)")
     return False
+
+
+def get_comfyui_version(comfyui_path: Path) -> str:
+    """Try to get ComfyUI version from various sources."""
+    # Try pyproject.toml
+    pyproject = comfyui_path / "pyproject.toml"
+    if pyproject.exists():
+        content = pyproject.read_text()
+        match = re.search(r'version\s*=\s*"([^"]+)"', content)
+        if match:
+            return match.group(1)
+
+    # Try git describe
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["git", "describe", "--tags", "--always"],
+            cwd=comfyui_path,
+            capture_output=True,
+            text=True
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+
+    return "unknown"
 
 
 def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Patch ComfyUI to fix BrokenPipeError during model downloads"
+        description="Patch ComfyUI to fix BrokenPipeError during model downloads",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+This script only patches if the vulnerable code pattern is detected.
+If ComfyUI already has the fix (either from this script or upstream),
+no changes will be made.
+
+See: https://github.com/Comfy-Org/ComfyUI/pull/11629
+"""
     )
     parser.add_argument(
         "--comfyui-path",
@@ -138,46 +208,59 @@ def main():
         default=DEFAULT_COMFYUI_DIR,
         help=f"Path to ComfyUI installation (default: {DEFAULT_COMFYUI_DIR})"
     )
+    parser.add_argument(
+        "--check", "-c",
+        action="store_true",
+        help="Only check if patching is needed, don't modify files"
+    )
 
     args = parser.parse_args()
     comfyui_path = args.comfyui_path.resolve()
 
-    print(f"ComfyUI Patcher")
-    print(f"===============")
+    print("ComfyUI Patch Checker")
+    print("=" * 50)
     print(f"ComfyUI path: {comfyui_path}")
-    print()
 
     if not comfyui_path.exists():
-        print(f"Error: ComfyUI not found at {comfyui_path}")
+        print(f"\nError: ComfyUI not found at {comfyui_path}")
         print("Use --comfyui-path to specify the correct location")
         sys.exit(1)
 
     if not (comfyui_path / "main.py").exists():
-        print(f"Error: {comfyui_path} doesn't look like a ComfyUI installation")
+        print(f"\nError: {comfyui_path} doesn't look like a ComfyUI installation")
         print("(main.py not found)")
         sys.exit(1)
 
-    print("Patching logger.py...")
-    logger_patched = patch_logger(comfyui_path)
+    version = get_comfyui_version(comfyui_path)
+    print(f"ComfyUI version: {version}")
+    print(f"Mode: {'Check only' if args.check else 'Patch if needed'}")
+    print()
+
+    print("Checking logger.py...")
+    logger_patched = patch_logger(comfyui_path, dry_run=args.check)
 
     print()
-    print("Checking ComfyUI-Manager prestartup_script.py...")
-    prestartup_patched = patch_prestartup(comfyui_path)
+    print("Checking ComfyUI-Manager...")
+    prestartup_patched = patch_prestartup(comfyui_path, dry_run=args.check)
 
     print()
     print("=" * 50)
-    if logger_patched or prestartup_patched:
-        print("Patches applied successfully!")
-        print()
-        print("IMPORTANT: Restart ComfyUI for changes to take effect.")
-        print()
-        print("If ComfyUI is running via the pipeline, stop and restart it:")
-        print("  1. Stop the current pipeline/web server")
-        print("  2. Kill any running ComfyUI process")
-        print("  3. Start the pipeline again")
+
+    if args.check:
+        if logger_patched or prestartup_patched:
+            print("Result: Patches ARE needed")
+            print("Run without --check to apply patches")
+            sys.exit(1)
+        else:
+            print("Result: No patches needed")
+            sys.exit(0)
     else:
-        print("No patches were applied.")
-        print("The files may already be patched or have a different structure.")
+        if logger_patched or prestartup_patched:
+            print("Result: Patches applied!")
+            print()
+            print("IMPORTANT: Restart ComfyUI for changes to take effect.")
+        else:
+            print("Result: No patches were needed")
 
 
 if __name__ == "__main__":

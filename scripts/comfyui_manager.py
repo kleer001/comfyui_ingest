@@ -33,41 +33,87 @@ def is_comfyui_running(url: str = DEFAULT_COMFYUI_URL) -> bool:
     return check_comfyui_running(url)
 
 
+def _check_comfyui_needs_patch(comfyui_path: Path) -> tuple[bool, str]:
+    """Check if ComfyUI's logger.py needs the BrokenPipeError patch.
+
+    Returns:
+        (needs_patch, reason) tuple
+    """
+    logger_path = comfyui_path / "app" / "logger.py"
+
+    if not logger_path.exists():
+        return False, "logger.py not found"
+
+    content = logger_path.read_text()
+
+    # Check if already has error handling (patched or fixed upstream)
+    if "except (OSError, ValueError)" in content:
+        return False, "already patched"
+
+    if "except OSError" in content or "except BrokenPipeError" in content:
+        return False, "already fixed upstream"
+
+    # Check for the vulnerable pattern: flush without try/except
+    vulnerable_pattern = "def flush(self):\n        super().flush()"
+    if vulnerable_pattern in content:
+        return True, "vulnerable pattern found"
+
+    # Check alternate indentation
+    vulnerable_pattern_alt = "def flush(self):\n    super().flush()"
+    if vulnerable_pattern_alt in content:
+        return True, "vulnerable pattern found (4-space indent)"
+
+    return False, "flush method not found or different structure"
+
+
 def _patch_comfyui_logger(comfyui_path: Path) -> bool:
     """Patch ComfyUI's logger.py to handle flush errors gracefully.
+
+    Only patches if the vulnerable code pattern is detected.
+    Does nothing if already patched or fixed upstream.
 
     This fixes BrokenPipeError that can occur when tqdm/progress bars
     try to write to stderr and the flush fails.
 
     See: https://github.com/Comfy-Org/ComfyUI/pull/11629
+
+    Returns:
+        True if patch was applied this run, False otherwise
     """
     logger_path = comfyui_path / "app" / "logger.py"
-    if not logger_path.exists():
+
+    # Check if patching is needed
+    needs_patch, reason = _check_comfyui_needs_patch(comfyui_path)
+
+    if not needs_patch:
+        # No action needed - either already fixed or not applicable
         return False
 
     try:
         content = logger_path.read_text()
 
-        # Check if already patched
-        if "except (OSError, ValueError)" in content:
-            return True  # Already patched
+        # Apply patch based on detected pattern
+        patched = False
+        for old_pattern, indent in [
+            ("def flush(self):\n        super().flush()", "        "),
+            ("def flush(self):\n    super().flush()", "    "),
+        ]:
+            if old_pattern in content:
+                new_pattern = f"""def flush(self):
+{indent}try:
+{indent}    super().flush()
+{indent}except (OSError, ValueError):
+{indent}    pass  # Ignore flush errors (BrokenPipe, etc.)"""
+                content = content.replace(old_pattern, new_pattern)
+                patched = True
+                break
 
-        # Find the flush method and patch it
-        old_flush = "def flush(self):\n        super().flush()"
-        new_flush = """def flush(self):
-        try:
-            super().flush()
-        except (OSError, ValueError):
-            pass  # Ignore flush errors (BrokenPipe, etc.)"""
-
-        if old_flush in content:
-            patched = content.replace(old_flush, new_flush)
-            logger_path.write_text(patched)
+        if patched:
+            logger_path.write_text(content)
             print("  Patched ComfyUI logger.py to handle flush errors")
             return True
-        else:
-            # Try alternate pattern (may have different indentation)
-            return False
+
+        return False
 
     except Exception as e:
         print(f"  Warning: Could not patch ComfyUI logger: {e}", file=sys.stderr)
