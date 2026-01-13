@@ -37,14 +37,13 @@ DEFAULT_DA3_MODEL = "da3metric_large.safetensors"
 
 
 def _predownload_depth_model(comfyui_path: Path, model_name: str = DEFAULT_DA3_MODEL) -> bool:
-    """Pre-download Depth Anything V3 model to avoid HuggingFace download during workflow.
+    """Ensure Depth Anything V3 model is available before ComfyUI starts.
 
-    Downloads BEFORE ComfyUI starts, so tqdm progress bars work normally.
-    This avoids the BrokenPipeError that occurs when HuggingFace downloads
-    happen during ComfyUI workflow execution (when stderr is wrapped).
+    This is a fallback for when the model wasn't downloaded via the install wizard.
+    Downloads BEFORE ComfyUI starts to avoid BrokenPipeError during workflow
+    execution (HuggingFace's tqdm progress bars conflict with ComfyUI's stderr).
 
-    Downloads to HF cache via snapshot_download(), then copies to ComfyUI models
-    folder so the DepthAnythingV3 node finds it without calling snapshot_download().
+    The install wizard is the primary way to download this model.
 
     Args:
         comfyui_path: Path to ComfyUI installation

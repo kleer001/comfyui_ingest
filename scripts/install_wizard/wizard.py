@@ -638,6 +638,11 @@ class InstallationWizard:
                     if self.components[comp_id]['required']:
                         return False
 
+        # Download models for ComfyUI (Depth Anything V3)
+        if 'comfyui' in to_install:
+            if ask_yes_no("\nDownload Depth Anything V3 model for ComfyUI?", default=True):
+                self.checkpoint_downloader.download_all_checkpoints(['depth_anything'], self.state_manager)
+
         # Download checkpoints for motion capture components
         mocap_components = [cid for cid in to_install if cid in ['wham', 'econ']]
         if mocap_components:

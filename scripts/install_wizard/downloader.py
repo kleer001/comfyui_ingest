@@ -110,11 +110,90 @@ Alternatively, run the fetch_data.sh script from the ECON repository.'''
 3. Get your HuggingFace token from https://huggingface.co/settings/tokens
 4. Create HF_TOKEN.dat in repository root with your token
 5. Re-run the wizard to download the model'''
+        },
+        'depth_anything': {
+            'name': 'Depth Anything V3 Model',
+            'requires_auth': False,  # Public model
+            'use_huggingface': True,  # Use huggingface_hub snapshot_download
+            'hf_repo_id': 'depth-anything/DA3METRIC-LARGE',
+            'files': [
+                {
+                    'filename': 'da3metric_large.safetensors',
+                    'size_mb': 1400,
+                }
+            ],
+            'dest_dir_rel': 'ComfyUI/models/depthanything3',
+            'instructions': '''Depth Anything V3 model will be downloaded from HuggingFace.
+This is a public model and does not require authentication.'''
         }
     }
 
     def __init__(self, base_dir: Optional[Path] = None):
         self.base_dir = base_dir or INSTALL_DIR
+
+    def download_from_huggingface(
+        self,
+        repo_id: str,
+        dest_dir: Path,
+        target_filename: str,
+    ) -> bool:
+        """Download model from HuggingFace using snapshot_download.
+
+        Downloads to HuggingFace cache, then copies the safetensors file
+        to the destination directory with the specified filename.
+
+        Args:
+            repo_id: HuggingFace repository ID (e.g., 'depth-anything/DA3METRIC-LARGE')
+            dest_dir: Destination directory for the model file
+            target_filename: Filename to save as (e.g., 'da3metric_large.safetensors')
+
+        Returns:
+            True if successful
+        """
+        import shutil
+
+        dest_path = dest_dir / target_filename
+
+        # Check if already exists
+        if dest_path.exists():
+            print_success(f"{target_filename} already exists")
+            return True
+
+        print(f"  Downloading {repo_id} from HuggingFace...")
+
+        try:
+            from huggingface_hub import snapshot_download
+
+            # Download to HuggingFace cache (shows progress bar)
+            cache_dir = snapshot_download(
+                repo_id=repo_id,
+                allow_patterns=["*.safetensors"],
+            )
+
+            # Find the downloaded safetensors file
+            cache_path = Path(cache_dir)
+            safetensor_files = list(cache_path.glob("*.safetensors"))
+
+            if safetensor_files:
+                # Ensure destination directory exists
+                dest_dir.mkdir(parents=True, exist_ok=True)
+
+                # Copy the file (repos typically have one safetensors file)
+                src_file = safetensor_files[0]
+                shutil.copy2(src_file, dest_path)
+                print_success(f"Downloaded: {target_filename}")
+                return True
+            else:
+                print_error(f"No safetensors file found in {repo_id}")
+                return False
+
+        except ImportError:
+            print_error("huggingface_hub not installed")
+            print_info("Install with: pip install huggingface_hub")
+            return False
+        except Exception as e:
+            print_error(f"Download failed: {e}")
+            return False
 
     def download_file(self, url: str, dest: Path, expected_size_mb: Optional[int] = None) -> bool:
         """Download file with progress tracking.
@@ -921,6 +1000,22 @@ Alternatively, run the fetch_data.sh script from the ECON repository.'''
             dest_dir = self.base_dir / checkpoint_info['dest_dir_rel']
 
         dest_dir.mkdir(parents=True, exist_ok=True)
+
+        # Handle HuggingFace downloads (uses snapshot_download)
+        use_huggingface = checkpoint_info.get('use_huggingface', False)
+        if use_huggingface:
+            hf_repo_id = checkpoint_info.get('hf_repo_id')
+            if hf_repo_id:
+                if not self.download_from_huggingface(
+                    hf_repo_id,
+                    dest_dir,
+                    checkpoint_info['files'][0]['filename'],
+                ):
+                    print_info(checkpoint_info['instructions'])
+                    return False
+                if state_manager:
+                    state_manager.mark_checkpoint_downloaded(comp_id, dest_dir)
+                return True
 
         success = True
         for file_info in checkpoint_info['files']:
