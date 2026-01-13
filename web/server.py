@@ -15,6 +15,7 @@ from fastapi.responses import HTMLResponse
 
 from .api import router as api_router
 from .websocket import router as ws_router, set_main_loop
+from .comfyui_manager import start_comfyui, stop_comfyui
 
 
 @asynccontextmanager
@@ -22,7 +23,16 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for app startup/shutdown."""
     # Capture the main event loop for thread-safe WebSocket updates
     set_main_loop(asyncio.get_running_loop())
+
+    # Auto-start ComfyUI
+    comfyui_started = await asyncio.to_thread(start_comfyui)
+    if not comfyui_started:
+        print("Warning: ComfyUI not available - some stages will fail")
+
     yield
+
+    # Cleanup: stop ComfyUI if we started it
+    await asyncio.to_thread(stop_comfyui)
 
 
 # Create FastAPI app
