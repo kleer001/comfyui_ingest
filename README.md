@@ -32,21 +32,51 @@ cd comfyui_ingest
 python scripts/install_wizard.py
 ```
 
+### What Works Without ICON/ECON Account?
+
+**You can use the entire core VFX pipeline without ICON/ECON credentials.** The ECON account is **only** required for the optional motion capture (mocap) stage.
+
+#### Works WITHOUT ICON/ECON Account:
+- ✅ **Frame extraction** - Extract video to frame sequences
+- ✅ **Depth estimation** - Depth Anything V3 monocular depth maps
+- ✅ **Segmentation/Rotoscoping** - SAM3 video segmentation (requires HuggingFace token)
+- ✅ **Clean plate generation** - ProPainter inpainting for removing objects
+- ✅ **Camera tracking** - COLMAP Structure-from-Motion camera solves
+- ✅ **Material decomposition** - GS-IR PBR material extraction
+- ✅ **Camera export** - Export to Alembic for Nuke/Maya/Houdini
+
+#### Requires ICON/ECON Account:
+- ❌ **Motion capture (mocap stage)** - ECON clothed human reconstruction from video
+
+**Recommended workflow without ECON:**
+
+```bash
+# Full VFX pipeline without motion capture
+python scripts/run_pipeline.py footage.mp4 \
+  --stages ingest,depth,roto,cleanplate,colmap,camera
+
+# Or use the shorthand "all" and skip mocap
+python scripts/run_pipeline.py footage.mp4 \
+  --stages ingest,depth,roto,cleanplate,colmap,gsir,camera
+```
+
+This gives you production-ready outputs for compositing, matchmove, and 3D reconstruction work.
+
 ### What Gets Installed
 
 The wizard will:
 - ✓ Check system requirements (Python, GPU, Git)
 - ✓ Create dedicated conda environment automatically
 - ✓ Install core dependencies (PyTorch, NumPy, OpenCV)
-- ✓ Download model checkpoints automatically (WHAM, ECON)
-- ✓ Clone git repositories (WHAM, ECON, ComfyUI)
+- ✓ Clone git repositories (ComfyUI, and optionally WHAM/ECON)
+- ✓ Download model checkpoints automatically (ECON/WHAM only if you select motion capture)
 - ✓ Generate configuration files (`config.json`, `activate.sh`)
 - ✓ Run validation tests
 
 **Installation options:**
-1. **Core pipeline only** - COLMAP, segmentation, depth (no motion capture)
+1. **Core pipeline only** - COLMAP, segmentation, depth (recommended if no ECON account)
 2. **Core + ComfyUI** - Add workflows and custom nodes
-3. **Full stack** - Everything including motion capture
+3. **Full stack** - Everything including motion capture (requires ECON/ICON registration)
 4. **Custom selection** - Pick exactly what you need
 
 **Quick commands:**
@@ -68,13 +98,13 @@ See **[docs/install_wizard.md](docs/install_wizard.md)** for complete documentat
 After installation, process footage with a single command:
 
 ```bash
-# Basic pipeline - depth + camera
+# Basic pipeline - depth + camera (works without ECON)
 python scripts/run_pipeline.py /path/to/footage.mp4 -n "My_Shot"
 
-# With segmentation and clean plates
+# Full VFX pipeline - segmentation, clean plates, camera (no ECON needed)
 python scripts/run_pipeline.py footage.mp4 -s ingest,roto,cleanplate,colmap,camera
 
-# Full pipeline with motion capture
+# Full pipeline WITH motion capture (requires ECON/ICON credentials)
 python scripts/run_pipeline.py footage.mp4 -s all
 
 # Skip already-processed stages
@@ -422,6 +452,8 @@ projects/My_Shot/
 
 **Status:** Experimental - requires additional dependencies (WHAM, ECON)
 
+**Note:** This is an **optional feature**. The core VFX pipeline (depth, segmentation, clean plates, camera tracking) works perfectly without these dependencies. Only install ECON if you specifically need clothed human reconstruction from video.
+
 Reconstruct people from monocular video with SMPL-X compatible geometry and textures ready for VFX matchmove.
 
 ### What It Produces
@@ -749,7 +781,9 @@ cd .. && python main.py --listen
 
 **Note**: Without SAM2 access, segmentation workflows (roto, cleanplate) will not work.
 
-### SMPL-X and ECON Model Access (Required for Motion Capture)
+### SMPL-X and ECON Model Access (Optional - Only for Motion Capture)
+
+**IMPORTANT: These are OPTIONAL. Only needed if you want to use the motion capture (mocap) stage.**
 
 **Models can be downloaded automatically, but require TWO separate registrations.**
 
@@ -792,7 +826,9 @@ cd .. && python main.py --listen
 
 **Note**: Without these models, motion capture workflows will not work.
 
-### Motion Capture Dependencies (Optional)
+### Motion Capture Dependencies (Optional - Skip if Not Needed)
+
+**Only install these if you specifically need human motion capture.** The core VFX pipeline works without them.
 
 ```bash
 # Core packages
@@ -803,7 +839,7 @@ git clone https://github.com/yohanshin/WHAM.git
 cd WHAM && pip install -e .
 # Download checkpoints from Google Drive
 
-# ECON (clothed reconstruction)
+# ECON (clothed reconstruction) - requires ICON registration
 git clone https://github.com/YuliangXiu/ECON.git
 cd ECON && pip install -r requirements.txt
 # Register at icon.is.tue.mpg.de for checkpoints
