@@ -32,11 +32,12 @@ cd comfyui_ingest
 python scripts/install_wizard.py
 ```
 
-### What Works Without ICON/ECON Account?
+### Account Requirements & What Works at Each Level
 
-**You can use the entire core VFX pipeline without ICON/ECON credentials.** The ECON account is **only** required for the optional motion capture (mocap) stage.
+Motion capture requires **TWO separate registrations** (both free but require approval). Here's what you can do at each level:
 
-#### Works WITHOUT ICON/ECON Account:
+#### Level 0: No Motion Capture Accounts (VFX Pipeline Only)
+Works immediately with no registration needed:
 - ✅ **Frame extraction** - Extract video to frame sequences
 - ✅ **Depth estimation** - Depth Anything V3 monocular depth maps
 - ✅ **Segmentation/Rotoscoping** - SAM3 video segmentation (requires HuggingFace token)
@@ -45,22 +46,41 @@ python scripts/install_wizard.py
 - ✅ **Material decomposition** - GS-IR PBR material extraction
 - ✅ **Camera export** - Export to Alembic for Nuke/Maya/Houdini
 
-#### Requires ICON/ECON Account:
-- ❌ **Motion capture (mocap stage)** - ECON clothed human reconstruction from video
-
-**Recommended workflow without ECON:**
-
 ```bash
-# Full VFX pipeline without motion capture
+# VFX pipeline without motion capture
 python scripts/run_pipeline.py footage.mp4 \
   --stages ingest,depth,roto,cleanplate,colmap,camera
-
-# Or use the shorthand "all" and skip mocap
-python scripts/run_pipeline.py footage.mp4 \
-  --stages ingest,depth,roto,cleanplate,colmap,gsir,camera
 ```
 
-This gives you production-ready outputs for compositing, matchmove, and 3D reconstruction work.
+#### Level 1: WHAM Only (No SMPL-X or ICON/ECON)
+With WHAM checkpoints from Google Drive (no account needed):
+- ✅ **Motion tracking** - 2D/3D pose estimation from video
+- ❌ **No 3D body model** - Cannot generate SMPL-X meshes
+- ❌ **No clothed reconstruction** - Cannot create textured geometry
+
+#### Level 2: WHAM + SMPL-X (Missing ICON/ECON Account)
+Register at https://smpl-x.is.tue.mpg.de/ (usually approved within 24 hours):
+- ✅ **Motion tracking** - Full WHAM motion capture
+- ✅ **SMPL-X body models** - Parametric body meshes
+- ❌ **No clothed reconstruction** - ECON requires separate ICON registration
+
+**This gives you:** Naked SMPL-X body geometry with tracked motion, useful for matchmove reference.
+
+#### Level 3: Full Stack (WHAM + SMPL-X + ECON)
+Requires BOTH registrations:
+1. **SMPL-X**: https://smpl-x.is.tue.mpg.de/
+2. **ICON/ECON**: https://icon.is.tue.mpg.de/ (separate registration!)
+
+- ✅ **Full clothed human reconstruction** - ECON geometry with clothing
+- ✅ **Texture projection** - UV-mapped textures from video
+- ✅ **VFX-ready meshes** - Alembic sequences for compositing
+
+```bash
+# Full pipeline with clothed humans
+python scripts/run_pipeline.py footage.mp4 -s all
+```
+
+**IMPORTANT:** SMPL-X and ICON/ECON are **separate accounts**. You need BOTH for clothed human reconstruction. If you're missing either registration, you'll be limited to the levels above.
 
 ### What Gets Installed
 
@@ -74,9 +94,9 @@ The wizard will:
 - ✓ Run validation tests
 
 **Installation options:**
-1. **Core pipeline only** - COLMAP, segmentation, depth (recommended if no ECON account)
+1. **Core pipeline only** - COLMAP, segmentation, depth (works without any motion capture accounts)
 2. **Core + ComfyUI** - Add workflows and custom nodes
-3. **Full stack** - Everything including motion capture (requires ECON/ICON registration)
+3. **Full stack** - Everything including motion capture (requires BOTH SMPL-X + ICON/ECON registrations)
 4. **Custom selection** - Pick exactly what you need
 
 **Quick commands:**
@@ -101,10 +121,10 @@ After installation, process footage with a single command:
 # Basic pipeline - depth + camera (works without ECON)
 python scripts/run_pipeline.py /path/to/footage.mp4 -n "My_Shot"
 
-# Full VFX pipeline - segmentation, clean plates, camera (no ECON needed)
+# Full VFX pipeline - segmentation, clean plates, camera (no mocap accounts needed)
 python scripts/run_pipeline.py footage.mp4 -s ingest,roto,cleanplate,colmap,camera
 
-# Full pipeline WITH motion capture (requires ECON/ICON credentials)
+# Full pipeline WITH motion capture (requires BOTH SMPL-X + ICON/ECON accounts)
 python scripts/run_pipeline.py footage.mp4 -s all
 
 # Skip already-processed stages
@@ -781,11 +801,11 @@ cd .. && python main.py --listen
 
 **Note**: Without SAM2 access, segmentation workflows (roto, cleanplate) will not work.
 
-### SMPL-X and ECON Model Access (Optional - Only for Motion Capture)
+### SMPL-X and ECON Model Access (Required for Clothed Human Reconstruction)
 
-**IMPORTANT: These are OPTIONAL. Only needed if you want to use the motion capture (mocap) stage.**
+**BOTH registrations are required for full clothed human reconstruction from video.**
 
-**Models can be downloaded automatically, but require TWO separate registrations.**
+**Models can be downloaded automatically, but require TWO separate registrations** (both free, both need approval).
 
 #### What Each Component Provides
 
@@ -810,21 +830,35 @@ cd .. && python main.py --listen
 
 #### Setup Steps
 
-1. Register at https://smpl-x.is.tue.mpg.de/
-2. Register at https://icon.is.tue.mpg.de/ (separate registration)
-3. Wait for approval emails from both sites
-4. Create `SMPL.login.dat` in repository root:
+**You need TWO credential files for the two separate registrations:**
+
+1. **Register for SMPL-X** at https://smpl-x.is.tue.mpg.de/
+2. **Register for ICON/ECON** at https://icon.is.tue.mpg.de/ (separate registration!)
+3. Wait for approval emails from both sites (usually 24-48 hours each)
+4. **Create `SMPL.login.dat`** in repository root:
    ```
    your.email@example.com
-   your_password_here
+   your_smplx_password_here
    ```
-5. Run the installation wizard - it will download:
-   - SMPL-X models to `.vfx_pipeline/smplx_models/`
-   - ECON checkpoints to `.vfx_pipeline/ECON/data/`
+5. **Create `ECON.login.dat`** in repository root:
+   ```
+   your.email@example.com
+   your_econ_password_here
+   ```
+6. Run the installation wizard - it will download:
+   - SMPL-X models to `.vfx_pipeline/smplx_models/` (using SMPL.login.dat)
+   - ECON checkpoints to `.vfx_pipeline/ECON/data/` (using ECON.login.dat)
 
-**Template file**: Copy `SMPL.login.dat.template` and fill in your credentials.
+**Template files**:
+- Copy `SMPL.login.dat.template` → `SMPL.login.dat` with your SMPL-X credentials
+- Copy `ECON.login.dat.template` → `ECON.login.dat` with your ICON/ECON credentials
 
-**Note**: Without these models, motion capture workflows will not work.
+**What happens if you're missing these?**
+- **Missing SMPL-X only**: WHAM can track motion but cannot generate SMPL-X body meshes or run ECON
+- **Missing ICON/ECON only**: WHAM + SMPL-X works (naked body geometry) but no clothed reconstruction
+- **Missing both**: Only WHAM motion tracking (2D/3D poses), no 3D mesh output
+
+See the "Account Requirements & What Works at Each Level" section at the top for details.
 
 ### Motion Capture Dependencies (Optional - Skip if Not Needed)
 
