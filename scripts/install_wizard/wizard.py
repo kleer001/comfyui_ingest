@@ -61,6 +61,19 @@ class InstallationWizard:
             ]
         }
 
+        # Web GUI dependencies (FastAPI backend)
+        self.components['web_gui'] = {
+            'name': 'Web GUI',
+            'required': True,
+            'installers': [
+                PythonPackageInstaller('FastAPI', 'fastapi', size_gb=0.02),
+                PythonPackageInstaller('Uvicorn', 'uvicorn', size_gb=0.01),
+                PythonPackageInstaller('Python-Multipart', 'python-multipart', size_gb=0.01),
+                PythonPackageInstaller('WebSockets', 'websockets', size_gb=0.01),
+                PythonPackageInstaller('Jinja2', 'jinja2', size_gb=0.01),
+            ]
+        }
+
         # PyTorch (special handling for CUDA)
         self.components['pytorch'] = {
             'name': 'PyTorch',
@@ -585,13 +598,13 @@ class InstallationWizard:
             while True:
                 choice = tty_input("\nChoice [1-5]: ").strip()
                 if choice == '1':
-                    to_install = ['core', 'pytorch']
+                    to_install = ['core', 'web_gui', 'pytorch']
                     break
                 elif choice == '2':
-                    to_install = ['core', 'pytorch', 'comfyui']
+                    to_install = ['core', 'web_gui', 'pytorch', 'comfyui']
                     break
                 elif choice == '3':
-                    to_install = ['core', 'pytorch', 'comfyui', 'mocap_core', 'wham', 'econ']
+                    to_install = ['core', 'web_gui', 'pytorch', 'comfyui', 'mocap_core', 'wham', 'econ']
                     break
                 elif choice == '4':
                     to_install = []
@@ -690,6 +703,15 @@ class InstallationWizard:
         else:
             print("\n🎨 ComfyUI (Optional):")
             print("  Not installed. Run wizard again to add ComfyUI support.")
+
+        # Web GUI
+        if status.get('web_gui', False):
+            print("\n🌐 Web GUI:")
+            print("  ✓ FastAPI and dependencies installed")
+            print("\n  Start web interface:")
+            print("    ./start_web.py")
+            print("  Or with custom port:")
+            print("    ./start_web.py --port 8080")
 
         # Testing
         print("\n✅ Test Installation:")
