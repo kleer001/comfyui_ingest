@@ -33,6 +33,47 @@ def is_comfyui_running(url: str = DEFAULT_COMFYUI_URL) -> bool:
     return check_comfyui_running(url)
 
 
+def _patch_comfyui_logger(comfyui_path: Path) -> bool:
+    """Patch ComfyUI's logger.py to handle flush errors gracefully.
+
+    This fixes BrokenPipeError that can occur when tqdm/progress bars
+    try to write to stderr and the flush fails.
+
+    See: https://github.com/Comfy-Org/ComfyUI/pull/11629
+    """
+    logger_path = comfyui_path / "app" / "logger.py"
+    if not logger_path.exists():
+        return False
+
+    try:
+        content = logger_path.read_text()
+
+        # Check if already patched
+        if "except (OSError, ValueError)" in content:
+            return True  # Already patched
+
+        # Find the flush method and patch it
+        old_flush = "def flush(self):\n        super().flush()"
+        new_flush = """def flush(self):
+        try:
+            super().flush()
+        except (OSError, ValueError):
+            pass  # Ignore flush errors (BrokenPipe, etc.)"""
+
+        if old_flush in content:
+            patched = content.replace(old_flush, new_flush)
+            logger_path.write_text(patched)
+            print("  Patched ComfyUI logger.py to handle flush errors")
+            return True
+        else:
+            # Try alternate pattern (may have different indentation)
+            return False
+
+    except Exception as e:
+        print(f"  Warning: Could not patch ComfyUI logger: {e}", file=sys.stderr)
+        return False
+
+
 def start_comfyui(
     url: str = DEFAULT_COMFYUI_URL,
     timeout: int = 60,
@@ -73,6 +114,12 @@ def start_comfyui(
     # Set environment
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
+    # Disable HuggingFace progress bars to prevent BrokenPipeError
+    # when tqdm tries to write to stderr during model downloads
+    env["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+
+    # Apply logger patch if needed (fixes BrokenPipeError in ComfyUI logger)
+    _patch_comfyui_logger(comfyui_path)
 
     try:
         # Start ComfyUI as subprocess
