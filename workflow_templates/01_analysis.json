@@ -52,7 +52,7 @@
         {"name": "DEPTHS", "type": "DEPTHS", "links": [3], "slot_index": 0}
       ],
       "properties": {"Node name for S&R": "VideoDepthAnythingProcess"},
-      "widgets_values": [518, 1280, "fp16"],
+      "widgets_values": [518, 512, "fp16"],
       "title": "Video Depth Process"
     },
     {
