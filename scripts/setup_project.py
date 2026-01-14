@@ -70,9 +70,13 @@ def populate_workflow(workflow_data: dict, project_dir: Path) -> dict:
                 ("source/frames/", str(project_dir / "source/frames") + "/"),
                 ("source/frames", str(project_dir / "source/frames")),
                 ("depth/", str(project_dir / "depth") + "/"),
+                ("depth", str(project_dir / "depth")),
                 ("roto/", str(project_dir / "roto") + "/"),
+                ("roto", str(project_dir / "roto")),
                 ("cleanplate/", str(project_dir / "cleanplate") + "/"),
+                ("cleanplate", str(project_dir / "cleanplate")),
                 ("camera/", str(project_dir / "camera") + "/"),
+                ("camera", str(project_dir / "camera")),
             ]
             for pattern, replacement in relative_patterns:
                 # Only replace if it's a path (starts with pattern that contains /)
