@@ -128,6 +128,46 @@ class CondaPackageInstaller(ComponentInstaller):
         return success
 
 
+class SystemPackageInstaller(ComponentInstaller):
+    """Installer for system packages (apt on Linux)."""
+
+    def __init__(self, name: str, apt_package: str, command: str = None, size_gb: float = 0.0):
+        super().__init__(name, size_gb)
+        self.apt_package = apt_package
+        self.command = command or apt_package
+
+    def check(self) -> bool:
+        """Check if command is available system-wide."""
+        success, _ = run_command([self.command, "--version"], check=False, capture=True)
+        self.installed = success
+        return self.installed
+
+    def install(self) -> bool:
+        import platform
+        system = platform.system()
+
+        if system == "Linux":
+            print(f"\nInstalling {self.name} via apt...")
+            print_warning("This requires sudo access. You may be prompted for your password.")
+            success, _ = run_command(["sudo", "apt-get", "install", "-y", self.apt_package], stream=True)
+            if success:
+                print_success(f"{self.name} installed")
+                self.installed = True
+                return True
+            else:
+                print_error(f"apt install failed for {self.name}")
+
+        # Fallback: provide manual instructions
+        print_warning(f"\nCould not auto-install {self.name}. Install manually:")
+        if system == "Linux":
+            print(f"  sudo apt install {self.apt_package}")
+        elif system == "Darwin":
+            print(f"  brew install {self.apt_package}")
+        else:
+            print(f"  See: https://colmap.github.io/install.html")
+        return False
+
+
 class GitRepoInstaller(ComponentInstaller):
     """Installer for Git repositories."""
 

@@ -13,7 +13,7 @@ from env_config import INSTALL_DIR
 from .conda import CondaEnvironmentManager
 from .config import ConfigurationGenerator
 from .downloader import CheckpointDownloader
-from .installers import CondaPackageInstaller, GitRepoInstaller, PythonPackageInstaller
+from .installers import CondaPackageInstaller, GitRepoInstaller, PythonPackageInstaller, SystemPackageInstaller
 from .state import InstallationStateManager
 from .utils import (
     Colors,
@@ -83,12 +83,12 @@ class InstallationWizard:
             ]
         }
 
-        # COLMAP (installed via conda)
+        # COLMAP (installed via apt on Linux)
         self.components['colmap'] = {
             'name': 'COLMAP',
             'required': False,
             'installers': [
-                CondaPackageInstaller('COLMAP', 'colmap', channel='conda-forge', size_gb=0.5),
+                SystemPackageInstaller('COLMAP', 'colmap', size_gb=0.5),
             ],
             'size_gb': 0.5,
         }
