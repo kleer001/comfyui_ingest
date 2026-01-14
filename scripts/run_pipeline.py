@@ -718,7 +718,7 @@ def run_pipeline(
         roto_dir = project_dir / "roto"
         if not workflow_path.exists():
             print("  → Skipping (workflow not found)")
-        elif skip_existing and list(roto_dir.glob("*.png")):
+        elif skip_existing and (list(roto_dir.glob("*.png")) or list(roto_dir.glob("*/*.png"))):
             print("  → Skipping (masks exist)")
         else:
             # Parse prompts - support comma-separated list for multiple objects
@@ -726,52 +726,57 @@ def run_pipeline(
             prompts = [p for p in prompts if p]  # Remove empty
 
             if len(prompts) == 1:
-                # Single prompt - run directly to roto_dir
+                # Single prompt - save to named subdirectory
+                prompt_name = prompts[0].replace(" ", "_")
+                output_dir = roto_dir / prompt_name
                 update_segmentation_prompt(workflow_path, prompts[0])
                 if not run_comfyui_workflow(
                     workflow_path, comfyui_url,
-                    output_dir=roto_dir,
+                    output_dir=output_dir,
                     total_frames=total_frames,
                     stage_name="roto",
                 ):
                     print("  → Segmentation stage failed", file=sys.stderr)
                     return False
             else:
-                # Multiple prompts - run each separately and combine
+                # Multiple prompts - run each to its own subdirectory
                 print(f"  → Segmenting {len(prompts)} targets: {', '.join(prompts)}")
-                temp_dirs = []
+                mask_dirs = []
 
                 for i, prompt in enumerate(prompts):
-                    temp_dir = project_dir / "roto_temp" / f"mask_{i}_{prompt.replace(' ', '_')}"
-                    temp_dir.mkdir(parents=True, exist_ok=True)
-                    temp_dirs.append(temp_dir)
+                    prompt_name = prompt.replace(" ", "_")
+                    output_subdir = roto_dir / prompt_name
+                    output_subdir.mkdir(parents=True, exist_ok=True)
+                    mask_dirs.append(output_subdir)
 
                     print(f"\n  [{i+1}/{len(prompts)}] Segmenting: {prompt}")
                     update_segmentation_prompt(workflow_path, prompt)
                     if not run_comfyui_workflow(
                         workflow_path, comfyui_url,
-                        output_dir=temp_dir,
+                        output_dir=output_subdir,
                         total_frames=total_frames,
                         stage_name=f"roto ({prompt})",
                     ):
                         print(f"  → Segmentation failed for '{prompt}'", file=sys.stderr)
                         # Continue with other prompts
 
-                # Combine all masks
-                print(f"\n  → Combining {len(temp_dirs)} mask sequences...")
-                valid_dirs = [d for d in temp_dirs if list(d.glob("*.png"))]
+                # Combine all masks directly into roto/ for cleanplate to use
+                print(f"\n  → Combining {len(mask_dirs)} mask sequences...")
+                valid_dirs = [d for d in mask_dirs if list(d.glob("*.png"))]
                 if valid_dirs:
                     count = combine_mask_sequences(valid_dirs, roto_dir)
-                    print(f"  → Combined {count} frames")
+                    print(f"  → Combined {count} frames → roto/")
 
-                # Cleanup temp directories
-                temp_parent = project_dir / "roto_temp"
-                if temp_parent.exists():
-                    shutil.rmtree(temp_parent)
-
-        # Generate preview movie
-        if auto_movie and list(roto_dir.glob("*.png")):
-            generate_preview_movie(roto_dir, project_dir / "preview" / "roto.mp4", fps)
+        # Generate preview movie from roto/ (combined masks) or first subdirectory
+        if auto_movie:
+            if list(roto_dir.glob("*.png")):
+                generate_preview_movie(roto_dir, project_dir / "preview" / "roto.mp4", fps)
+            else:
+                # Find first subdirectory with masks
+                for subdir in sorted(roto_dir.iterdir()):
+                    if subdir.is_dir() and list(subdir.glob("*.png")):
+                        generate_preview_movie(subdir, project_dir / "preview" / "roto.mp4", fps)
+                        break
 
     # Stage: Cleanplate
     if "cleanplate" in stages:
