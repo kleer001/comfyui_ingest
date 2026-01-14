@@ -59,7 +59,7 @@ def get_node_definitions(comfyui_url: str = DEFAULT_COMFYUI_URL, retries: int = 
 def convert_workflow_to_api_format(
     workflow: dict,
     comfyui_url: str = DEFAULT_COMFYUI_URL,
-    require_node_defs: bool = True,
+    require_node_defs: bool = False,
 ) -> Optional[dict]:
     """Convert ComfyUI workflow format to API format if needed.
 
@@ -87,15 +87,8 @@ def convert_workflow_to_api_format(
     # Get node definitions from ComfyUI to map widget values
     node_defs = get_node_definitions(comfyui_url)
     if not node_defs:
-        print("  Error: Could not fetch node definitions from ComfyUI", file=sys.stderr)
-        print("  This is required to map widget values to API parameters.", file=sys.stderr)
-        print("", file=sys.stderr)
-        print("  Common causes:", file=sys.stderr)
-        print("    - ComfyUI database is read-only (check file permissions)", file=sys.stderr)
-        print("    - ComfyUI server error (check ComfyUI logs)", file=sys.stderr)
-        print("    - Network connectivity issues", file=sys.stderr)
-        print("", file=sys.stderr)
-        print("  Try: Check ownership of .vfx_pipeline/ComfyUI/*.db files", file=sys.stderr)
+        print("  Warning: Could not fetch node definitions from ComfyUI", file=sys.stderr)
+        print("  Widget values may not be mapped correctly", file=sys.stderr)
         if require_node_defs:
             return None
 
