@@ -770,6 +770,15 @@ def run_pipeline(
             frame_count = extract_frames(input_path, source_frames, START_FRAME, fps)
             print(f"  → Extracted {frame_count} frames")
 
+        # Copy source video to preview folder for reference
+        preview_dir = project_dir / "preview"
+        preview_dir.mkdir(exist_ok=True)
+        source_preview = preview_dir / f"source{input_path.suffix}"
+        if not source_preview.exists():
+            import shutil
+            shutil.copy2(input_path, source_preview)
+            print(f"  → Copied source to {source_preview.name}")
+
     # Count total frames for progress reporting
     total_frames = len(list(source_frames.glob("frame_*.png")))
 
