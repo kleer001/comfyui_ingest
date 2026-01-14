@@ -140,11 +140,15 @@ def start_comfyui(
     print(f"Starting ComfyUI from {comfyui_path}...")
 
     # Build command
+    # Set output-directory to repo parent to allow saving to project directories
+    # (ComfyUI security blocks saving outside its output folder)
+    output_base = COMFYUI_DIR.parent.parent.parent  # .vfx_pipeline -> comfyui_ingest -> parent
     cmd = [
         sys.executable,
         "main.py",
         "--listen", "127.0.0.1",
         "--port", "8188",
+        "--output-directory", str(output_base),
     ]
 
     # Set environment
