@@ -613,13 +613,13 @@ class InstallationWizard:
             while True:
                 choice = tty_input("\nChoice [1-5]: ").strip()
                 if choice == '1':
-                    to_install = ['core', 'web_gui', 'pytorch']
+                    to_install = ['core', 'web_gui', 'pytorch', 'colmap']
                     break
                 elif choice == '2':
-                    to_install = ['core', 'web_gui', 'pytorch', 'comfyui']
+                    to_install = ['core', 'web_gui', 'pytorch', 'colmap', 'comfyui']
                     break
                 elif choice == '3':
-                    to_install = ['core', 'web_gui', 'pytorch', 'comfyui', 'mocap_core', 'wham', 'econ']
+                    to_install = ['core', 'web_gui', 'pytorch', 'colmap', 'comfyui', 'mocap_core', 'wham', 'econ']
                     break
                 elif choice == '4':
                     to_install = []
