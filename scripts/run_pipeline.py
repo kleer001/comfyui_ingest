@@ -14,6 +14,7 @@ Example:
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -332,6 +333,82 @@ def run_mocap(
         return False
 
 
+def generate_preview_movie(
+    image_dir: Path,
+    output_path: Path,
+    fps: float = 24.0,
+    pattern: str = "*.png",
+    crf: int = 23,
+) -> bool:
+    """Generate a preview MP4 from an image sequence.
+
+    Args:
+        image_dir: Directory containing images
+        output_path: Output MP4 path
+        fps: Frame rate
+        pattern: Glob pattern for images
+        crf: Quality (lower = better, 18-28 typical)
+
+    Returns:
+        True if successful
+    """
+    images = sorted(image_dir.glob(pattern))
+    if not images:
+        return False
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Use ffmpeg with image sequence input
+    # -pattern_type glob for flexible matching
+    cmd = [
+        "ffmpeg", "-y",
+        "-framerate", str(fps),
+        "-pattern_type", "glob",
+        "-i", str(image_dir / pattern),
+        "-c:v", "libx264",
+        "-crf", str(crf),
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+        str(output_path)
+    ]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode == 0:
+            print(f"    → Created: {output_path.name}")
+            return True
+        else:
+            # Try alternative approach with numbered frames
+            first_image = images[0]
+            # Detect numbering pattern from filename
+            match = re.search(r'(\d+)', first_image.stem)
+            if match:
+                num_digits = len(match.group(1))
+                prefix = first_image.stem[:match.start()]
+                suffix = first_image.suffix
+                input_pattern = str(image_dir / f"{prefix}%0{num_digits}d{suffix}")
+                start_num = int(match.group(1))
+
+                cmd = [
+                    "ffmpeg", "-y",
+                    "-framerate", str(fps),
+                    "-start_number", str(start_num),
+                    "-i", input_pattern,
+                    "-c:v", "libx264",
+                    "-crf", str(crf),
+                    "-pix_fmt", "yuv420p",
+                    "-movflags", "+faststart",
+                    str(output_path)
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                if result.returncode == 0:
+                    print(f"    → Created: {output_path.name}")
+                    return True
+            return False
+    except Exception:
+        return False
+
+
 def get_image_dimensions(image_path: Path) -> tuple[int, int]:
     """Get width and height from an image file using ffprobe."""
     cmd = [
@@ -472,6 +549,7 @@ def run_pipeline(
     gsir_path: Optional[str] = None,
     auto_start_comfyui: bool = True,
     roto_prompt: Optional[str] = None,
+    auto_movie: bool = False,
 ) -> bool:
     """Run the full VFX pipeline.
 
@@ -580,6 +658,9 @@ def run_pipeline(
             ):
                 print("  → Depth stage failed", file=sys.stderr)
                 return False
+        # Generate preview movie
+        if auto_movie and list(depth_dir.glob("*.png")):
+            generate_preview_movie(depth_dir, project_dir / "preview" / "depth.mp4", fps)
 
     # Stage: Roto
     if "roto" in stages:
@@ -602,6 +683,9 @@ def run_pipeline(
             ):
                 print("  → Segmentation stage failed", file=sys.stderr)
                 return False
+        # Generate preview movie
+        if auto_movie and list(roto_dir.glob("*.png")):
+            generate_preview_movie(roto_dir, project_dir / "preview" / "roto.mp4", fps)
 
     # Stage: Cleanplate
     if "cleanplate" in stages:
@@ -623,6 +707,9 @@ def run_pipeline(
             ):
                 print("  → Cleanplate stage failed", file=sys.stderr)
                 return False
+        # Generate preview movie
+        if auto_movie and list(cleanplate_dir.glob("*.png")):
+            generate_preview_movie(cleanplate_dir, project_dir / "preview" / "cleanplate.mp4", fps)
 
     # Stage: COLMAP reconstruction
     if "colmap" in stages:
@@ -805,6 +892,11 @@ def main():
         default=None,
         help="Segmentation prompt for roto stage (default: 'person'). Example: 'person, ball, backpack'"
     )
+    parser.add_argument(
+        "--auto-movie",
+        action="store_true",
+        help="Generate preview MP4s from completed image sequences (depth, roto, cleanplate)"
+    )
 
     args = parser.parse_args()
 
@@ -852,6 +944,7 @@ def main():
         gsir_path=args.gsir_path,
         auto_start_comfyui=not args.no_auto_comfyui,
         roto_prompt=args.prompt,
+        auto_movie=args.auto_movie,
     )
 
     sys.exit(0 if success else 1)
