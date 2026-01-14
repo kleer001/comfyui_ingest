@@ -128,33 +128,50 @@ def convert_workflow_to_api_format(
         # Collect widget names in order (required first, then optional)
         # Skip connection-type inputs - they're handled via links
         widget_names = []
-        for name, spec in required_inputs.items():
-            if isinstance(spec, list) and len(spec) > 0:
-                first = spec[0]
-                # If first element is a list, it's a dropdown (widget)
-                # If first element is a string that's ALL_CAPS, it's likely a connection type
-                if isinstance(first, list):
-                    widget_names.append(name)  # Dropdown widget
-                elif isinstance(first, str):
-                    # Connection types are typically ALL_CAPS custom types
-                    # Widget types: INT, FLOAT, STRING, BOOLEAN, or mixed-case
-                    if first in ("INT", "FLOAT", "STRING", "BOOLEAN"):
-                        widget_names.append(name)
-                    elif not first.isupper():
-                        # Mixed case = widget type
-                        widget_names.append(name)
-                    # else: ALL_CAPS = connection type, skip
 
-        for name, spec in optional_inputs.items():
-            if isinstance(spec, list) and len(spec) > 0:
-                first = spec[0]
-                if isinstance(first, list):
-                    widget_names.append(name)
-                elif isinstance(first, str):
-                    if first in ("INT", "FLOAT", "STRING", "BOOLEAN"):
+        # Fallback widget names for common nodes when node_defs unavailable
+        fallback_widgets = {
+            "ImageToMask": ["channel"],
+            "SaveImage": ["filename_prefix"],
+            "PreviewImage": [],
+            "VHS_LoadImagesPath": ["directory", "image_load_cap", "skip_first_images", "select_every_nth", "meta_batch"],
+            "LoadVideoDepthAnythingModel": ["model"],
+            "VideoDepthAnythingProcess": ["input_size", "max_res", "precision"],
+            "VideoDepthAnythingOutput": ["colormap"],
+            "ProPainterInpaint": ["width", "height", "mask_dilates", "flow_mask_dilates", "ref_stride",
+                                  "neighbor_length", "subvideo_length", "raft_iter", "mode"],
+        }
+
+        if not node_def and node_type in fallback_widgets:
+            widget_names = fallback_widgets[node_type]
+        else:
+            for name, spec in required_inputs.items():
+                if isinstance(spec, list) and len(spec) > 0:
+                    first = spec[0]
+                    # If first element is a list, it's a dropdown (widget)
+                    # If first element is a string that's ALL_CAPS, it's likely a connection type
+                    if isinstance(first, list):
+                        widget_names.append(name)  # Dropdown widget
+                    elif isinstance(first, str):
+                        # Connection types are typically ALL_CAPS custom types
+                        # Widget types: INT, FLOAT, STRING, BOOLEAN, or mixed-case
+                        if first in ("INT", "FLOAT", "STRING", "BOOLEAN"):
+                            widget_names.append(name)
+                        elif not first.isupper():
+                            # Mixed case = widget type
+                            widget_names.append(name)
+                        # else: ALL_CAPS = connection type, skip
+
+            for name, spec in optional_inputs.items():
+                if isinstance(spec, list) and len(spec) > 0:
+                    first = spec[0]
+                    if isinstance(first, list):
                         widget_names.append(name)
-                    elif not first.isupper():
-                        widget_names.append(name)
+                    elif isinstance(first, str):
+                        if first in ("INT", "FLOAT", "STRING", "BOOLEAN"):
+                            widget_names.append(name)
+                        elif not first.isupper():
+                            widget_names.append(name)
 
         # Process linked inputs (connections)
         for inp in node_inputs:
