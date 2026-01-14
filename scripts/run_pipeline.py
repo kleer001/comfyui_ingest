@@ -45,15 +45,56 @@ STAGES = {
 }
 
 
-def run_command(cmd: list[str], description: str, check: bool = True) -> subprocess.CompletedProcess:
-    """Run a shell command with logging."""
+def run_command(cmd: list[str], description: str, check: bool = True, stream: bool = True) -> subprocess.CompletedProcess:
+    """Run a shell command with logging and optional streaming output.
+
+    Args:
+        cmd: Command and arguments
+        description: Human-readable description
+        check: Raise exception on non-zero exit
+        stream: If True, stream stdout/stderr in real-time (default: True)
+    """
     print(f"  → {description}")
     print(f"    $ {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if check and result.returncode != 0:
-        print(f"    Error: {result.stderr}", file=sys.stderr)
-        raise subprocess.CalledProcessError(result.returncode, cmd)
-    return result
+    sys.stdout.flush()
+
+    if stream:
+        # Stream output in real-time
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        stdout_lines = []
+        for line in iter(process.stdout.readline, ''):
+            stdout_lines.append(line)
+            # Print output directly (child process handles its own formatting)
+            print(line.rstrip())
+            sys.stdout.flush()
+
+        process.wait()
+
+        stdout = ''.join(stdout_lines)
+        if check and process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode, cmd, stdout, "")
+
+        # Return a CompletedProcess-like object
+        class Result:
+            def __init__(self):
+                self.returncode = process.returncode
+                self.stdout = stdout
+                self.stderr = ""
+        return Result()
+    else:
+        # Capture mode for quick commands
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if check and result.returncode != 0:
+            print(f"    Error: {result.stderr}", file=sys.stderr)
+            raise subprocess.CalledProcessError(result.returncode, cmd)
+        return result
 
 
 def get_frame_count(input_path: Path) -> int:
