@@ -28,12 +28,17 @@ from pathlib import Path
 
 import numpy as np
 
-# Try to import Alembic
+# Try to import Alembic (conda install -c conda-forge alembic)
 try:
-    from alembic import Abc, AbcGeom
+    import alembic.Abc as Abc
+    import alembic.AbcGeom as AbcGeom
+    import imath
     HAS_ALEMBIC = True
 except ImportError:
     HAS_ALEMBIC = False
+    Abc = None
+    AbcGeom = None
+    imath = None
 
 
 def load_project_metadata(project_dir: Path) -> dict:
@@ -209,7 +214,7 @@ def export_alembic_camera(
 
         # Xform sample
         xform_sample = AbcGeom.XformSample()
-        xform_sample.setTranslation(Abc.V3d(
+        xform_sample.setTranslation(imath.V3d(
             float(translation[0]),
             float(translation[1]),
             float(translation[2])
@@ -217,7 +222,7 @@ def export_alembic_camera(
         xform_sample.setXRotation(float(euler_deg[0]))
         xform_sample.setYRotation(float(euler_deg[1]))
         xform_sample.setZRotation(float(euler_deg[2]))
-        xform_sample.setScale(Abc.V3d(
+        xform_sample.setScale(imath.V3d(
             float(scale[0]),
             float(scale[1]),
             float(scale[2])

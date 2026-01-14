@@ -31,11 +31,15 @@ from pathlib import Path
 import numpy as np
 
 try:
-    import alembic
-    from alembic import Abc, AbcGeom
+    import alembic.Abc as Abc
+    import alembic.AbcGeom as AbcGeom
+    import imath
     HAS_ALEMBIC = True
 except ImportError:
     HAS_ALEMBIC = False
+    Abc = None
+    AbcGeom = None
+    imath = None
 
 
 def load_camera_data(camera_dir: Path) -> tuple[list[np.ndarray], dict, str]:
@@ -236,7 +240,7 @@ def export_alembic_camera(
 
         # Add transform operations
         xform_sample.addOp(AbcGeom.XformOp(AbcGeom.kTranslateOperation, AbcGeom.kTranslateHint),
-                          Abc.V3d(*translation))
+                          imath.V3d(*translation))
         xform_sample.addOp(AbcGeom.XformOp(AbcGeom.kRotateXOperation, AbcGeom.kRotateHint),
                           euler[0])
         xform_sample.addOp(AbcGeom.XformOp(AbcGeom.kRotateYOperation, AbcGeom.kRotateHint),
