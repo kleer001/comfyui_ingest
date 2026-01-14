@@ -13,7 +13,7 @@ from env_config import INSTALL_DIR
 from .conda import CondaEnvironmentManager
 from .config import ConfigurationGenerator
 from .downloader import CheckpointDownloader
-from .installers import GitRepoInstaller, PythonPackageInstaller
+from .installers import CondaPackageInstaller, GitRepoInstaller, PythonPackageInstaller
 from .state import InstallationStateManager
 from .utils import (
     Colors,
@@ -83,12 +83,14 @@ class InstallationWizard:
             ]
         }
 
-        # COLMAP
+        # COLMAP (installed via conda)
         self.components['colmap'] = {
             'name': 'COLMAP',
             'required': False,
-            'installers': [],  # System install, check only
-            'size_gb': 0.5,  # If installed via conda
+            'installers': [
+                CondaPackageInstaller('COLMAP', 'colmap', channel='conda-forge', size_gb=0.5),
+            ],
+            'size_gb': 0.5,
         }
 
         # Motion capture dependencies

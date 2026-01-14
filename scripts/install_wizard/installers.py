@@ -82,6 +82,52 @@ class PythonPackageInstaller(ComponentInstaller):
         return success
 
 
+class CondaPackageInstaller(ComponentInstaller):
+    """Installer for packages via conda (for system tools like COLMAP)."""
+
+    def __init__(self, name: str, package: str, channel: str = "conda-forge", command: str = None, size_gb: float = 0.0):
+        super().__init__(name, size_gb)
+        self.package = package
+        self.channel = channel
+        self.command = command or package  # Command to check availability
+        self.conda_manager: Optional['CondaEnvironmentManager'] = None
+
+    def set_conda_manager(self, conda_manager: 'CondaEnvironmentManager'):
+        """Set the conda manager for environment-aware installation."""
+        self.conda_manager = conda_manager
+
+    def check(self) -> bool:
+        """Check if package command is available in the conda environment."""
+        if self.conda_manager and self.conda_manager.conda_exe:
+            success, _ = run_command([
+                self.conda_manager.conda_exe, "run", "-n", self.conda_manager.env_name,
+                self.command, "--version"
+            ], check=False, capture=True)
+            self.installed = success
+        else:
+            # Check system-wide
+            success, _ = run_command([self.command, "--version"], check=False, capture=True)
+            self.installed = success
+        return self.installed
+
+    def install(self) -> bool:
+        print(f"\nInstalling {self.name} via conda...")
+
+        if not self.conda_manager or not self.conda_manager.conda_exe:
+            print_error("Conda not available for installation")
+            print_warning(f"Install manually: conda install -c {self.channel} {self.package}")
+            return False
+
+        success = self.conda_manager.install_package_conda(self.package, self.channel)
+
+        if success:
+            print_success(f"{self.name} installed")
+            self.installed = True
+        else:
+            print_error(f"Failed to install {self.name}")
+        return success
+
+
 class GitRepoInstaller(ComponentInstaller):
     """Installer for Git repositories."""
 
