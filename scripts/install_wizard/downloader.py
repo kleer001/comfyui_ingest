@@ -67,24 +67,20 @@ Or run the fetch_demo_data.sh script from the WHAM repository:
         },
         'sam3': {
             'name': 'SAM3 Model',
-            'requires_auth': True,
-            'auth_type': 'bearer',
-            'auth_file': 'HF_TOKEN.dat',
+            'requires_auth': False,  # Public repo at 1038lab/sam3
+            'use_huggingface': True,
+            'hf_repo_id': '1038lab/sam3',
             'files': [
                 {
-                    'url': 'https://huggingface.co/facebook/sam3/resolve/main/model.safetensors',
-                    'filename': 'sam3_model.safetensors',
-                    'size_mb': 2400,
-                    'sha256': None
+                    'filename': 'sam3.pt',
+                    'size_mb': 3200,  # ~3.2GB model
                 }
             ],
-            'dest_dir_rel': 'ComfyUI/models/sam',
-            'instructions': '''SAM3 model requires HuggingFace access:
-1. Visit https://huggingface.co/facebook/sam3
-2. Click "Access repository" and accept the license
-3. Get your HuggingFace token from https://huggingface.co/settings/tokens
-4. Create HF_TOKEN.dat in repository root with your token
-5. Re-run the wizard to download the model'''
+            'dest_dir_rel': 'ComfyUI/models/sam3',
+            'instructions': '''SAM3 model will be downloaded from HuggingFace (1038lab/sam3).
+The model is publicly accessible and will be placed in ComfyUI/models/sam3/.
+If automatic download fails, manually download from:
+  https://huggingface.co/1038lab/sam3/blob/main/sam3.pt'''
         },
         'video_depth_anything': {
             'name': 'Video Depth Anything Model',

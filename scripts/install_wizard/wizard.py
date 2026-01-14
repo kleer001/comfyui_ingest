@@ -414,61 +414,28 @@ class InstallationWizard:
         """Prompt user to set up credentials for authenticated downloads.
 
         Sets up:
-        - HF_TOKEN.dat for HuggingFace (SAM3, etc.)
         - SMPL.login.dat for SMPL-X body models (motion capture)
+
+        Note: SAM3 model is now public at 1038lab/sam3 and doesn't require auth.
         """
         print_header("Credentials Setup")
         print("Some components require authentication to download:")
-        print("  - SAM3 segmentation model (HuggingFace)")
         print("  - SMPL-X body models (smpl-x.is.tue.mpg.de)")
+        print("")
+        print_info("Note: SAM3 model is now publicly available (no auth required)")
         print("")
 
         # Check existing credentials
-        hf_token_file = repo_root / "HF_TOKEN.dat"
         smpl_creds_file = repo_root / "SMPL.login.dat"
 
-        hf_exists = hf_token_file.exists()
         smpl_exists = smpl_creds_file.exists()
 
-        if hf_exists and smpl_exists:
-            print_success("All credential files already exist")
+        if smpl_exists:
+            print_success("SMPL-X credentials file already exists")
             if ask_yes_no("Update credentials?", default=False):
-                hf_exists = False
                 smpl_exists = False
             else:
                 return
-
-        # HuggingFace token setup
-        if not hf_exists:
-            print(f"\n{Colors.BOLD}HuggingFace Token Setup{Colors.ENDC}")
-            print("Required for: SAM3 segmentation model")
-            print("")
-            print("Steps:")
-            print("  1. Go to https://huggingface.co/facebook/sam3")
-            print("  2. Click 'Access repository' and accept the license")
-            print("  3. Go to https://huggingface.co/settings/tokens")
-            print("  4. Create a new token with 'Read' access")
-            print("")
-
-            if ask_yes_no("Set up HuggingFace token now?", default=True):
-                token = tty_input("Enter your HuggingFace token (hf_...): ").strip()
-                if token:
-                    if token.startswith("hf_") or len(token) > 20:
-                        with open(hf_token_file, 'w') as f:
-                            f.write(token + '\n')
-                        hf_token_file.chmod(0o600)
-                        print_success(f"Token saved to {hf_token_file}")
-                    else:
-                        print_warning("Token looks invalid (should start with 'hf_')")
-                        if ask_yes_no("Save anyway?", default=False):
-                            with open(hf_token_file, 'w') as f:
-                                f.write(token + '\n')
-                            hf_token_file.chmod(0o600)
-                            print_success(f"Token saved to {hf_token_file}")
-                else:
-                    print_info("Skipped - you can add HF_TOKEN.dat later")
-            else:
-                print_info("Skipped - you can add HF_TOKEN.dat later")
 
         # SMPL-X credentials setup
         if not smpl_exists:
