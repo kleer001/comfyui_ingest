@@ -427,31 +427,48 @@ def get_image_dimensions(image_path: Path) -> tuple[int, int]:
         return 1920, 1080  # Default fallback
 
 
-def update_segmentation_prompt(workflow_path: Path, prompt: str) -> None:
-    """Update the text prompt in segmentation workflow."""
+def update_segmentation_prompt(workflow_path: Path, prompt: str, output_subdir: Path = None) -> None:
+    """Update the text prompt and output path in segmentation workflow.
+
+    Args:
+        workflow_path: Path to workflow JSON
+        prompt: Segmentation target text
+        output_subdir: If provided, update SaveImage to write here with prompt-based prefix
+    """
     print(f"  → Setting segmentation prompt: {prompt}")
 
     with open(workflow_path) as f:
         workflow = json.load(f)
 
+    prompt_name = prompt.replace(" ", "_")
+
     for node in workflow.get("nodes", []):
+        # Update the segmentation prompt
         if node.get("type") == "SAM3VideoSegmentation":
             widgets = node.get("widgets_values", [])
             if len(widgets) >= 2:
                 widgets[1] = prompt
                 node["widgets_values"] = widgets
-            break
+
+        # Update SaveImage output path if specified
+        if output_subdir and node.get("type") == "SaveImage":
+            widgets = node.get("widgets_values", [])
+            if widgets:
+                # Set output to subdir with prompt-named prefix
+                widgets[0] = str(output_subdir / prompt_name)
+                node["widgets_values"] = widgets
 
     with open(workflow_path, 'w') as f:
         json.dump(workflow, f, indent=2)
 
 
-def combine_mask_sequences(source_dirs: list[Path], output_dir: Path) -> int:
+def combine_mask_sequences(source_dirs: list[Path], output_dir: Path, prefix: str = "combined") -> int:
     """Combine multiple mask sequences by OR-ing them together.
 
     Args:
         source_dirs: List of directories containing mask sequences
         output_dir: Output directory for combined masks
+        prefix: Filename prefix for combined masks
 
     Returns:
         Number of frames processed
@@ -470,15 +487,14 @@ def combine_mask_sequences(source_dirs: list[Path], output_dir: Path) -> int:
         return 0
 
     count = 0
-    for frame_file in frame_files:
-        frame_name = frame_file.name
-
+    for i, frame_file in enumerate(frame_files):
         # Load and combine masks from all sources
         combined = None
         for src_dir in source_dirs:
-            src_file = src_dir / frame_name
-            if src_file.exists():
-                img = Image.open(src_file).convert('L')
+            # Find matching frame in this source (by index, not name)
+            src_files = sorted(src_dir.glob("*.png"))
+            if i < len(src_files):
+                img = Image.open(src_files[i]).convert('L')
                 arr = np.array(img)
                 if combined is None:
                     combined = arr
@@ -487,8 +503,10 @@ def combine_mask_sequences(source_dirs: list[Path], output_dir: Path) -> int:
                     combined = np.maximum(combined, arr)
 
         if combined is not None:
+            # Use consistent naming: prefix_00001.png
+            out_name = f"{prefix}_{i+1:05d}.png"
             result = Image.fromarray(combined)
-            result.save(output_dir / frame_name)
+            result.save(output_dir / out_name)
             count += 1
 
     return count
@@ -721,6 +739,10 @@ def run_pipeline(
         elif skip_existing and (list(roto_dir.glob("*.png")) or list(roto_dir.glob("*/*.png"))):
             print("  → Skipping (masks exist)")
         else:
+            # Clean up any existing .png files in roto/ base directory
+            for old_file in roto_dir.glob("*.png"):
+                old_file.unlink()
+
             # Parse prompts - support comma-separated list for multiple objects
             prompts = [p.strip() for p in (roto_prompt or "person").split(",")]
             prompts = [p for p in prompts if p]  # Remove empty
@@ -729,7 +751,8 @@ def run_pipeline(
                 # Single prompt - save to named subdirectory
                 prompt_name = prompts[0].replace(" ", "_")
                 output_subdir = roto_dir / prompt_name
-                update_segmentation_prompt(workflow_path, prompts[0])
+                output_subdir.mkdir(parents=True, exist_ok=True)
+                update_segmentation_prompt(workflow_path, prompts[0], output_subdir)
                 if not run_comfyui_workflow(
                     workflow_path, comfyui_url,
                     output_dir=output_subdir,
@@ -738,10 +761,11 @@ def run_pipeline(
                 ):
                     print("  → Segmentation stage failed", file=sys.stderr)
                     return False
-                # Copy masks to roto/ for cleanplate to use
+                # Copy masks to roto/ with consistent naming for cleanplate
                 print(f"  → Copying masks to roto/ for cleanplate...")
-                for mask_file in output_subdir.glob("*.png"):
-                    shutil.copy2(mask_file, roto_dir / mask_file.name)
+                for i, mask_file in enumerate(sorted(output_subdir.glob("*.png"))):
+                    out_name = f"{prompt_name}_{i+1:05d}.png"
+                    shutil.copy2(mask_file, roto_dir / out_name)
             else:
                 # Multiple prompts - run each to its own subdirectory
                 print(f"  → Segmenting {len(prompts)} targets: {', '.join(prompts)}")
@@ -754,7 +778,7 @@ def run_pipeline(
                     mask_dirs.append(output_subdir)
 
                     print(f"\n  [{i+1}/{len(prompts)}] Segmenting: {prompt}")
-                    update_segmentation_prompt(workflow_path, prompt)
+                    update_segmentation_prompt(workflow_path, prompt, output_subdir)
                     if not run_comfyui_workflow(
                         workflow_path, comfyui_url,
                         output_dir=output_subdir,
@@ -768,8 +792,8 @@ def run_pipeline(
                 print(f"\n  → Combining {len(mask_dirs)} mask sequences...")
                 valid_dirs = [d for d in mask_dirs if list(d.glob("*.png"))]
                 if valid_dirs:
-                    count = combine_mask_sequences(valid_dirs, roto_dir)
-                    print(f"  → Combined {count} frames → roto/")
+                    count = combine_mask_sequences(valid_dirs, roto_dir, prefix="combined")
+                    print(f"  → Combined {count} frames → roto/combined_*.png")
 
         # Generate preview movie from roto/ (combined masks) or first subdirectory
         if auto_movie:
