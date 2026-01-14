@@ -582,8 +582,8 @@ class InstallationWizard:
         # Download checkpoints for motion capture components
         mocap_components = [cid for cid in to_install if cid in ['wham']]
         if mocap_components:
-            if ask_yes_no("\nDownload checkpoints for motion capture components?", default=True):
-                self.checkpoint_downloader.download_all_checkpoints(mocap_components, self.state_manager)
+            print("\nDownloading checkpoints for motion capture components...")
+            self.checkpoint_downloader.download_all_checkpoints(mocap_components, self.state_manager)
 
         # Final status
         final_status = self.check_all_components()
@@ -594,7 +594,7 @@ class InstallationWizard:
             self.config_generator.generate_all()
 
         # Run validation tests
-        if to_install and ask_yes_no("\nRun installation validation tests?", default=True):
+        if to_install:
             self.validator.validate_and_report()
 
         # Post-installation instructions
