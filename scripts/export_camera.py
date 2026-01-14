@@ -8,7 +8,7 @@ Supported output formats:
   - Nuke .chan (text file with per-frame transforms)
   - CSV (spreadsheet-compatible camera data)
   - JSON (detailed per-frame transforms)
-  - Alembic .abc (if PyAlembic is installed)
+  - Alembic .abc (requires: conda install -c conda-forge alembic)
 
 Supports camera data from:
   - Depth Anything V3 (monocular depth estimation with camera)
@@ -186,7 +186,7 @@ def export_alembic_camera(
     if not HAS_ALEMBIC:
         raise ImportError(
             "Alembic Python bindings not available. "
-            "Install with: pip install alembic (or build PyAlembic from source)"
+            "Install with: conda install -c conda-forge alembic"
         )
 
     # Calculate time per frame
@@ -564,7 +564,7 @@ def main():
         )
         exported.append(f".camera.json")
 
-    # Alembic format (requires PyAlembic)
+    # Alembic format (requires conda install -c conda-forge alembic)
     if fmt in ("abc", "all"):
         abc_path = output_base.with_suffix(".abc")
         if HAS_ALEMBIC:
@@ -587,10 +587,11 @@ def main():
         else:
             if fmt == "abc":
                 print("Error: Alembic not available", file=sys.stderr)
-                print("  Install with: pip install PyAlembic", file=sys.stderr)
+                print("  Install with: conda install -c conda-forge alembic", file=sys.stderr)
                 sys.exit(1)
             else:
-                print("Note: Alembic not available, skipping .abc (install PyAlembic)")
+                print("Note: Alembic not available, skipping .abc")
+                print("  Install with: conda install -c conda-forge alembic")
 
     # Summary
     if exported:
