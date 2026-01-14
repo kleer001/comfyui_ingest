@@ -728,16 +728,20 @@ def run_pipeline(
             if len(prompts) == 1:
                 # Single prompt - save to named subdirectory
                 prompt_name = prompts[0].replace(" ", "_")
-                output_dir = roto_dir / prompt_name
+                output_subdir = roto_dir / prompt_name
                 update_segmentation_prompt(workflow_path, prompts[0])
                 if not run_comfyui_workflow(
                     workflow_path, comfyui_url,
-                    output_dir=output_dir,
+                    output_dir=output_subdir,
                     total_frames=total_frames,
                     stage_name="roto",
                 ):
                     print("  → Segmentation stage failed", file=sys.stderr)
                     return False
+                # Copy masks to roto/ for cleanplate to use
+                print(f"  → Copying masks to roto/ for cleanplate...")
+                for mask_file in output_subdir.glob("*.png"):
+                    shutil.copy2(mask_file, roto_dir / mask_file.name)
             else:
                 # Multiple prompts - run each to its own subdirectory
                 print(f"  → Segmenting {len(prompts)} targets: {', '.join(prompts)}")
