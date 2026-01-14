@@ -138,8 +138,9 @@ class SystemPackageInstaller(ComponentInstaller):
 
     def check(self) -> bool:
         """Check if command is available system-wide."""
-        success, _ = run_command([self.command, "--version"], check=False, capture=True)
-        self.installed = success
+        import shutil
+        # Use shutil.which() - more reliable than running --version
+        self.installed = shutil.which(self.command) is not None
         return self.installed
 
     def install(self) -> bool:
