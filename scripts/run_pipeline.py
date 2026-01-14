@@ -300,6 +300,54 @@ def run_colmap_reconstruction(
         return False
 
 
+def export_camera_to_vfx_formats(
+    project_dir: Path,
+    start_frame: int = 1,
+    fps: float = 24.0,
+) -> bool:
+    """Export camera data to VFX-friendly formats.
+
+    Exports to .chan (Nuke), .csv, .clip (Houdini), .camera.json.
+    Also exports .abc if PyAlembic is available.
+
+    Args:
+        project_dir: Project directory with camera/ subfolder
+        start_frame: Starting frame number
+        fps: Frames per second
+
+    Returns:
+        True if export succeeded
+    """
+    script_path = Path(__file__).parent / "export_camera.py"
+
+    if not script_path.exists():
+        print("    Error: export_camera.py not found", file=sys.stderr)
+        return False
+
+    cmd = [
+        sys.executable, str(script_path),
+        str(project_dir),
+        "--format", "all",
+        "--start-frame", str(start_frame),
+        "--fps", str(fps),
+    ]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode == 0:
+            # Print export summary (filter to relevant lines)
+            for line in result.stdout.strip().split('\n'):
+                if 'Exported' in line or 'formats:' in line or '.chan' in line or '.clip' in line:
+                    print(f"    {line}")
+            return True
+        else:
+            print(f"    Camera export failed: {result.stderr}", file=sys.stderr)
+            return False
+    except Exception as e:
+        print(f"    Camera export failed: {e}", file=sys.stderr)
+        return False
+
+
 def run_mocap(
     project_dir: Path,
     skip_texture: bool = False,
@@ -847,6 +895,16 @@ def run_pipeline(
                 print("  → COLMAP reconstruction failed", file=sys.stderr)
                 # Non-fatal for pipeline - continue to camera export
                 # (may use DA3 camera data as fallback)
+
+        # Export camera to VFX formats after COLMAP completes
+        camera_dir = project_dir / "camera"
+        if (camera_dir / "extrinsics.json").exists():
+            print("\n  → Exporting camera to VFX formats...")
+            export_camera_to_vfx_formats(
+                project_dir,
+                start_frame=1,
+                fps=fps,
+            )
 
     # Stage: Motion capture
     if "mocap" in stages:

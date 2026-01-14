@@ -1,18 +1,26 @@
 #!/usr/bin/env python3
-"""Export camera data to Alembic format.
+"""Export camera data to various formats for VFX applications.
 
-Converts camera data (from Depth Anything V3 or COLMAP) to an Alembic (.abc)
-camera file for import into Houdini/Nuke/Maya/Blender.
+Converts camera data (from Depth Anything V3 or COLMAP) to formats
+importable by Houdini, Nuke, Maya, and Blender.
+
+Supported output formats:
+  - Nuke .chan (text file with per-frame transforms)
+  - CSV (spreadsheet-compatible camera data)
+  - JSON (detailed per-frame transforms)
+  - Alembic .abc (if PyAlembic is installed)
 
 Supports camera data from:
   - Depth Anything V3 (monocular depth estimation with camera)
   - COLMAP (Structure-from-Motion reconstruction)
 
 Usage:
-    python export_camera.py <project_dir> [--start-frame 1] [--fps 24]
+    python export_camera.py <project_dir> [--format chan] [--fps 24]
 
 Example:
-    python export_camera.py /path/to/projects/My_Shot_Name --fps 24
+    python export_camera.py /path/to/projects/My_Shot --format chan
+    python export_camera.py /path/to/projects/My_Shot --format csv
+    python export_camera.py /path/to/projects/My_Shot --format all
 """
 
 import argparse
@@ -283,9 +291,151 @@ def export_json_camera(
     print(f"  Frame range: {start_frame}-{start_frame + len(extrinsics) - 1}")
 
 
+def export_nuke_chan(
+    extrinsics: list[np.ndarray],
+    intrinsics: dict,
+    output_path: Path,
+    start_frame: int = 1,
+) -> None:
+    """Export camera to Nuke .chan format.
+
+    The .chan format is a simple text file with one line per frame:
+    frame tx ty tz rx ry rz
+
+    Nuke expects rotation in degrees, XYZ order.
+    Import in Nuke: Camera node -> File -> Import chan file
+
+    Args:
+        extrinsics: List of 4x4 camera-to-world matrices per frame
+        intrinsics: Camera intrinsics (for focal length info in header)
+        output_path: Output .chan file path
+        start_frame: Starting frame number
+    """
+    with open(output_path, 'w') as f:
+        # Write header comment with intrinsics info
+        fx = intrinsics.get("fx", intrinsics.get("focal_x", 1000))
+        fy = intrinsics.get("fy", intrinsics.get("focal_y", 1000))
+        width = intrinsics.get("width", 1920)
+        height = intrinsics.get("height", 1080)
+
+        f.write(f"# Nuke camera chan file\n")
+        f.write(f"# Frames: {start_frame}-{start_frame + len(extrinsics) - 1}\n")
+        f.write(f"# Focal length (pixels): fx={fx:.2f} fy={fy:.2f}\n")
+        f.write(f"# Resolution: {width}x{height}\n")
+        f.write(f"# Format: frame tx ty tz rx ry rz\n")
+        f.write(f"#\n")
+
+        for frame_idx, matrix in enumerate(extrinsics):
+            frame = start_frame + frame_idx
+            translation, rotation, _ = decompose_matrix(matrix)
+            euler = rotation_matrix_to_euler(rotation)
+
+            # Write: frame tx ty tz rx ry rz
+            f.write(f"{frame} {translation[0]:.6f} {translation[1]:.6f} {translation[2]:.6f} "
+                    f"{euler[0]:.6f} {euler[1]:.6f} {euler[2]:.6f}\n")
+
+    print(f"Exported {len(extrinsics)} frames to {output_path}")
+    print(f"  Frame range: {start_frame}-{start_frame + len(extrinsics) - 1}")
+    print(f"  Import in Nuke: Camera node → File → Import chan file")
+
+
+def export_csv(
+    extrinsics: list[np.ndarray],
+    intrinsics: dict,
+    output_path: Path,
+    start_frame: int = 1,
+) -> None:
+    """Export camera to CSV format for spreadsheet/scripted import.
+
+    Columns: frame, tx, ty, tz, rx, ry, rz, fx, fy, cx, cy
+
+    Args:
+        extrinsics: List of 4x4 camera-to-world matrices per frame
+        intrinsics: Camera intrinsics dict
+        output_path: Output .csv file path
+        start_frame: Starting frame number
+    """
+    fx = intrinsics.get("fx", intrinsics.get("focal_x", 1000))
+    fy = intrinsics.get("fy", intrinsics.get("focal_y", 1000))
+    cx = intrinsics.get("cx", intrinsics.get("principal_x", 960))
+    cy = intrinsics.get("cy", intrinsics.get("principal_y", 540))
+
+    with open(output_path, 'w') as f:
+        # Header
+        f.write("frame,tx,ty,tz,rx,ry,rz,fx,fy,cx,cy\n")
+
+        for frame_idx, matrix in enumerate(extrinsics):
+            frame = start_frame + frame_idx
+            translation, rotation, _ = decompose_matrix(matrix)
+            euler = rotation_matrix_to_euler(rotation)
+
+            f.write(f"{frame},{translation[0]:.6f},{translation[1]:.6f},{translation[2]:.6f},"
+                    f"{euler[0]:.6f},{euler[1]:.6f},{euler[2]:.6f},"
+                    f"{fx:.2f},{fy:.2f},{cx:.2f},{cy:.2f}\n")
+
+    print(f"Exported {len(extrinsics)} frames to {output_path}")
+    print(f"  Frame range: {start_frame}-{start_frame + len(extrinsics) - 1}")
+
+
+def export_houdini_clip(
+    extrinsics: list[np.ndarray],
+    intrinsics: dict,
+    output_path: Path,
+    start_frame: int = 1,
+    fps: float = 24.0,
+) -> None:
+    """Export camera to Houdini .clip format (CHOP channel data).
+
+    This creates a text-based clip file that can be imported directly
+    into Houdini via CHOP Import or File CHOP.
+
+    Args:
+        extrinsics: List of 4x4 camera-to-world matrices per frame
+        intrinsics: Camera intrinsics dict
+        output_path: Output .clip file path
+        start_frame: Starting frame number
+        fps: Frames per second
+    """
+    num_frames = len(extrinsics)
+
+    with open(output_path, 'w') as f:
+        # Clip header
+        f.write("{\n")
+        f.write(f'  rate = {fps}\n')
+        f.write(f'  start = {start_frame / fps}\n')
+        f.write(f'  tracklength = {num_frames}\n')
+        f.write('  tracks = 6 {\n')
+
+        # Channel names
+        channels = ['tx', 'ty', 'tz', 'rx', 'ry', 'rz']
+
+        for ch_idx, ch_name in enumerate(channels):
+            f.write(f'    {ch_name} ' + '{\n')
+            f.write(f'      data = ')
+
+            values = []
+            for matrix in extrinsics:
+                translation, rotation, _ = decompose_matrix(matrix)
+                euler = rotation_matrix_to_euler(rotation)
+
+                if ch_idx < 3:
+                    values.append(translation[ch_idx])
+                else:
+                    values.append(euler[ch_idx - 3])
+
+            f.write(' '.join(f'{v:.6f}' for v in values))
+            f.write('\n    }\n')
+
+        f.write('  }\n')
+        f.write('}\n')
+
+    print(f"Exported {len(extrinsics)} frames to {output_path}")
+    print(f"  Import in Houdini: File CHOP → select .clip file")
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Export camera data to Alembic/JSON format (supports DA3 and COLMAP)",
+        description="Export camera data to various VFX formats (supports DA3 and COLMAP)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__
     )
@@ -322,13 +472,13 @@ def main():
         "--output", "-o",
         type=Path,
         default=None,
-        help="Output file path (default: <project_dir>/camera/camera.abc)"
+        help="Output file base path (default: <project_dir>/camera/camera)"
     )
     parser.add_argument(
         "--format",
-        choices=["abc", "json", "both"],
-        default="both",
-        help="Output format (default: both)"
+        choices=["chan", "csv", "clip", "json", "abc", "all"],
+        default="all",
+        help="Output format: chan (Nuke), csv, clip (Houdini), json, abc (Alembic), all (default: all)"
     )
 
     args = parser.parse_args()
@@ -362,8 +512,60 @@ def main():
     # Determine output path
     output_base = args.output or (camera_dir / "camera")
 
+    # Track what we exported
+    exported = []
+
     # Export based on format
-    if args.format in ("abc", "both"):
+    fmt = args.format
+
+    # Nuke .chan format (always available)
+    if fmt in ("chan", "all"):
+        chan_path = output_base.with_suffix(".chan")
+        export_nuke_chan(
+            extrinsics=extrinsics,
+            intrinsics=intrinsics,
+            output_path=chan_path,
+            start_frame=args.start_frame,
+        )
+        exported.append(f".chan (Nuke)")
+
+    # CSV format (always available)
+    if fmt in ("csv", "all"):
+        csv_path = output_base.with_suffix(".csv")
+        export_csv(
+            extrinsics=extrinsics,
+            intrinsics=intrinsics,
+            output_path=csv_path,
+            start_frame=args.start_frame,
+        )
+        exported.append(f".csv")
+
+    # Houdini .clip format (always available)
+    if fmt in ("clip", "all"):
+        clip_path = output_base.with_suffix(".clip")
+        export_houdini_clip(
+            extrinsics=extrinsics,
+            intrinsics=intrinsics,
+            output_path=clip_path,
+            start_frame=args.start_frame,
+            fps=args.fps,
+        )
+        exported.append(f".clip (Houdini)")
+
+    # JSON format (always available)
+    if fmt in ("json", "all"):
+        json_path = output_base.with_suffix(".camera.json")
+        export_json_camera(
+            extrinsics=extrinsics,
+            intrinsics=intrinsics,
+            output_path=json_path,
+            start_frame=args.start_frame,
+            fps=args.fps
+        )
+        exported.append(f".camera.json")
+
+    # Alembic format (requires PyAlembic)
+    if fmt in ("abc", "all"):
         abc_path = output_base.with_suffix(".abc")
         if HAS_ALEMBIC:
             try:
@@ -377,25 +579,22 @@ def main():
                     image_height=args.height,
                     camera_name=camera_name
                 )
+                exported.append(f".abc (Alembic)")
             except Exception as e:
                 print(f"Error exporting Alembic: {e}", file=sys.stderr)
-                if args.format == "abc":
+                if fmt == "abc":
                     sys.exit(1)
         else:
-            print("Warning: Alembic not available, skipping .abc export", file=sys.stderr)
-            print("  Install with: pip install PyAlembic", file=sys.stderr)
-            if args.format == "abc":
+            if fmt == "abc":
+                print("Error: Alembic not available", file=sys.stderr)
+                print("  Install with: pip install PyAlembic", file=sys.stderr)
                 sys.exit(1)
+            else:
+                print("Note: Alembic not available, skipping .abc (install PyAlembic)")
 
-    if args.format in ("json", "both"):
-        json_path = output_base.with_suffix(".camera.json")
-        export_json_camera(
-            extrinsics=extrinsics,
-            intrinsics=intrinsics,
-            output_path=json_path,
-            start_frame=args.start_frame,
-            fps=args.fps
-        )
+    # Summary
+    if exported:
+        print(f"\nExported formats: {', '.join(exported)}")
 
 
 if __name__ == "__main__":
