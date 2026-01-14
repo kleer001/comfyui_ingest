@@ -332,6 +332,51 @@ def run_mocap(
         return False
 
 
+def get_image_dimensions(image_path: Path) -> tuple[int, int]:
+    """Get width and height from an image file using ffprobe."""
+    cmd = [
+        "ffprobe", "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=width,height",
+        "-of", "csv=p=0:s=x",
+        str(image_path)
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        width, height = result.stdout.strip().split("x")
+        return int(width), int(height)
+    except (ValueError, AttributeError):
+        return 1920, 1080  # Default fallback
+
+
+def update_cleanplate_resolution(workflow_path: Path, source_frames_dir: Path) -> None:
+    """Update ProPainterInpaint resolution in cleanplate workflow to match source frames."""
+    # Get resolution from first source frame
+    frames = sorted(source_frames_dir.glob("frame_*.png"))
+    if not frames:
+        print("  → Warning: No source frames found, using default resolution")
+        return
+
+    width, height = get_image_dimensions(frames[0])
+    print(f"  → Setting cleanplate resolution to {width}x{height}")
+
+    # Load workflow and update ProPainterInpaint node
+    with open(workflow_path) as f:
+        workflow = json.load(f)
+
+    for node in workflow.get("nodes", []):
+        if node.get("type") == "ProPainterInpaint":
+            widgets = node.get("widgets_values", [])
+            if len(widgets) >= 2:
+                widgets[0] = width
+                widgets[1] = height
+                node["widgets_values"] = widgets
+            break
+
+    with open(workflow_path, 'w') as f:
+        json.dump(workflow, f, indent=2)
+
+
 def run_gsir_materials(
     project_dir: Path,
     iterations_stage1: int = 30000,
@@ -545,6 +590,8 @@ def run_pipeline(
         elif skip_existing and list(cleanplate_dir.glob("*.png")):
             print("  → Skipping (cleanplates exist)")
         else:
+            # Update ProPainterInpaint resolution to match source frames
+            update_cleanplate_resolution(workflow_path, source_frames)
             if not run_comfyui_workflow(
                 workflow_path, comfyui_url,
                 output_dir=cleanplate_dir,
