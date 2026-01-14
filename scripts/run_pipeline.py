@@ -31,7 +31,7 @@ from comfyui_utils import (
     run_comfyui_workflow,
 )
 from comfyui_manager import ensure_comfyui, stop_comfyui
-START_FRAME = 1001
+START_FRAME = 1  # ComfyUI SaveImage outputs start at 1, so we match that
 SUPPORTED_FORMATS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".mxf", ".exr", ".dpx", ".jpg", ".png"}
 
 # Stage definitions

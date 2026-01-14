@@ -9,7 +9,7 @@ Supports camera data from:
   - COLMAP (Structure-from-Motion reconstruction)
 
 Usage:
-    python export_camera.py <project_dir> [--start-frame 1001] [--fps 24]
+    python export_camera.py <project_dir> [--start-frame 1] [--fps 24]
 
 Example:
     python export_camera.py /path/to/projects/My_Shot_Name --fps 24
@@ -157,7 +157,7 @@ def export_alembic_camera(
     extrinsics: list[np.ndarray],
     intrinsics: dict,
     output_path: Path,
-    start_frame: int = 1001,
+    start_frame: int = 1,
     fps: float = 24.0,
     image_width: int = 1920,
     image_height: int = 1080,
@@ -169,7 +169,7 @@ def export_alembic_camera(
         extrinsics: List of 4x4 camera-to-world matrices per frame
         intrinsics: Camera intrinsics dict (fx, fy, cx, cy)
         output_path: Output .abc file path
-        start_frame: Starting frame number (VFX convention: 1001)
+        start_frame: Starting frame number (default: 1)
         fps: Frames per second
         image_width: Image width for FOV calculation
         image_height: Image height for FOV calculation
@@ -248,7 +248,7 @@ def export_json_camera(
     extrinsics: list[np.ndarray],
     intrinsics: dict,
     output_path: Path,
-    start_frame: int = 1001,
+    start_frame: int = 1,
     fps: float = 24.0
 ) -> None:
     """Export camera data to JSON format (fallback when Alembic unavailable).
@@ -297,8 +297,8 @@ def main():
     parser.add_argument(
         "--start-frame", "-s",
         type=int,
-        default=1001,
-        help="Starting frame number (default: 1001)"
+        default=1,
+        help="Starting frame number (default: 1)"
     )
     parser.add_argument(
         "--fps", "-f",
