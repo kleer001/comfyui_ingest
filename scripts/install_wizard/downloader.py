@@ -1084,10 +1084,16 @@ Place in ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint/model.safetensors'''
                 if len(response.content) < 10000:
                     # Small HTML response - likely an error page
                     print_error("Server returned HTML instead of the file")
-                    print_info("This usually means:")
-                    print("  - Your account may not have download access yet")
-                    print("  - You may need to accept the license agreement on the website first")
-                    print("  - Try logging in at https://smpl-x.is.tue.mpg.de/ and downloading manually")
+                    print_info("Response content:")
+                    print("-" * 60)
+                    try:
+                        html_content = response.content.decode('utf-8', errors='ignore')
+                        print(html_content[:2000])  # First 2000 chars
+                        if len(html_content) > 2000:
+                            print(f"... (truncated, total {len(html_content)} chars)")
+                    except Exception as e:
+                        print(f"Could not decode response: {e}")
+                    print("-" * 60)
                     return False
 
             response.raise_for_status()
