@@ -597,7 +597,7 @@ class InstallationWizard:
 
         # Download SMPL-X models if mocap_core was installed and credentials exist
         if 'mocap_core' in to_install:
-            smpl_login = Path("SMPL.login.dat")
+            smpl_login = self.repo_root / "SMPL.login.dat"
             if smpl_login.exists():
                 print("\nDownloading SMPL-X body models...")
                 self.checkpoint_downloader.download_all_checkpoints(['smplx'], self.state_manager)

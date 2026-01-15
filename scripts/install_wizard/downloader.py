@@ -104,15 +104,14 @@ This model uses ~6.8GB VRAM (vs 23.6GB for Large), suitable for most GPUs.'''
             'hf_repo_id': 'PeiqingYang/MatAnyone',
             'files': [
                 {
-                    'filename': 'matanyone.pth',
+                    'filename': 'model.safetensors',
                     'size_mb': 450,  # ~450MB model
                 }
             ],
             'dest_dir_rel': 'ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint',
             'instructions': '''MatAnyone model for stable video matting.
-Download from HuggingFace: https://huggingface.co/PeiqingYang/MatAnyone
-Or GitHub release: https://github.com/pq-yang/MatAnyone/releases/download/v1.0.0/matanyone.pth
-Place in ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint/matanyone.pth'''
+Download from HuggingFace: https://huggingface.co/PeiqingYang/MatAnyone/resolve/main/model.safetensors
+Place in ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint/model.safetensors'''
         }
     }
 
