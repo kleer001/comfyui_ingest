@@ -59,7 +59,7 @@
         {"name": "scores", "type": "STRING", "links": null, "slot_index": 3}
       ],
       "properties": {"Node name for S&R": "SAM3Grounding"},
-      "widgets_values": [0.2, "person", -1, false],
+      "widgets_values": [0.1, "person", -1, false],
       "title": "SAM3 Grounding (multi-detection)"
     },
     {
@@ -136,7 +136,7 @@
       "inputs": [],
       "outputs": [],
       "properties": {"text": ""},
-      "widgets_values": ["SAM3 GROUNDING SEGMENTATION\n\nUses SAM3Grounding with max_detections=-1 for MULTIPLE objects.\nEdit text_prompt: \"person\", \"car\", \"dog\", etc."],
+      "widgets_values": ["SAM3 GROUNDING SEGMENTATION\n\nUses SAM3Grounding with max_detections=-1 for MULTIPLE objects.\nThreshold: 0.1 (lower = more detections, may include false positives)\nEdit text_prompt: \"person\", \"car\", \"dog\", etc."],
       "title": "Instructions",
       "color": "#233",
       "bgcolor": "#355"
