@@ -476,20 +476,19 @@ def get_image_dimensions(image_path: Path) -> tuple[int, int]:
         return 1920, 1080  # Default fallback
 
 
-def update_segmentation_prompt(workflow_path: Path, prompt: str, output_subdir: Path = None) -> None:
+def update_segmentation_prompt(workflow_path: Path, prompt: str, output_subdir: Path = None, project_dir: Path = None) -> None:
     """Update the text prompt and output path in segmentation workflow.
 
     Args:
         workflow_path: Path to workflow JSON
         prompt: Segmentation target text
-        output_subdir: If provided, update SaveImage to write here with prompt-based prefix
+        output_subdir: If provided, update SaveImage to write here
+        project_dir: Project root for computing relative paths
     """
     print(f"  → Setting segmentation prompt: {prompt}")
 
     with open(workflow_path) as f:
         workflow = json.load(f)
-
-    prompt_name = prompt.replace(" ", "_")
 
     for node in workflow.get("nodes", []):
         # Update the segmentation prompt
@@ -503,8 +502,14 @@ def update_segmentation_prompt(workflow_path: Path, prompt: str, output_subdir: 
         if output_subdir and node.get("type") == "SaveImage":
             widgets = node.get("widgets_values", [])
             if widgets:
-                # Set output to subdir with prompt-named prefix
-                widgets[0] = str(output_subdir / prompt_name)
+                # ComfyUI SaveImage expects relative path from output directory
+                # Convert absolute path to relative path from project_dir
+                if project_dir:
+                    relative_path = output_subdir.relative_to(project_dir)
+                else:
+                    relative_path = output_subdir
+                # Add "mask" as the filename prefix
+                widgets[0] = str(relative_path / "mask")
                 node["widgets_values"] = widgets
 
     with open(workflow_path, 'w') as f:
@@ -876,7 +881,7 @@ def run_pipeline(
 
                 if len(prompts) > 1:
                     print(f"\n  [{i+1}/{len(prompts)}] Segmenting: {prompt}")
-                update_segmentation_prompt(workflow_path, prompt, output_subdir)
+                update_segmentation_prompt(workflow_path, prompt, output_subdir, project_dir)
                 if not run_comfyui_workflow(
                     workflow_path, comfyui_url,
                     output_dir=output_subdir,
