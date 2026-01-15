@@ -44,8 +44,9 @@ Or run the fetch_demo_data.sh script from the WHAM repository:
         'smplx': {
             'name': 'SMPL-X Models',
             'requires_auth': True,
-            'auth_type': 'basic',
+            'auth_type': 'form',  # Form-based login with session cookies
             'auth_file': 'SMPL.login.dat',
+            'login_url': 'https://smpl-x.is.tue.mpg.de/login.php',
             'files': [
                 {
                     'url': 'https://download.is.tue.mpg.de/download.php?domain=smplx&sfile=models_smplx_v1_1.zip',
@@ -831,6 +832,127 @@ Place in ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint/model.safetensors'''
             print_error("All download methods failed")
             return False
 
+    def download_file_with_form_auth(
+        self,
+        login_url: str,
+        download_url: str,
+        dest: Path,
+        username: str,
+        password: str,
+        expected_size_mb: Optional[int] = None
+    ) -> bool:
+        """Download file after form-based login (for sites like SMPL-X).
+
+        Args:
+            login_url: URL of the login form
+            download_url: URL to download after authentication
+            dest: Destination file path
+            username: Login username/email
+            password: Login password
+            expected_size_mb: Expected file size in MB
+
+        Returns:
+            True if successful
+        """
+        try:
+            import requests
+        except ImportError:
+            print_warning("requests library not found, installing...")
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "--user", "requests"],
+                capture_output=True, text=True
+            )
+            if result.returncode != 0:
+                result = subprocess.run(
+                    [sys.executable, "-m", "pip", "install", "--break-system-packages", "requests"],
+                    capture_output=True, text=True
+                )
+                if result.returncode != 0:
+                    print_error(f"Failed to install requests: {result.stderr}")
+                    return False
+            import requests
+
+        try:
+            print(f"  Logging in to {login_url}...")
+
+            # Create session to maintain cookies
+            session = requests.Session()
+
+            # POST login form
+            login_data = {
+                'username': username,
+                'password': password
+            }
+            login_response = session.post(login_url, data=login_data, timeout=30)
+
+            # Check if login succeeded (usually redirects or returns 200)
+            if login_response.status_code not in [200, 302]:
+                print_error(f"Login failed with status {login_response.status_code}")
+                return False
+
+            # Check for login error in response
+            if 'invalid' in login_response.text.lower() or 'error' in login_response.text.lower():
+                if 'password' in login_response.text.lower() or 'credentials' in login_response.text.lower():
+                    print_error("Login failed - invalid credentials")
+                    return False
+
+            print_success("Login successful")
+            print(f"  Downloading from {download_url}...")
+            print(f"  -> {dest}")
+
+            # Ensure directory exists
+            dest.parent.mkdir(parents=True, exist_ok=True)
+
+            # Download file with authenticated session
+            response = session.get(download_url, stream=True, timeout=30)
+            response.raise_for_status()
+
+            # Check content-type
+            content_type = response.headers.get('content-type', '').lower()
+            if 'text/html' in content_type:
+                print_error("Server returned HTML instead of the expected file")
+                print_info("This usually means:")
+                print("  - Login succeeded but you don't have download access")
+                print("  - You may not have been approved for access yet")
+                print("  - The download URL may have changed")
+                return False
+
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded = 0
+
+            with open(dest, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+
+                        if total_size > 0:
+                            pct = (downloaded / total_size) * 100
+                            mb_downloaded = downloaded / (1024 * 1024)
+                            mb_total = total_size / (1024 * 1024)
+                            progress_msg = f"\r  Progress: {pct:.1f}% ({mb_downloaded:.1f}/{mb_total:.1f} MB)"
+                            print(progress_msg, end='', flush=True)
+
+            print()  # New line after progress
+            print_success(f"Downloaded {dest.name}")
+            return True
+
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 401:
+                print_error("Authentication failed - check your credentials")
+            elif e.response.status_code == 403:
+                print_error("Access denied - have you been approved for access?")
+            else:
+                print_error(f"Download failed: {e}")
+            if dest.exists():
+                dest.unlink()
+            return False
+        except requests.exceptions.RequestException as e:
+            print_error(f"Download failed: {e}")
+            if dest.exists():
+                dest.unlink()
+            return False
+
     def _validate_zip_file(self, file_path: Path) -> Tuple[bool, str]:
         """Validate that a file is actually a zip archive.
 
@@ -964,6 +1086,7 @@ Place in ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint/model.safetensors'''
         # Handle authentication if required
         auth = None
         token = None
+        form_auth = None  # For form-based login (username, password, login_url)
         use_gdown = checkpoint_info.get('use_gdown', False)
         if checkpoint_info.get('requires_auth'):
             if not repo_root:
@@ -978,6 +1101,19 @@ Place in ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint/model.safetensors'''
                     print_error(f"{checkpoint_info['name']} requires authentication")
                     print_info(checkpoint_info['instructions'])
                     return False
+                print_success(f"Loaded credentials from {auth_file}")
+            elif auth_type == 'form':
+                # Form-based login (e.g., SMPL-X website)
+                creds = self.read_credentials(repo_root, auth_file)
+                if not creds:
+                    print_error(f"{checkpoint_info['name']} requires authentication")
+                    print_info(checkpoint_info['instructions'])
+                    return False
+                login_url = checkpoint_info.get('login_url')
+                if not login_url:
+                    print_error(f"No login_url configured for {checkpoint_info['name']}")
+                    return False
+                form_auth = (creds[0], creds[1], login_url)
                 print_success(f"Loaded credentials from {auth_file}")
             elif auth_type == 'bearer':
                 token = self.read_hf_token(repo_root)
@@ -1032,8 +1168,21 @@ Place in ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint/model.safetensors'''
                     success = False
                     print_info(checkpoint_info['instructions'])
                     break
+            elif form_auth:
+                # Use form-based login (e.g., SMPL-X)
+                username, password, login_url = form_auth
+                if not self.download_file_with_form_auth(
+                    login_url,
+                    file_info['url'],
+                    dest_path,
+                    username,
+                    password,
+                    expected_size_mb=file_info.get('size_mb')
+                ):
+                    success = False
+                    break
             elif auth or token:
-                # Use authenticated download
+                # Use HTTP basic auth or bearer token
                 if not self.download_file_with_auth(
                     file_info['url'],
                     dest_path,
