@@ -404,22 +404,52 @@ def export_houdini_cmd(
     # Get absolute path to camera directory
     camera_dir_abs = camera_dir.resolve()
 
-    cmd_content = f'''# Houdini camera import - File → Run Script
-# Project camera directory: {camera_dir_abs}
+    # Write a separate .py file with the actual Python code
+    # This is more reliable than embedding in python -c
+    py_script_path = output_path.with_suffix('.py')
 
-python -c "
-import json, math, os
-import hou
+    py_content = f'''#!/usr/bin/env python
+# Houdini camera import script
+# Auto-generated for project: {camera_dir_abs}
+#
+# Usage:
+#   1. File -> Run Script -> select camera.cmd
+#   2. OR Windows -> Python Source Editor -> Open -> camera.py -> Run
+#   3. OR paste this into Houdini's Python Shell
+
+import json
+import math
+import os
+import sys
+
+print("=" * 60)
+print("Pipeline Camera Import")
+print("=" * 60)
 
 camera_dir = r'{camera_dir_abs}'
+print(f"Camera directory: {{camera_dir}}")
+
+# Check files exist
+extrinsics_path = os.path.join(camera_dir, 'extrinsics.json')
+intrinsics_path = os.path.join(camera_dir, 'intrinsics.json')
+
+if not os.path.exists(extrinsics_path):
+    print(f"ERROR: Extrinsics not found: {{extrinsics_path}}")
+    sys.exit(1)
+print(f"Found: extrinsics.json")
 
 # Load data
-with open(os.path.join(camera_dir, 'extrinsics.json')) as f:
+with open(extrinsics_path) as f:
     extrinsics = json.load(f)
+print(f"Loaded {{len(extrinsics)}} camera frames")
+
 intrinsics = {{}}
-if os.path.exists(os.path.join(camera_dir, 'intrinsics.json')):
-    with open(os.path.join(camera_dir, 'intrinsics.json')) as f:
+if os.path.exists(intrinsics_path):
+    with open(intrinsics_path) as f:
         intrinsics = json.load(f)
+    print(f"Found: intrinsics.json")
+else:
+    print(f"No intrinsics.json, using defaults")
 
 def decompose(m):
     tx, ty, tz = m[0][3], m[1][3], m[2][3]
@@ -439,46 +469,98 @@ def decompose(m):
         rx = math.atan2(-r[1][2], r[1][1])
         ry = math.atan2(-r[2][0], sc)
         rz = 0
-    return (tx,ty,tz), (math.degrees(rx),math.degrees(ry),math.degrees(rz))
+    return (tx, ty, tz), (math.degrees(rx), math.degrees(ry), math.degrees(rz))
 
 fps = {fps}
-start = {start_frame}
+start_frame = {start_frame}
 fx = intrinsics.get('fx', intrinsics.get('focal_x', 1000))
-w = intrinsics.get('width', 1920)
-h = intrinsics.get('height', 1080)
-sensor = 36.0
-focal = fx * sensor / w
+width = intrinsics.get('width', 1920)
+height = intrinsics.get('height', 1080)
+sensor_mm = 36.0
+focal_mm = fx * sensor_mm / width
 
+print(f"FPS: {{fps}}")
+print(f"Start frame: {{start_frame}}")
+print(f"Focal length: {{focal_mm:.2f}}mm")
+print(f"Resolution: {{width}}x{{height}}")
+
+# Import hou module
+try:
+    import hou
+    print("Houdini module loaded OK")
+except ImportError:
+    print("ERROR: Cannot import hou module - run this inside Houdini!")
+    sys.exit(1)
+
+# Set FPS
 hou.setFps(fps)
+print(f"Set Houdini FPS to {{fps}}")
+
+# Create camera
 cam = hou.node('/obj').createNode('cam', 'pipeline_cam')
-cam.parm('focal').set(focal)
-cam.parm('aperture').set(sensor)
-cam.parm('resx').set(w)
-cam.parm('resy').set(h)
+print(f"Created camera: {{cam.path()}}")
 
+# Set camera properties
+cam.parm('focal').set(focal_mm)
+cam.parm('aperture').set(sensor_mm)
+cam.parm('resx').set(width)
+cam.parm('resy').set(height)
+print("Set focal/aperture/resolution")
+
+# Set keyframes
+print("Setting keyframes...")
 for i, m in enumerate(extrinsics):
-    f = start + i
+    frame = start_frame + i
     t, r = decompose(m)
-    cam.parm('tx').setKeyframe(hou.Keyframe(t[0], f))
-    cam.parm('ty').setKeyframe(hou.Keyframe(t[1], f))
-    cam.parm('tz').setKeyframe(hou.Keyframe(t[2], f))
-    cam.parm('rx').setKeyframe(hou.Keyframe(r[0], f))
-    cam.parm('ry').setKeyframe(hou.Keyframe(r[1], f))
-    cam.parm('rz').setKeyframe(hou.Keyframe(r[2], f))
+    cam.parm('tx').setKeyframe(hou.Keyframe(t[0], frame))
+    cam.parm('ty').setKeyframe(hou.Keyframe(t[1], frame))
+    cam.parm('tz').setKeyframe(hou.Keyframe(t[2], frame))
+    cam.parm('rx').setKeyframe(hou.Keyframe(r[0], frame))
+    cam.parm('ry').setKeyframe(hou.Keyframe(r[1], frame))
+    cam.parm('rz').setKeyframe(hou.Keyframe(r[2], frame))
+    if (i + 1) % 50 == 0 or i == len(extrinsics) - 1:
+        print(f"  Processed frame {{frame}} ({{i + 1}}/{{len(extrinsics)}})")
 
-end = start + len(extrinsics) - 1
-hou.playbar.setFrameRange(start, end)
-hou.playbar.setPlaybackRange(start, end)
+# Set frame range
+end_frame = start_frame + len(extrinsics) - 1
+hou.playbar.setFrameRange(start_frame, end_frame)
+hou.playbar.setPlaybackRange(start_frame, end_frame)
+
+# Select camera
 cam.setSelected(True, clear_all_selected=True)
-print(f'Created {{cam.path()}} with {{len(extrinsics)}} frames')
-"
+
+print("=" * 60)
+print(f"SUCCESS!")
+print(f"Camera: {{cam.path()}}")
+print(f"Frames: {{start_frame}}-{{end_frame}} ({{len(extrinsics)}} total)")
+print("=" * 60)
+'''
+
+    # Write the Python script
+    with open(py_script_path, 'w') as f:
+        f.write(py_content)
+
+    # Write the .cmd file that runs the .py file
+    # Use execfile-style for better compatibility
+    cmd_content = f'''# Houdini camera import
+# File -> Run Script -> select this file
+#
+# Alternative: Windows -> Python Source Editor -> Open camera.py -> Run
+
+echo "========================================"
+echo "Pipeline Camera Import"
+echo "========================================"
+echo "Running: {py_script_path}"
+
+python "{py_script_path}"
 '''
 
     with open(output_path, 'w') as f:
         f.write(cmd_content)
 
-    print(f"Exported Houdini script to {output_path}")
-    print(f"  Run in Houdini: File → Run Script → camera.cmd")
+    print(f"Exported Houdini scripts:")
+    print(f"  {output_path} (run via File -> Run Script)")
+    print(f"  {py_script_path} (or open in Python Source Editor)")
 
 
 def export_houdini_clip(
