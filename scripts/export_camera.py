@@ -381,6 +381,106 @@ def export_csv(
     print(f"  Frame range: {start_frame}-{start_frame + len(extrinsics) - 1}")
 
 
+def export_houdini_cmd(
+    camera_dir: Path,
+    output_path: Path,
+    start_frame: int = 1,
+    fps: float = 24.0,
+) -> None:
+    """Export Houdini .cmd file that creates camera from JSON.
+
+    The .cmd file contains embedded Python that reads the extrinsics.json
+    and intrinsics.json from the same directory and creates an animated
+    camera in /obj.
+
+    Run in Houdini: File → Run Script → select camera.cmd
+
+    Args:
+        camera_dir: Directory containing extrinsics.json and intrinsics.json
+        output_path: Output .cmd file path
+        start_frame: Starting frame number
+        fps: Frames per second
+    """
+    # Get absolute path to camera directory
+    camera_dir_abs = camera_dir.resolve()
+
+    cmd_content = f'''# Houdini camera import - File → Run Script
+# Project camera directory: {camera_dir_abs}
+
+python -c "
+import json, math, os
+import hou
+
+camera_dir = r'{camera_dir_abs}'
+
+# Load data
+with open(os.path.join(camera_dir, 'extrinsics.json')) as f:
+    extrinsics = json.load(f)
+intrinsics = {{}}
+if os.path.exists(os.path.join(camera_dir, 'intrinsics.json')):
+    with open(os.path.join(camera_dir, 'intrinsics.json')) as f:
+        intrinsics = json.load(f)
+
+def decompose(m):
+    tx, ty, tz = m[0][3], m[1][3], m[2][3]
+    r = [[m[i][j] for j in range(3)] for i in range(3)]
+    sx = math.sqrt(r[0][0]**2 + r[1][0]**2 + r[2][0]**2)
+    sy = math.sqrt(r[0][1]**2 + r[1][1]**2 + r[2][1]**2)
+    sz = math.sqrt(r[0][2]**2 + r[1][2]**2 + r[2][2]**2)
+    if sx > 1e-8: r[0][0]/=sx; r[1][0]/=sx; r[2][0]/=sx
+    if sy > 1e-8: r[0][1]/=sy; r[1][1]/=sy; r[2][1]/=sy
+    if sz > 1e-8: r[0][2]/=sz; r[1][2]/=sz; r[2][2]/=sz
+    sc = math.sqrt(r[0][0]**2 + r[1][0]**2)
+    if sc > 1e-6:
+        rx = math.atan2(r[2][1], r[2][2])
+        ry = math.atan2(-r[2][0], sc)
+        rz = math.atan2(r[1][0], r[0][0])
+    else:
+        rx = math.atan2(-r[1][2], r[1][1])
+        ry = math.atan2(-r[2][0], sc)
+        rz = 0
+    return (tx,ty,tz), (math.degrees(rx),math.degrees(ry),math.degrees(rz))
+
+fps = {fps}
+start = {start_frame}
+fx = intrinsics.get('fx', intrinsics.get('focal_x', 1000))
+w = intrinsics.get('width', 1920)
+h = intrinsics.get('height', 1080)
+sensor = 36.0
+focal = fx * sensor / w
+
+hou.setFps(fps)
+cam = hou.node('/obj').createNode('cam', 'pipeline_cam')
+cam.parm('focal').set(focal)
+cam.parm('aperture').set(sensor)
+cam.parm('resx').set(w)
+cam.parm('resy').set(h)
+
+for i, m in enumerate(extrinsics):
+    f = start + i
+    t, r = decompose(m)
+    cam.parm('tx').setKeyframe(hou.Keyframe(t[0], f))
+    cam.parm('ty').setKeyframe(hou.Keyframe(t[1], f))
+    cam.parm('tz').setKeyframe(hou.Keyframe(t[2], f))
+    cam.parm('rx').setKeyframe(hou.Keyframe(r[0], f))
+    cam.parm('ry').setKeyframe(hou.Keyframe(r[1], f))
+    cam.parm('rz').setKeyframe(hou.Keyframe(r[2], f))
+
+end = start + len(extrinsics) - 1
+hou.playbar.setFrameRange(start, end)
+hou.playbar.setPlaybackRange(start, end)
+cam.setSelected(True, clear_all_selected=True)
+print(f'Created {{cam.path()}} with {{len(extrinsics)}} frames')
+"
+'''
+
+    with open(output_path, 'w') as f:
+        f.write(cmd_content)
+
+    print(f"Exported Houdini script to {output_path}")
+    print(f"  Run in Houdini: File → Run Script → camera.cmd")
+
+
 def export_houdini_clip(
     extrinsics: list[np.ndarray],
     intrinsics: dict,
@@ -480,7 +580,7 @@ def main():
     )
     parser.add_argument(
         "--format",
-        choices=["chan", "csv", "clip", "json", "abc", "all"],
+        choices=["chan", "csv", "clip", "cmd", "json", "abc", "all"],
         default="all",
         help="Output format: chan (Nuke), csv, clip (Houdini), json, abc (Alembic), all (default: all)"
     )
@@ -567,6 +667,17 @@ def main():
             fps=args.fps
         )
         exported.append(f".camera.json")
+
+    # Houdini .cmd file (always generate - runs embedded Python to create camera)
+    if fmt in ("cmd", "all"):
+        cmd_path = output_base.parent / "camera.cmd"
+        export_houdini_cmd(
+            camera_dir=output_base.parent,
+            output_path=cmd_path,
+            start_frame=args.start_frame,
+            fps=args.fps,
+        )
+        exported.append(f"camera.cmd (Houdini)")
 
     # Alembic format (requires conda install -c conda-forge alembic)
     if fmt in ("abc", "all"):
