@@ -1061,14 +1061,15 @@ Place in ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint/model.safetensors'''
                     break
 
             if download_link:
-                print(f"  Found download link on page")
+                print(f"  Found download link on page: {download_link}")
                 final_url = download_link
             else:
                 # Use the configured URL but try with the session
-                print(f"  Using configured download URL")
+                print(f"  Using configured download URL: {download_url}")
                 final_url = download_url
 
             print(f"  Downloading SMPL-X models...")
+            print(f"  URL: {final_url}")
             print(f"  -> {dest}")
 
             # Ensure directory exists
