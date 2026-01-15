@@ -913,10 +913,9 @@ def run_pipeline(
             print("  → Skipping (workflow not found)")
         elif person_dir is None:
             print("  → Skipping (no person masks found in roto/)")
-
-        if person_dir and skip_existing and list(matte_dir.glob("*.png")):
+        elif skip_existing and list(matte_dir.glob("*.png")):
             print("  → Skipping (mattes exist)")
-        elif person_dir:
+        else:
             print(f"  → Refining person masks from: {person_dir.name}")
             # Update workflow to read from the person mask directory
             update_matanyone_input(workflow_path, person_dir, project_dir)
