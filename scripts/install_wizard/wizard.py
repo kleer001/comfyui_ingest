@@ -68,7 +68,7 @@ class InstallationWizard:
             'installers': [
                 PythonPackageInstaller('FastAPI', 'fastapi', size_gb=0.02),
                 PythonPackageInstaller('Uvicorn', 'uvicorn', size_gb=0.01),
-                PythonPackageInstaller('Python-Multipart', 'python-multipart', size_gb=0.01),
+                PythonPackageInstaller('Python-Multipart', 'python-multipart', 'python_multipart', size_gb=0.01),
                 PythonPackageInstaller('WebSockets', 'websockets', size_gb=0.01),
                 PythonPackageInstaller('Jinja2', 'jinja2', size_gb=0.01),
             ]
