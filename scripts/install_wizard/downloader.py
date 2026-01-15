@@ -1051,10 +1051,11 @@ Place in ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint/model.safetensors'''
                 r'href=["\']([^"\']*download[^"\']*smplx[^"\']*)["\']',
             ]
 
+            import html
             for pattern in patterns:
                 match = re.search(pattern, page_content, re.IGNORECASE)
                 if match:
-                    link = match.group(1)
+                    link = html.unescape(match.group(1))  # Decode &amp; -> &
                     if not link.startswith('http'):
                         link = urljoin(download_page, link)
                     download_link = link
