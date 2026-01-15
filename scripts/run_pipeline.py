@@ -487,6 +487,72 @@ def get_comfyui_output_dir() -> Path:
     return INSTALL_DIR.parent.parent
 
 
+def combine_mattes(
+    input_dirs: list,
+    output_dir: Path,
+    output_prefix: str = "combined"
+) -> bool:
+    """Combine multiple matte directories into a single combined output.
+
+    Takes the maximum (union) of all mattes at each frame.
+
+    Args:
+        input_dirs: List of directories containing matte images
+        output_dir: Directory to write combined mattes
+        output_prefix: Prefix for output filenames
+
+    Returns:
+        True if successful, False otherwise
+    """
+    import cv2
+    import numpy as np
+
+    if not input_dirs:
+        print("  → No input directories to combine")
+        return False
+
+    # Get list of frame files from first directory
+    first_dir = input_dirs[0]
+    frame_files = sorted(first_dir.glob("*.png"))
+    if not frame_files:
+        print(f"  → No PNG files found in {first_dir}")
+        return False
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    num_frames = len(frame_files)
+    print(f"  → Combining {len(input_dirs)} matte directories ({num_frames} frames)")
+
+    for frame_idx in range(num_frames):
+        combined = None
+
+        for input_dir in input_dirs:
+            # Find corresponding frame file in this directory
+            dir_files = sorted(input_dir.glob("*.png"))
+            if frame_idx >= len(dir_files):
+                continue
+
+            frame_file = dir_files[frame_idx]
+            matte = cv2.imread(str(frame_file), cv2.IMREAD_GRAYSCALE)
+            if matte is None:
+                continue
+
+            if combined is None:
+                combined = matte.astype(np.float32)
+            else:
+                # Take maximum (union) of mattes
+                combined = np.maximum(combined, matte.astype(np.float32))
+
+        if combined is not None:
+            out_file = output_dir / f"{output_prefix}_{frame_idx:05d}_.png"
+            cv2.imwrite(str(out_file), combined.astype(np.uint8))
+
+        if (frame_idx + 1) % 50 == 0:
+            print(f"    Combined {frame_idx + 1}/{num_frames} frames...")
+
+    print(f"  → Combined mattes written to: {output_dir}")
+    return True
+
+
 def update_segmentation_prompt(workflow_path: Path, prompt: str, output_subdir: Path = None, project_dir: Path = None) -> None:
     """Update the text prompt and output path in segmentation workflow.
 
@@ -976,8 +1042,9 @@ def run_pipeline(
     if "matanyone" in stages:
         print("\n=== Stage: matanyone ===")
         workflow_path = project_dir / "workflows" / "04_matanyone.json"
-        matte_dir = project_dir / "matte"
         roto_dir = project_dir / "roto"
+        combined_dir = roto_dir / "combined"
+        matte_dir = project_dir / "matte"  # Temp storage for individual refined mattes
 
         # Find ALL person-related mask directories (supports multi-instance)
         person_dirs = []
@@ -991,15 +1058,14 @@ def run_pipeline(
         elif not person_dirs:
             print("  → Skipping (no person masks found in roto/)")
         else:
+            # Track output directories for combining
+            output_dirs = []
+
             # Process each person directory
             for i, person_dir in enumerate(person_dirs):
-                # Determine output directory
-                if len(person_dirs) == 1:
-                    # Single person - output to matte/
-                    out_dir = matte_dir
-                else:
-                    # Multiple instances - output to matte/person_0/, matte/person_1/, etc.
-                    out_dir = matte_dir / person_dir.name
+                # Output individual refined mattes to matte/person_XX/
+                out_dir = matte_dir / person_dir.name
+                output_dirs.append(out_dir)
 
                 if skip_existing and list(out_dir.glob("*.png")):
                     print(f"  → Skipping {person_dir.name} (mattes exist)")
@@ -1025,13 +1091,18 @@ def run_pipeline(
                     if len(person_dirs) == 1:
                         return False
 
-            # Generate preview movie from first matte directory
-            if auto_movie:
-                preview_dir = matte_dir
-                if len(person_dirs) > 1 and (matte_dir / person_dirs[0].name).exists():
-                    preview_dir = matte_dir / person_dirs[0].name
-                if list(preview_dir.glob("*.png")):
-                    generate_preview_movie(preview_dir, project_dir / "preview" / "matte.mp4", fps)
+            # Combine all refined mattes into roto/combined/
+            valid_output_dirs = [d for d in output_dirs if d.exists() and list(d.glob("*.png"))]
+            if valid_output_dirs:
+                if skip_existing and list(combined_dir.glob("*.png")):
+                    print(f"  → Skipping combine (roto/combined/ exists)")
+                else:
+                    print("\n  --- Combining mattes ---")
+                    combine_mattes(valid_output_dirs, combined_dir, "combined")
+
+            # Generate preview movie from combined directory
+            if auto_movie and list(combined_dir.glob("*.png")):
+                generate_preview_movie(combined_dir, project_dir / "preview" / "matte.mp4", fps)
 
     # Stage: Cleanplate
     if "cleanplate" in stages:
@@ -1039,48 +1110,45 @@ def run_pipeline(
         workflow_path = project_dir / "workflows" / "03_cleanplate.json"
         cleanplate_dir = project_dir / "cleanplate"
         roto_dir = project_dir / "roto"
-        matte_dir = project_dir / "matte"
+        combined_dir = roto_dir / "combined"
 
         if not workflow_path.exists():
             print("  → Skipping (workflow not found)")
         elif skip_existing and list(cleanplate_dir.glob("*.png")):
             print("  → Skipping (cleanplates exist)")
         else:
-            # Preprocessing: consolidate masks from roto/ subdirs into roto/
-            # If MatAnyone refined mattes exist, use them instead of person masks
-            has_refined_mattes = list(matte_dir.glob("*.png"))
+            # Check for combined MatAnyone mattes first (preferred)
+            has_combined_mattes = combined_dir.exists() and list(combined_dir.glob("*.png"))
 
-            # Collect all mask directories
+            # Collect all mask directories (excluding 'combined' which we handle separately)
             mask_dirs = []
             for subdir in sorted(roto_dir.iterdir()) if roto_dir.exists() else []:
-                if subdir.is_dir() and list(subdir.glob("*.png")):
-                    if has_refined_mattes and "person" in subdir.name.lower():
-                        # Use refined mattes instead of raw person masks
-                        mask_dirs.append(matte_dir)
-                    else:
-                        mask_dirs.append(subdir)
+                if subdir.is_dir() and subdir.name != "combined" and list(subdir.glob("*.png")):
+                    mask_dirs.append(subdir)
 
-            # Clear any existing combined masks
+            # Clear any existing combined masks in roto/ base
             for old_file in roto_dir.glob("*.png"):
                 old_file.unlink()
 
-            # Consolidate masks
-            if len(mask_dirs) > 1:
+            # Determine mask source for cleanplate
+            if has_combined_mattes:
+                # Use roto/combined/ directly (MatAnyone refined + combined)
+                print(f"  → Using combined MatAnyone mattes from roto/combined/")
+                # Copy combined mattes to roto/ for cleanplate workflow
+                for i, mask_file in enumerate(sorted(combined_dir.glob("*.png"))):
+                    out_name = f"mask_{i+1:05d}.png"
+                    shutil.copy2(mask_file, roto_dir / out_name)
+            elif len(mask_dirs) > 1:
+                # Multiple sources without combined - consolidate them
                 count = combine_mask_sequences(mask_dirs, roto_dir, prefix="combined")
-                if has_refined_mattes:
-                    print(f"  → Consolidated {count} frames (with MatAnyone refined mattes)")
-                else:
-                    print(f"  → Consolidated {count} frames from {len(mask_dirs)} mask sources")
+                print(f"  → Consolidated {count} frames from {len(mask_dirs)} mask sources")
             elif len(mask_dirs) == 1:
                 # Single source - copy to roto/ with consistent naming
                 source_dir = mask_dirs[0]
                 for i, mask_file in enumerate(sorted(source_dir.glob("*.png"))):
                     out_name = f"mask_{i+1:05d}.png"
                     shutil.copy2(mask_file, roto_dir / out_name)
-                if has_refined_mattes and source_dir == matte_dir:
-                    print(f"  → Using MatAnyone refined mattes")
-                else:
-                    print(f"  → Using masks from {source_dir.name}/")
+                print(f"  → Using masks from {source_dir.name}/")
             else:
                 print("  → Warning: No masks found in roto/ subdirectories")
 

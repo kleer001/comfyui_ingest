@@ -252,11 +252,11 @@ def separate_instances(
 
     print(f"Found {len(sorted_ids)} distinct instances")
 
-    # Create output directories
+    # Create output directories (zero-padded two-digit index)
     output_dirs = {}
     for inst_id in sorted_ids:
         idx = id_to_index[inst_id]
-        out_dir = output_dir / f"{prefix}_{idx}"
+        out_dir = output_dir / f"{prefix}_{idx:02d}"
         out_dir.mkdir(parents=True, exist_ok=True)
         output_dirs[inst_id] = out_dir
 
@@ -280,10 +280,11 @@ def separate_instances(
         for inst_id, comp in data['matches']:
             instance_masks[inst_id] = comp['mask']
 
-        # Save each instance mask
+        # Save each instance mask with consistent naming: {prefix}_{idx:02d}_{frame:05d}_.png
         for inst_id, inst_mask in instance_masks.items():
+            idx = id_to_index[inst_id]
             out_dir = output_dirs[inst_id]
-            out_file = out_dir / mask_file.name
+            out_file = out_dir / f"{prefix}_{idx:02d}_{frame_idx:05d}_.png"
             cv2.imwrite(str(out_file), inst_mask)
 
         # Progress
@@ -294,7 +295,7 @@ def separate_instances(
     print(f"\nSeparated into {len(output_dirs)} instance directories:")
     for inst_id in sorted_ids:
         idx = id_to_index[inst_id]
-        print(f"  {prefix}_{idx}/")
+        print(f"  {prefix}_{idx:02d}/")
 
     return {id_to_index[inst_id]: output_dirs[inst_id] for inst_id in sorted_ids}
 
