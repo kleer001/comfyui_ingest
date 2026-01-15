@@ -511,12 +511,13 @@ def update_segmentation_prompt(workflow_path: Path, prompt: str, output_subdir: 
         json.dump(workflow, f, indent=2)
 
 
-def update_matanyone_input(workflow_path: Path, mask_dir: Path) -> None:
+def update_matanyone_input(workflow_path: Path, mask_dir: Path, project_dir: Path) -> None:
     """Update the MatAnyone workflow to read masks from a specific directory.
 
     Args:
         workflow_path: Path to workflow JSON
         mask_dir: Directory containing person masks to refine
+        project_dir: Project root directory for computing relative paths
     """
     with open(workflow_path) as f:
         workflow = json.load(f)
@@ -527,7 +528,7 @@ def update_matanyone_input(workflow_path: Path, mask_dir: Path) -> None:
             widgets = node.get("widgets_values", [])
             if widgets:
                 # Use relative path from project dir
-                widgets[0] = str(mask_dir.relative_to(mask_dir.parent.parent))
+                widgets[0] = str(mask_dir.relative_to(project_dir))
                 node["widgets_values"] = widgets
 
     with open(workflow_path, 'w') as f:
@@ -948,7 +949,7 @@ def run_pipeline(
         elif person_dir:
             print(f"  → Refining person masks from: {person_dir.name}")
             # Update workflow to read from the person mask directory
-            update_matanyone_input(workflow_path, person_dir)
+            update_matanyone_input(workflow_path, person_dir, project_dir)
             if not run_comfyui_workflow(
                 workflow_path, comfyui_url,
                 output_dir=matte_dir,
@@ -998,9 +999,9 @@ def run_pipeline(
                     print(f"  → Re-consolidated {count} frames with refined mattes")
                 elif len(mask_dirs) == 1 and mask_dirs[0] == matte_dir:
                     # Single source (just person), copy mattes to roto/
+                    # Clear old mask files in roto/ root (not subdirectories)
                     for old_file in roto_dir.glob("*.png"):
-                        if not old_file.parent.is_dir():
-                            old_file.unlink()
+                        old_file.unlink()
                     for i, matte_file in enumerate(sorted(matte_dir.glob("*.png"))):
                         out_name = f"matte_{i+1:05d}.png"
                         shutil.copy2(matte_file, roto_dir / out_name)
