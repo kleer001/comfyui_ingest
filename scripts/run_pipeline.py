@@ -760,6 +760,9 @@ def run_pipeline(
     fps = fps or 24.0
     print(f"Frame rate: {fps} fps")
 
+    # Ensure project directory exists before writing metadata
+    project_dir.mkdir(parents=True, exist_ok=True)
+
     # Save project metadata for standalone scripts
     metadata_path = project_dir / "project.json"
     project_metadata = {
