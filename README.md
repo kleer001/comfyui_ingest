@@ -162,18 +162,18 @@ Different components perform best under specific conditions:
 
 | Shot Type | Depth (DA3) | Roto (SAM3) | Clean Plate | Camera (COLMAP) | Material (GS-IR) | MoCap (WHAM/ECON) |
 |-----------|-------------|-------------|-------------|-----------------|------------------|-------------------|
-| **Static camera** | ✓ Excellent | ✓ Excellent | ✓ Excellent | ✗ Poor (needs parallax) | ✗ Fails (needs multi-view) | ⚠ Limited (no camera motion) |
-| **Moving camera** | ✓ Good | ✓ Good | ⚠ Moderate | ✓ Excellent | ✓ Excellent | ✓ Good |
-| **Handheld/shaky** | ✓ Good | ⚠ Moderate | ⚠ Poor | ⚠ Moderate | ⚠ Challenging | ⚠ Drift possible |
-| **Fast motion** | ⚠ Temporal artifacts | ⚠ Tracking loss | ⚠ Poor | ⚠ Feature matching issues | ⚠ Motion blur issues | ⚠ Tracking loss |
-| **Low texture** | ✓ Good | ✓ Good | ✓ Good | ✗ Poor (few features) | ⚠ Ambiguous materials | ✓ Good |
-| **Full body person** | ✓ Good | ✓ Excellent | ✓ Good | ✓ Good | N/A | ✓ Excellent |
-| **Partial body/occluded** | ✓ Good | ⚠ Incomplete masks | ⚠ Poor | ✓ Good | N/A | ⚠ Tracking drift |
-| **Multiple people** | ✓ Good | ⚠ Combined masks | ⚠ Challenging | ✓ Good | N/A | ✗ Single person only |
-| **In-focus background** | ✓ Excellent | ✓ Good | ✓ Excellent | ✓ Excellent | ✓ Excellent | N/A |
-| **Shallow DOF/bokeh** | ⚠ Depth ambiguous | ✓ Good | ⚠ Moderate | ⚠ Few features | ⚠ Texture loss | ✓ Good |
-| **High contrast lighting** | ✓ Good | ✓ Good | ✓ Good | ✓ Good | ⚠ Lighting/material separation hard | ✓ Good |
-| **150+ frames** | ✓ Good | ⚠ May stall | ✓ Good | ✓ Good | ⚠ Long training time | ⚠ Memory intensive |
+| **Static camera** | ✓ | ✓ | ✓ | ✗ | ✗ | ⚠ |
+| **Moving camera** | ✓ | ✓ | ⚠ | ✓ | ✓ | ✓ |
+| **Handheld/shaky** | ✓ | ⚠ | ⚠ | ⚠ | ⚠ | ⚠ |
+| **Fast motion** | ⚠ | ⚠ | ⚠ | ⚠ | ⚠ | ⚠ |
+| **Low texture** | ✓ | ✓ | ✓ | ✗ | ⚠ | ✓ |
+| **Full body person** | ✓ | ✓ | ✓ | ✓ | N/A | ✓ |
+| **Partial body/occluded** | ✓ | ⚠ | ⚠ | ✓ | N/A | ⚠ |
+| **Multiple people** | ✓ | ⚠ | ⚠ | ✓ | N/A | ✗ |
+| **In-focus background** | ✓ | ✓ | ✓ | ✓ | ✓ | N/A |
+| **Shallow DOF/bokeh** | ⚠ | ✓ | ⚠ | ⚠ | ⚠ | ✓ |
+| **High contrast lighting** | ✓ | ✓ | ✓ | ✓ | ⚠ | ✓ |
+| **150+ frames** | ✓ | ⚠ | ✓ | ✓ | ⚠ | ⚠ |
 
 **Legend:**
 - ✓ Works well
