@@ -893,16 +893,21 @@ def run_pipeline(
     comfyui_stages = {"depth", "roto", "matanyone", "cleanplate"}
     needs_comfyui = bool(comfyui_stages & set(stages))
 
-    # Auto-start ComfyUI if needed
+    # Kill stale ComfyUI processes and clear GPU memory BEFORE starting fresh
+    if needs_comfyui:
+        print("\n[GPU Cleanup]")
+        kill_all_comfyui_processes()
+        clear_gpu_memory()
+
+    # Auto-start ComfyUI if needed (after killing stale processes)
     comfyui_was_started = False
     if needs_comfyui and auto_start_comfyui:
-        if not check_comfyui_running(comfyui_url):
-            print("\n[ComfyUI] Starting ComfyUI automatically...")
-            if not ensure_comfyui(url=comfyui_url):
-                print("Error: Failed to start ComfyUI", file=sys.stderr)
-                print("Install ComfyUI with the install wizard or start it manually", file=sys.stderr)
-                return False
-            comfyui_was_started = True
+        print("\n[ComfyUI] Starting ComfyUI...")
+        if not ensure_comfyui(url=comfyui_url):
+            print("Error: Failed to start ComfyUI", file=sys.stderr)
+            print("Install ComfyUI with the install wizard or start it manually", file=sys.stderr)
+            return False
+        comfyui_was_started = True
 
     # Derive project name from input if not specified
     if not project_name:
@@ -963,11 +968,6 @@ def run_pipeline(
     if not setup_project(project_dir, workflows_dir):
         print("Failed to set up project", file=sys.stderr)
         return False
-
-    # Kill stale ComfyUI processes and clear GPU memory before starting
-    print("\n[GPU Cleanup]")
-    kill_all_comfyui_processes()
-    clear_gpu_memory()
 
     # Stage: Ingest
     if "ingest" in stages:
