@@ -17,7 +17,7 @@ This pipeline automates first-pass VFX prep work that traditionally requires man
 - **Clean plate generation** - Automated inpainting to remove objects from footage (ProPainter)
 - **Camera tracking** - Structure-from-Motion camera solves with bundle adjustment (COLMAP)
 - **3D reconstruction** - Dense point clouds and mesh generation from multi-view footage
-- **Scene material decomposition** - Extract PBR material properties from multi-view footage via GS-IR
+- **Scene material decomposition** - Extract PBR material properties from multi-view footage via GS-IR (outputs EXR format)
   - Albedo maps (diffuse color without lighting)
   - Roughness maps (surface specularity)
   - Metallic maps (metallic vs dielectric)
@@ -98,6 +98,34 @@ Output follows VFX production conventions:
 ├── camera/             # Camera data (Alembic, JSON, point clouds, meshes)
 └── colmap/             # COLMAP reconstruction data
 ```
+
+## Installation Requirements
+
+### Download Sizes (Approximate)
+
+**Core Pipeline:**
+- ComfyUI: 2.0 GB
+- PyTorch (with CUDA): 6.0 GB
+- Custom nodes (VideoHelperSuite, SAM3, ProPainter, etc.): 5.3 GB
+- Model checkpoints (Depth Anything V3, SAM2): 1.0 GB
+
+**Core Total: ~14 GB**
+
+**Optional Components:**
+- WHAM (motion capture): 3.0 GB
+- COLMAP (camera tracking): 0.5 GB
+- ECON (clothed reconstruction): ~2.0 GB
+- GS-IR (material decomposition): ~1.5 GB
+
+**Full Installation Total: ~21 GB**
+
+### Model Access Requirements
+
+**SMPL-X Models** (required for motion capture):
+- Registration required at https://smpl-x.is.tue.mpg.de/
+- Free academic/research license
+- Approval typically within 24-48 hours
+- Provides parametric body models for human reconstruction
 
 ## License
 
