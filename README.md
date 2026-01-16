@@ -1,945 +1,188 @@
-# VFX Pipeline
+# VFX Pipeline v0.01
 
-A FOSS automated VFX pipeline built on ComfyUI for first-pass rotoscoping, depth extraction, 3D reconstruction, and clean plate generation.
+An automated VFX pipeline built on ComfyUI for production-ready outputs from raw footage. Combines modern ML models with traditional computer vision to generate depth maps, segmentation masks, clean plates, camera solves, and 3D reconstructions with minimal manual intervention.
 
-## Goal
+## Overview
 
-**Hands-off batch processing.** Ingest a movie file, get production-ready outputs (depth maps, segmentation masks, clean plates, camera solves, 3D point clouds) with minimal manual intervention. Manual refinement happens downstream in Nuke/Fusion/Houdini—not here.
+This pipeline automates first-pass VFX prep work that traditionally requires manual labor. Ingest a movie file, get production-ready outputs following industry conventions (PNG sequences, etc.). Manual refinement happens downstream in Nuke/Fusion/Houdini—not here.
 
-## Why This Exists
+**Target workflow:** Run the pipeline overnight, come back to usable first-pass outputs ready for VFX compositing and matchmove.
 
-Traditional VFX prep work (roto, depth, clean plates) is tedious. Modern ML models (SAM3, Depth Anything V3, ProPainter) can automate 80% of it. This pipeline stitches them together into a single workflow that:
+## Capabilities
 
-- Takes raw footage in
-- Outputs VFX-ready passes out
-- Follows real production folder conventions (frame numbering starts at 1001, etc.)
+- **Frame extraction** - Convert video files to PNG frame sequences
+- **Depth estimation** - Monocular depth maps with temporal consistency (Depth Anything V3)
+- **Segmentation/Rotoscoping** - Text-prompted video segmentation for dynamic object masking (SAM3)
+- **Matte refinement** - Alpha matte generation for human subjects (MatAnyone)
+- **Clean plate generation** - Automated inpainting to remove objects from footage (ProPainter)
+- **Camera tracking** - Structure-from-Motion camera solves with bundle adjustment (COLMAP)
+- **3D reconstruction** - Dense point clouds and mesh generation from multi-view footage
+- **Scene material decomposition** - Extract PBR material properties from multi-view footage via GS-IR (outputs EXR format)
+  - Albedo maps (diffuse color without lighting)
+  - Roughness maps (surface specularity)
+  - Metallic maps (metallic vs dielectric)
+  - Normal maps (surface orientation)
+  - Environment lighting (HDR environment map)
+- **Camera export** - Export to Alembic/JSON for Nuke, Maya, Houdini, Blender
+- **Human motion capture** - World-grounded skeleton tracking and clothed mesh reconstruction (WHAM + ECON, experimental)
+- **Batch processing** - Automated multi-stage pipeline orchestration
+- **Web interface** - Browser-based GUI for drag-and-drop operation
 
-## Installation
+## Tools & Dependencies
 
-### Quick Install (Recommended)
+### Core Pipeline
+- [ComfyUI](https://github.com/comfyanonymous/ComfyUI) - Node-based workflow engine for ML inference
+- [Depth Anything V3](https://github.com/DepthAnything/Depth-Anything-V3) - Monocular depth estimation
+- [Segment Anything Model 2/3](https://github.com/facebookresearch/segment-anything-2) - Text-prompted video segmentation
+- [MatAnyone](https://github.com/Shine-Light-Tech/MatAnyone) - Video matting for human alpha mattes
+- [ProPainter](https://github.com/sczhou/ProPainter) - Video inpainting for clean plates
+- [COLMAP](https://colmap.github.io/) - Structure-from-Motion and Multi-View Stereo
+- [FFmpeg](https://ffmpeg.org/) - Video/image processing
 
-**One-liner bootstrap script** - clones repository and runs wizard automatically:
+### Optional Components
+- [GS-IR](https://github.com/lzhnb/GS-IR) - Gaussian Splatting for PBR material decomposition
+- [WHAM](https://github.com/yohanshin/WHAM) - World-grounded human motion tracking
+- [ECON](https://github.com/YuliangXiu/ECON) - Clothed human reconstruction from monocular video
+- [SMPL-X](https://smpl-x.is.tue.mpg.de/) - Parametric body model for motion capture
 
+### ComfyUI Custom Nodes
+- [ComfyUI-VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) - Frame I/O handling
+- [ComfyUI-DepthAnythingV3](https://github.com/PozzettiAndrea/ComfyUI-DepthAnythingV3) - Depth estimation node
+
+### Python Dependencies
+- PyTorch - Deep learning framework
+- NumPy, OpenCV, Pillow - Image processing
+- trimesh, smplx - 3D geometry (motion capture only)
+
+## Getting Started
+
+**Quick install** (recommended):
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap.sh | bash
 ```
 
 Or manually:
-
 ```bash
 git clone https://github.com/kleer001/comfyui_ingest.git
 cd comfyui_ingest
 python scripts/install_wizard.py
 ```
 
-### Account Requirements & What Works at Each Level
-
-Motion capture requires **TWO separate registrations** (both free but require approval). Here's what you can do at each level:
-
-#### Level 0: No Motion Capture Accounts (VFX Pipeline Only)
-Works immediately with no registration needed:
-- ✅ **Frame extraction** - Extract video to frame sequences
-- ✅ **Depth estimation** - Depth Anything V3 monocular depth maps
-- ✅ **Segmentation/Rotoscoping** - SAM3 video segmentation (requires HuggingFace token)
-- ✅ **Clean plate generation** - ProPainter inpainting for removing objects
-- ✅ **Camera tracking** - COLMAP Structure-from-Motion camera solves
-- ✅ **Material decomposition** - GS-IR PBR material extraction
-- ✅ **Camera export** - Export to Alembic for Nuke/Maya/Houdini
-
+**Basic usage:**
 ```bash
-# VFX pipeline without motion capture
-python scripts/run_pipeline.py footage.mp4 \
-  --stages ingest,depth,roto,cleanplate,colmap,camera
-```
+# Process footage with full VFX pipeline
+python scripts/run_pipeline.py footage.mp4 -s ingest,depth,roto,cleanplate,colmap,camera
 
-#### Level 1: WHAM Only (No SMPL-X or ICON/ECON)
-With WHAM checkpoints from Google Drive (no account needed):
-- ✅ **Motion tracking** - 2D/3D pose estimation from video
-- ❌ **No 3D body model** - Cannot generate SMPL-X meshes
-- ❌ **No clothed reconstruction** - Cannot create textured geometry
-
-#### Level 2: WHAM + SMPL-X (Missing ICON/ECON Account)
-Register at https://smpl-x.is.tue.mpg.de/ (usually approved within 24 hours):
-- ✅ **Motion tracking** - Full WHAM motion capture
-- ✅ **SMPL-X body models** - Parametric body meshes
-- ❌ **No clothed reconstruction** - ECON requires separate ICON registration
-
-**This gives you:** Naked SMPL-X body geometry with tracked motion, useful for matchmove reference.
-
-#### Level 3: Full Stack (WHAM + SMPL-X + ECON)
-Requires BOTH registrations:
-1. **SMPL-X**: https://smpl-x.is.tue.mpg.de/
-2. **ICON/ECON**: https://icon.is.tue.mpg.de/ (separate registration!)
-
-- ✅ **Full clothed human reconstruction** - ECON geometry with clothing
-- ✅ **Texture projection** - UV-mapped textures from video
-- ✅ **VFX-ready meshes** - Alembic sequences for compositing
-
-```bash
-# Full pipeline with clothed humans
-python scripts/run_pipeline.py footage.mp4 -s all
-```
-
-**IMPORTANT:** SMPL-X and ICON/ECON are **separate accounts**. You need BOTH for clothed human reconstruction. If you're missing either registration, you'll be limited to the levels above.
-
-### What Gets Installed
-
-The wizard will:
-- ✓ Check system requirements (Python, GPU, Git)
-- ✓ Create dedicated conda environment automatically
-- ✓ Install core dependencies (PyTorch, NumPy, OpenCV)
-- ✓ Clone git repositories (ComfyUI, and optionally WHAM/ECON)
-- ✓ Download model checkpoints automatically (ECON/WHAM only if you select motion capture)
-- ✓ Generate configuration files (`config.json`, `activate.sh`)
-- ✓ Run validation tests
-
-**Installation options:**
-1. **Core pipeline only** - COLMAP, segmentation, depth (works without any motion capture accounts)
-2. **Core + ComfyUI** - Add workflows and custom nodes
-3. **Full stack** - Everything including motion capture (requires BOTH SMPL-X + ICON/ECON registrations)
-4. **Custom selection** - Pick exactly what you need
-
-**Quick commands:**
-```bash
-# Check what's installed
-python scripts/install_wizard.py -c
-
-# Validate installation
-python scripts/install_wizard.py -v
-
-# Resume interrupted installation
-python scripts/install_wizard.py -r
-```
-
-See **[docs/install_wizard.md](docs/install_wizard.md)** for complete documentation or [manual installation](#manual-installation) below.
-
-## Quick Start
-
-After installation, process footage with a single command:
-
-```bash
-# Basic pipeline - depth + camera (works without ECON)
-python scripts/run_pipeline.py /path/to/footage.mp4 -n "My_Shot"
-
-# Full VFX pipeline - segmentation, clean plates, camera (no mocap accounts needed)
-python scripts/run_pipeline.py footage.mp4 -s ingest,roto,cleanplate,colmap,camera
-
-# Full pipeline WITH motion capture (requires BOTH SMPL-X + ICON/ECON accounts)
-python scripts/run_pipeline.py footage.mp4 -s all
-
-# Skip already-processed stages
-python scripts/run_pipeline.py footage.mp4 -s all -e
-```
-
-**Single-letter shortcuts** available for all options (e.g., `-n` for `--name`, `-s` for `--stages`, `-e` for `--skip-existing`).
-
-**Prerequisites:**
-- ComfyUI running: `cd .vfx_pipeline/ComfyUI && python main.py --listen`
-- Dependencies installed via wizard (or manually)
-
-See **[docs/run_pipeline.md](docs/run_pipeline.md)** for complete documentation.
-
-## Web Interface
-
-Prefer a GUI? Launch the web interface:
-
-```bash
+# Web interface
 ./start_web.py
 ```
 
-This opens a browser-based interface where you can:
-- **Drag-and-drop** or **browse** to upload videos
-- Select processing stages with presets (Quick/Full/Everything)
-- Monitor real-time progress with WebSocket updates
-- Browse and download outputs when complete
-
-The web server runs locally at `http://localhost:5000`. See **[docs/web_gui_plan.md](docs/web_gui_plan.md)** for architecture details.
-
-## Maintenance
-
-Keep your installation healthy with the janitor tool:
-
-```bash
-# Quick health check
-python scripts/janitor.py -H
-
-# Update all components
-python scripts/janitor.py -u -y
-
-# Clean temporary files
-python scripts/janitor.py -c
-
-# Full maintenance (health + update + clean + report)
-python scripts/janitor.py -a
-```
-
-See **[docs/janitor.md](docs/janitor.md)** for complete documentation.
-
 ## Documentation
 
-Complete documentation is available in the **[docs/](docs/)** folder:
+Complete documentation available in [docs/](docs/):
+- [Installation Guide](docs/install_wizard.md) - Detailed setup instructions
+- [Pipeline Reference](docs/run_pipeline.md) - Command-line usage and options
+- [Component Scripts](docs/component_scripts.md) - Individual tool documentation
+- [Maintenance](docs/janitor.md) - System health and updates
 
-- **[docs/README.md](docs/README.md)** - Overview and getting started
-- **[docs/install_wizard.md](docs/install_wizard.md)** - Installation wizard reference
-- **[docs/run_pipeline.md](docs/run_pipeline.md)** - Pipeline orchestrator reference
-- **[docs/janitor.md](docs/janitor.md)** - Maintenance tool reference
-- **[docs/component_scripts.md](docs/component_scripts.md)** - Individual component scripts
+## Project Structure
 
-## Architecture
-
+Output follows VFX production conventions:
 ```
-movie.mp4 → run_pipeline.py → project folder → VFX passes
-                   │
-                   ├── Extract frames (ffmpeg)
-                   ├── Setup project structure
-                   ├── Populate workflow templates with project paths
-                   ├── Queue ComfyUI workflows (depth, roto, cleanplate)
-                   ├── COLMAP reconstruction (camera, point cloud, mesh)
-                   └── Export camera to Alembic/JSON
-```
-
-**Core components:**
-- **ComfyUI** - Node-based workflow engine (not for image generation here—just ML inference)
-- **SAM3** - Segment Anything Model 3 for text-prompted rotoscoping
-- **MatAnyone** - Video matting for refining person segmentation masks into clean alpha mattes
-- **Depth Anything V3** - Monocular depth estimation with temporal consistency
-- **ProPainter** - Video inpainting for clean plate generation
-- **VideoHelperSuite** - Frame I/O handling
-- **COLMAP** - Structure-from-Motion for accurate camera reconstruction and 3D geometry
-
-**Project structure** (per-shot, created in sibling `vfx_projects/` directory):
-```
-../vfx_projects/My_Shot_Name/    # Sibling to repo, not inside it
-├── source/frames/    # Input frames (frame_1001.png, ...)
-├── depth/            # Depth maps
-├── roto/             # Segmentation masks (per-prompt subdirs)
-│   ├── person/       # SAM3 person masks
-│   └── bag/          # SAM3 bag masks (if multi-prompt)
-├── matte/            # MatAnyone refined person mattes
-├── cleanplate/       # Inpainted plates
-├── camera/           # Camera/geometry data
-│   ├── extrinsics.json    # Per-frame camera matrices
-│   ├── intrinsics.json    # Camera calibration
-│   ├── camera.abc         # Alembic camera (for Houdini/Nuke/Maya)
-│   ├── pointcloud.ply     # Dense point cloud (if --colmap-dense)
-│   ├── mesh.ply           # Scene mesh (if --colmap-mesh)
-│   ├── materials/         # PBR material maps (if gsir stage run)
-│   └── normals/           # Normal maps (if gsir stage run)
-├── colmap/           # COLMAP working directory
-│   ├── sparse/       # Sparse reconstruction
-│   └── dense/        # Dense reconstruction (if --colmap-dense)
-└── workflows/        # Project-specific workflows (with absolute paths)
+../vfx_projects/Shot_Name/
+├── source/frames/      # Input frames (frame_0001.png, ...)
+├── depth/              # Depth maps
+├── roto/               # Segmentation masks
+├── matte/              # Refined alpha mattes
+├── cleanplate/         # Inpainted backgrounds
+├── camera/             # Camera data (Alembic, JSON, point clouds, meshes)
+└── colmap/             # COLMAP reconstruction data
 ```
 
-Override the default projects location with `--projects-dir`.
+**Note on frame numbering:** Frame sequences start at 0001 rather than the VFX industry standard of 1001. Unfortunately, ComfyUI's SaveImage node and WHAM's output constraints make custom start frame numbering infeasible. We apologize for this deviation from convention.
 
-## Current State
+## System Requirements
 
-### Working
-- `scripts/run_pipeline.py` - **Main entry point** - automated pipeline runner with full stage support
-- `scripts/setup_project.py` - Project setup with workflow templating
-- `scripts/export_camera.py` - Camera data → Alembic/JSON export (supports both DA3 and COLMAP)
-- `scripts/run_colmap.py` - COLMAP SfM/MVS reconstruction wrapper with mask support
-- `scripts/run_gsir.py` - GS-IR material decomposition wrapper
-- `scripts/run_segmentation.py` - Standalone SAM3 segmentation runner with multi-prompt support
-- `workflow_templates/01_analysis.json` - Depth Anything V3 + camera estimation
-- `workflow_templates/02_segmentation.json` - SAM3 video segmentation (text prompt → masks)
-- `workflow_templates/03_cleanplate.json` - ProPainter inpainting
-- `workflow_templates/04_matanyone.json` - MatAnyone video matting (person mask refinement)
-
-### Known Issues
-- SAM3 text prompts like "person" don't capture carried items (bags, purses) - use `run_segmentation.py --prompts` for multi-prompt
-- Frame numbering in ComfyUI SaveImage doesn't support custom start numbers (1001+) - outputs need post-rename or custom node
-- Large frame counts (150+) can stall SAM3 propagation - need batching strategy
-- MatAnyone is trained specifically for humans - non-human objects will have degraded matte quality
-
-### Not Yet Implemented
-- Depth-to-normals conversion for relighting
-- Batch processing wrapper (multiple shots in parallel)
-
-## Design Decisions
-
-1. **Frames, not video files** - All processing uses PNG sequences. More flexible, easier to debug, standard in VFX.
-
-2. **1001 frame numbering** - Industry convention. Leaves room for handles/pre-roll.
-
-3. **Templated workflows per project** - Each project gets its own copy of workflow JSONs with absolute paths populated. Avoids symlink management and makes projects self-contained.
-
-4. **Text prompts over manual selection** - For first-pass automation. Manual point-clicking is available but defeats the hands-off goal.
-
-5. **Separate passes, not monolithic workflow** - Depth, roto, and clean plate as individual workflows. Easier to re-run one stage without redoing everything.
-
-6. **COLMAP for accurate camera, DA3 for fast depth** - Two camera sources serve different needs:
-   - **Depth Anything V3**: Fast monocular depth maps for compositing. Camera estimates are approximate.
-   - **COLMAP**: Accurate Structure-from-Motion camera solves via bundle adjustment. Produces 3D geometry.
-
-## COLMAP Integration
-
-COLMAP provides geometric 3D reconstruction from multiple views, producing:
-- **Sparse reconstruction**: Feature matching + bundle adjustment → accurate camera poses
-- **Dense reconstruction**: Multi-view stereo → dense 3D point cloud
-- **Mesh**: Poisson surface reconstruction from point cloud
-
-### Usage
-
-```bash
-# Basic COLMAP reconstruction (sparse only, fast)
-python scripts/run_pipeline.py footage.mp4 --stages ingest,colmap,camera
-
-# With dense point cloud
-python scripts/run_pipeline.py footage.mp4 --stages ingest,colmap,camera --colmap-dense
-
-# With mesh generation (requires --colmap-dense)
-python scripts/run_pipeline.py footage.mp4 --stages ingest,colmap,camera --colmap-dense --colmap-mesh
-
-# Quality presets: low (fast), medium (default), high (accurate)
-python scripts/run_pipeline.py footage.mp4 --stages colmap --colmap-quality high
-```
-
-### Standalone COLMAP
-
-```bash
-# Run COLMAP directly on an existing project
-python scripts/run_colmap.py /path/to/projects/My_Shot --dense --mesh
-
-# Check if COLMAP is installed
-python scripts/run_colmap.py --check
-```
-
-### COLMAP vs DA3
-
-| Aspect | Depth Anything V3 | COLMAP |
-|--------|-------------------|--------|
-| Camera accuracy | Approximate (monocular) | Geometric (bundle adjustment) |
-| Scale | Relative only | Consistent across scene |
-| Speed | Fast (GPU inference) | Slower (CPU-bound matching) |
-| 3D output | Depth maps only | Point cloud + mesh |
-| Requirements | ComfyUI + model | COLMAP binary |
-| Best for | Compositing depth | Matchmove, 3D reconstruction |
-
-**Recommendation**: Use COLMAP for camera solves if you need accurate matchmove. Use DA3 depth maps for compositing tasks (holdouts, depth-based effects).
-
-## GS-IR Integration (Material Decomposition)
-
-GS-IR (Gaussian Splatting for Inverse Rendering) extracts PBR material properties from multi-view images:
-- **Albedo maps** — Diffuse color without lighting
-- **Roughness maps** — Surface roughness for specular
-- **Metallic maps** — Metallic vs dielectric
-- **Normal maps** — Surface orientation
-- **Environment lighting** — Estimated HDR environment
-
-### Prerequisites
-
-1. Install GS-IR from https://github.com/lzhnb/GS-IR
-2. Run COLMAP first (GS-IR needs camera poses)
-3. CUDA GPU with 12GB+ VRAM
-
-### Usage
-
-```bash
-# Full pipeline: ingest → COLMAP → GS-IR → camera export
-python scripts/run_pipeline.py footage.mp4 --stages ingest,colmap,gsir,camera
-
-# With custom iterations (longer = better quality)
-python scripts/run_pipeline.py footage.mp4 --stages colmap,gsir --gsir-iterations 50000
-
-# Standalone on existing project
-python scripts/run_gsir.py /path/to/projects/My_Shot
-
-# Check if GS-IR is installed
-python scripts/run_gsir.py --check
-```
-
-### Output Structure
-
-```
-camera/
-├── materials/           # PBR material maps per frame
-│   ├── 00000_brdf.png   # Combined: albedo | roughness | metallic
-│   ├── 00000_albedo.png # Extracted albedo
-│   └── ...
-├── normals/             # Normal maps per frame
-├── depth_gsir/          # Depth maps from GS-IR
-├── environment.png      # Estimated environment lighting
-└── gsir_metadata.json   # Export metadata
-```
-
-### Pipeline Flow
-
-```
-Frames → COLMAP (cameras) → GS-IR (materials) → VFX-ready outputs
-              ↓                    ↓
-         camera.abc          albedo/roughness/normal maps
-```
-
-**Note**: GS-IR training takes 1-3 hours depending on scene complexity and iteration count. The default 35,000 iterations balances quality and time.
-
-## Dynamic Scene Segmentation
-
-For footage with moving subjects (people, vehicles, etc.), the pipeline supports automatic segmentation to separate dynamic elements from static backgrounds. This enables:
-- **Static-only camera solving**: COLMAP reconstructs only the background by masking out moving objects
-- **Clean plate generation**: Inpainted backgrounds for compositing
-- **Object isolation**: Separate dynamic elements for individual processing
-
-### How It Works
-
-```
-Frames → SAM3 Segmentation → Masks → MatAnyone (person only) → Refined Mattes
-                                              ↓
-                                    Consolidate all masks
-                                              ↓
-              Clean plates (ProPainter inpainting) ← COLMAP (masked) → Static reconstruction
-```
-
-The pipeline automatically refines person masks using MatAnyone for cleaner alpha edges. During cleanplate generation, masks are consolidated (OR-combined) with MatAnyone mattes replacing raw SAM3 person masks. The consolidated masks tell COLMAP to ignore features in dynamic regions during camera solving, producing accurate camera tracks even with moving subjects in frame.
-
-### Basic Usage
-
-```bash
-# Full pipeline with segmentation (roto + colmap)
-python scripts/run_pipeline.py footage.mp4 --stages ingest,roto,colmap,camera
-
-# Run all stages including clean plates
-python scripts/run_pipeline.py footage.mp4 --stages ingest,roto,cleanplate,colmap,camera
-```
-
-**Default behavior**: If masks exist in `roto/`, COLMAP automatically uses them. To disable:
-```bash
-python scripts/run_pipeline.py footage.mp4 --stages colmap --colmap-no-masks
-```
-
-### Standalone Segmentation
-
-For custom prompts or multi-object scenes:
-
-```bash
-# Single prompt (default: "person")
-python scripts/run_segmentation.py /path/to/projects/My_Shot --prompt "person"
-
-# Multiple prompts for complex scenes (person + carried objects)
-python scripts/run_segmentation.py /path/to/projects/My_Shot --prompts "person,bag,backpack"
-
-# Different object types
-python scripts/run_segmentation.py /path/to/projects/My_Shot --prompt "car"
-```
-
-### Workflow Stages
-
-1. **Segmentation (roto)**: SAM3 video segmentation
-   - Text-prompted object detection
-   - Temporal propagation across frames
-   - Output: Binary masks in `roto/<prompt>/` subdirectories
-
-2. **MatAnyone (matanyone)**: Video matting refinement
-   - Refines person masks into clean alpha mattes
-   - Requires 9GB+ VRAM
-   - Human-focused (trained on people, not general objects)
-   - Output: Refined mattes in `matte/`
-
-3. **Clean Plate (cleanplate)**: ProPainter inpainting
-   - Consolidates masks from all `roto/` subdirs
-   - Substitutes MatAnyone mattes for person masks if available
-   - Fills dynamic regions with static background
-   - Output: Clean plates in `cleanplate/`
-
-4. **COLMAP (with masks)**: Camera solving
-   - Automatically detects masks in `roto/`
-   - Excludes masked regions from feature extraction
-   - Produces accurate static-scene reconstruction
-
-### Multi-Prompt Segmentation
-
-For scenes where a single prompt doesn't capture all dynamic elements:
-
-```bash
-# Segment person + objects they're carrying
-python scripts/run_segmentation.py project/ --prompts "person,bag,phone,cup"
-
-# Multiple actors or objects
-python scripts/run_segmentation.py project/ --prompts "person,car,bicycle"
-```
-
-**Note**: Multiple prompts run sequentially and combine masks. For complex scenes with 150+ frames, consider batching or using frame ranges to avoid SAM3 propagation stalls.
-
-### Pipeline Integration
-
-```bash
-# Typical dynamic scene workflow:
-# 1. Extract frames
-python scripts/run_pipeline.py footage.mp4 --stages ingest
-
-# 2. Segment dynamic objects (custom prompt if needed)
-python scripts/run_segmentation.py projects/footage --prompt "person"
-
-# 3. Run COLMAP with masks + generate clean plates
-python scripts/run_pipeline.py footage.mp4 --stages cleanplate,colmap,camera
-```
-
-### Output Structure
-
-```
-projects/My_Shot/
-├── roto/                    # Segmentation masks (per-prompt subdirs)
-│   ├── person/              # SAM3 person masks
-│   │   ├── mask_00001.png
-│   │   └── ...
-│   ├── bag/                 # SAM3 bag masks (if multi-prompt)
-│   │   └── ...
-│   └── combined_*.png       # Consolidated masks (created by cleanplate)
-├── matte/                   # MatAnyone refined person mattes
-│   ├── matte_00001.png
-│   └── ...
-├── cleanplate/              # Inpainted backgrounds (static only)
-│   ├── clean_00001.png
-│   └── ...
-├── colmap/
-│   └── sparse/0/            # Static-only reconstruction
-└── camera/
-    ├── extrinsics.json      # Camera from static features only
-    └── camera.abc
-```
-
-### Known Limitations
-
-- **Text prompt specificity**: SAM3's "person" prompt doesn't capture carried items (bags, purses). Use multi-prompt for complete coverage.
-- **Large frame counts**: 150+ frames can stall SAM3 propagation. Batch processing or frame range support planned.
-- **MatAnyone is human-only**: Trained specifically on people - object mattes (cars, bags, etc.) won't benefit from MatAnyone refinement and use raw SAM3 masks.
-- **MatAnyone VRAM**: Requires 9GB+ GPU memory. Will skip automatically if workflow not found.
-
-## Human Motion Capture (Experimental)
-
-**Status:** Experimental - requires additional dependencies (WHAM, ECON)
-
-**Note:** This is an **optional feature**. The core VFX pipeline (depth, segmentation, clean plates, camera tracking) works perfectly without these dependencies. Only install ECON if you specifically need clothed human reconstruction from video.
-
-Reconstruct people from monocular video with SMPL-X compatible geometry and textures ready for VFX matchmove.
-
-### What It Produces
-
-```
-mocap/
-├── wham/
-│   └── motion.pkl              # World-grounded skeleton animation
-├── econ/
-│   ├── mesh_0001.obj           # Clothed geometry keyframes
-│   ├── mesh_0025.obj
-│   └── ...
-├── mesh_sequence/              # Exported mesh sequence
-│   ├── mesh_0001.obj           # SMPL-X compatible meshes
-│   ├── mesh_0025.obj
-│   └── ...
-└── texture.png                 # Canonical UV texture (1024x1024)
-```
-
-**Key features:**
-- **SMPL-X compatibility**: Meshes compatible with SMPL-X parametrization
-- **Standard UV layout**: SMPL-X UV coordinates - no texture swimming
-- **World-space alignment**: Matches COLMAP camera/scene coordinates
-- **Clothed geometry**: Captures actual clothing, not template body
-
-### Pipeline Stages
-
-```
-Frames → WHAM (motion) → ECON (geometry) → Textured mesh
-           ↓                  ↓
-    World-space         Clothed body
-    skeleton            + SMPL-X compat
-```
-
-1. **WHAM**: World-grounded motion tracking
-   - Estimates SMPL-X skeleton animation
-   - Output in world coordinates (aligns with COLMAP)
-   - Includes foot contact detection
-
-2. **ECON**: Clothed body reconstruction
-   - Captures actual clothing geometry (not template)
-   - Runs on keyframes (every 25 frames by default)
-   - SMPL-X compatible output
-
-3. **Texture projection**: Multi-view texturing
-   - Projects camera images to canonical UV space
-   - Weighted by viewing angle + visibility
-
-### Usage
-
+**Platform:** Linux (tested on Ubuntu 20.04+)
+**Python:** 3.10 or newer
 **Prerequisites:**
-```bash
-# Check dependencies
-python scripts/run_mocap.py --check
-
-# Install WHAM
-git clone https://github.com/yohanshin/WHAM.git
-cd WHAM && pip install -e .
-# Download WHAM checkpoints (Google Drive)
-
-# Install ECON
-git clone https://github.com/YuliangXiu/ECON.git
-cd ECON && pip install -r requirements.txt
-# Register at icon.is.tue.mpg.de for ECON checkpoints
-
-# Core dependencies
-pip install numpy torch smplx trimesh opencv-python pillow
-```
-
-**Basic usage:**
-```bash
-# Full pipeline (requires COLMAP camera data first)
-python scripts/run_pipeline.py footage.mp4 \
-  --stages ingest,roto,colmap,mocap,camera
-
-# Standalone mocap
-python scripts/run_mocap.py /path/to/projects/My_Shot
-
-# Skip texture (faster, mesh only)
-python scripts/run_mocap.py /path/to/projects/My_Shot --skip-texture
-
-# Custom keyframe interval
-python scripts/run_mocap.py /path/to/projects/My_Shot --keyframe-interval 30
-```
-
-**Testing individual stages:**
-```bash
-# Test motion tracking only
-python scripts/run_mocap.py project/ --test-stage motion
-
-# Test ECON reconstruction
-python scripts/run_mocap.py project/ --test-stage econ
-
-# Test texture projection
-python scripts/run_mocap.py project/ --test-stage texture
-```
-
-### Integration with VFX Tools
-
-**Import to Maya/Houdini/Blender:**
-```python
-# Load OBJ sequence
-obj_dir = "mocap/obj_sequence/"
-frames = sorted(glob("frame_*.obj"))
-
-# All frames have:
-# - Same vertex count (10,475)
-# - Same connectivity (no topology changes)
-# - SMPL-X UV coordinates
-
-# Load texture
-texture = "mocap/texture.png"
-# Apply to mesh with SMPL-X UV layout
-```
-
-**Nuke compositing:**
-```python
-# Load mesh sequence + camera
-ReadGeo {
-  file "mocap/obj_sequence/frame_####.obj"
-}
-Camera {
-  file "camera/camera.abc"
-}
-
-# Both in world space - already aligned!
-```
-
-### Output Format
-
-**Mesh sequence:**
-- Format: OBJ per frame (Alembic export planned)
-- Topology: SMPL-X (10,475 vertices, standard connectivity)
-- UVs: SMPL-X layout (consistent across frames)
-- Scale: Meters (world-space aligned with COLMAP)
-
-**Texture:**
-- Resolution: 1024x1024 (configurable)
-- Format: PNG, RGB
-- UV layout: SMPL-X canonical space
-- Source: Aggregated from all camera views
-
-### Known Limitations
-
-- **Experimental**: Requires installing multiple research codebases
-- **GPU intensive**: Needs 12GB+ VRAM for ECON/WHAM
-- **Single person**: Multi-person support requires per-person segmentation
-- **Clothing detail**: Quality depends on ECON keyframe density
-- **Occlusions**: Heavy occlusions may cause tracking drift
-
-### Animating Clothed Meshes
-
-ECON produces detailed clothed geometry at keyframes, but doesn't animate between frames.
-The `mesh_deform.py` script transfers SMPL-X animation to ECON's higher-resolution meshes
-using UV-based correspondence (avoids distance-based artifacts in folding areas like armpits).
-
-**Full workflow:**
-
-```bash
-# Step 1: Generate animated SMPL-X meshes from WHAM motion
-python scripts/smplx_from_motion.py project/ \
-    --motion mocap/wham/motion.pkl \
-    --output mocap/smplx_animated/ \
-    --rest-pose mocap/smplx_rest.obj
-
-# Step 2: Deform ECON mesh using UV-based correspondence
-python scripts/mesh_deform.py project/ \
-    --smplx-rest mocap/smplx_rest.obj \
-    --econ-rest mocap/econ/mesh_0001.obj \
-    --smplx-sequence mocap/smplx_animated/ \
-    --output mocap/econ_animated/
-```
-
-**Controlling deformation smoothness:**
-
-Create a UV-space weight map to control per-region behavior:
-
-```bash
-# Create template smoothing map
-python scripts/mesh_deform.py project/ \
-    --create-smoothing-template mocap/smoothing_weights.png
-
-# Paint in Photoshop/GIMP:
-#   White = more smoothing (soft fabric)
-#   Black = rigid (stiff clothing moves exactly with body)
-#   Gray = moderate (default)
-
-# Apply custom smoothing
-python scripts/mesh_deform.py project/ \
-    --smplx-rest mocap/smplx_rest.obj \
-    --econ-rest mocap/econ/mesh_0001.obj \
-    --smplx-sequence mocap/smplx_animated/ \
-    --output mocap/econ_animated/ \
-    --smoothing-map mocap/smoothing_weights.png
-```
-
-**Offset modes:**
-- `--offset-mode smooth`: Linear interpolation (default, fast)
-- `--offset-mode normal`: Offset projected along surface normal
-- `--offset-mode rigid`: Full local frame transformation (most accurate)
-
-**Caching correspondence:**
-
-For iterating on the same meshes, cache the correspondence computation:
-
-```bash
-python scripts/mesh_deform.py project/ \
-    --smplx-rest mocap/smplx_rest.obj \
-    --econ-rest mocap/econ/mesh_0001.obj \
-    --smplx-sequence mocap/smplx_animated/ \
-    --output mocap/econ_animated/ \
-    --cache mocap/correspondence.npz
-```
-
-### Validation & Testing
-
-**Check motion quality:**
-```bash
-# Visualize WHAM skeleton
-python -c "
-import pickle
-with open('mocap/wham/motion.pkl', 'rb') as f:
-    data = pickle.load(f)
-print('Frames:', len(data['poses']))
-print('Root trajectory:', data['trans'])
-"
-```
-
-**Check mesh consistency:**
-```bash
-# Verify vertex count is consistent
-for obj in mocap/obj_sequence/*.obj; do
-    echo "$obj: $(grep -c '^v ' $obj) vertices"
-done
-# Should all print same number (10,475 for SMPL-X)
-```
-
-**Check texture coverage:**
-```bash
-# View texture
-display mocap/texture.png  # ImageMagick
-# Check for unfilled regions (black areas)
-```
-
-### Best Practices
-
-1. **Run COLMAP first** - Mocap needs world-space camera data
-2. **Use segmentation masks** - Helps WHAM focus on person
-3. **Adjust keyframe interval** - More keyframes = better detail, slower processing
-4. **Test stages independently** - Use `--test-stage` to debug failures
-5. **Validate topology** - Check vertex counts match before importing to DCC
-6. **Check scale** - SMPL-X is in meters, verify it matches your scene
-
-### Troubleshooting
-
-**"WHAM not available":**
-```bash
-python scripts/run_mocap.py --check
-# Follow installation instructions printed
-```
-
-**"Motion file not found":**
-```bash
-# Run motion stage first
-python scripts/run_mocap.py project/ --test-stage motion
-```
-
-**"Camera data required":**
-```bash
-# Run COLMAP before mocap
-python scripts/run_pipeline.py footage.mp4 --stages colmap
-```
-
-**Mesh quality issues:**
-- Increase `--keyframe-interval` (e.g., 15 instead of 25)
-- Check person is clearly visible in frames
-- Verify segmentation masks are accurate
-
-## Manual Installation
-
-If you prefer to install components manually instead of using the wizard:
-
-### Core Dependencies
-
-```bash
-# Python packages
-pip install numpy torch opencv-python pillow
-
-# System packages (Ubuntu)
-sudo apt install ffmpeg colmap git
-```
-
-### ComfyUI Setup
-
-```bash
-# Clone ComfyUI
-git clone https://github.com/comfyanonymous/ComfyUI.git
-cd ComfyUI && pip install -r requirements.txt
-
-# Install custom nodes
-cd custom_nodes
-git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git
-git clone https://github.com/PozzettiAndrea/ComfyUI-DepthAnythingV3.git
-git clone https://github.com/your-repo/ComfyUI-SAM3.git
-
-# Start server
-cd .. && python main.py --listen
-```
-
-### SAM2 Model Access (Required for Segmentation)
-
-**SAM2 (Segment Anything Model 2) can be downloaded automatically:**
-
-1. Create a HuggingFace account at https://huggingface.co/join
-2. Visit https://huggingface.co/facebook/sam2.1-hiera-large
-3. Click "Agree and access repository" to accept the license
-4. Go to https://huggingface.co/settings/tokens and create a token with "Read" access
-5. Create `HF_TOKEN.dat` in repository root with your token:
-   ```
-   hf_yourTokenHere1234567890abcdefghijklmnop
-   ```
-6. Run the installation wizard - it will automatically download SAM2 model to `.vfx_pipeline/ComfyUI/models/sam/`
-
-**Template file**: Copy `HF_TOKEN.dat.template` and fill in your token.
-
-**Note**: Without SAM2 access, segmentation workflows (roto, cleanplate) will not work.
-
-### SMPL-X and ECON Model Access (Required for Clothed Human Reconstruction)
-
-**BOTH registrations are required for full clothed human reconstruction from video.**
-
-**Models can be downloaded automatically, but require TWO separate registrations** (both free, both need approval).
-
-#### What Each Component Provides
-
-**SMPL-X** (Skinned Multi-Person Linear model, eXpressive):
-- Parametric body model defining skeleton, mesh topology, and UV layout
-- The "rigged character" - a deformable human mesh with consistent vertex ordering
-- Provides the underlying body structure that can be posed and animated
-
-**ECON** (Explicit Clothed humans Obtained from Normals):
-- Clothed human reconstruction from monocular video
-- Creates detailed 3D meshes including clothing geometry from video frames
-- Uses SMPL-X as the body prior to ensure consistent topology
-
-#### Registration Sites
-
-| Site | URL | Purpose |
-|------|-----|---------|
-| SMPL-X | https://smpl-x.is.tue.mpg.de/ | Parametric body model (skeleton + mesh) |
-| ICON/ECON | https://icon.is.tue.mpg.de/ | Clothed reconstruction checkpoints |
-
-**Note**: These are **separate registrations**. Both require approval (usually 24-48 hours each).
-
-#### Setup Steps
-
-**You need TWO credential files for the two separate registrations:**
-
-1. **Register for SMPL-X** at https://smpl-x.is.tue.mpg.de/
-2. **Register for ICON/ECON** at https://icon.is.tue.mpg.de/ (separate registration!)
-3. Wait for approval emails from both sites (usually 24-48 hours each)
-4. **Create `SMPL.login.dat`** in repository root:
-   ```
-   your.email@example.com
-   your_smplx_password_here
-   ```
-5. **Create `ECON.login.dat`** in repository root:
-   ```
-   your.email@example.com
-   your_econ_password_here
-   ```
-6. Run the installation wizard - it will download:
-   - SMPL-X models to `.vfx_pipeline/smplx_models/` (using SMPL.login.dat)
-   - ECON checkpoints to `.vfx_pipeline/ECON/data/` (using ECON.login.dat)
-
-**Template files**:
-- Copy `SMPL.login.dat.template` → `SMPL.login.dat` with your SMPL-X credentials
-- Copy `ECON.login.dat.template` → `ECON.login.dat` with your ICON/ECON credentials
-
-**What happens if you're missing these?**
-- **Missing SMPL-X only**: WHAM can track motion but cannot generate SMPL-X body meshes or run ECON
-- **Missing ICON/ECON only**: WHAM + SMPL-X works (naked body geometry) but no clothed reconstruction
-- **Missing both**: Only WHAM motion tracking (2D/3D poses), no 3D mesh output
-
-See the "Account Requirements & What Works at Each Level" section at the top for details.
-
-### Motion Capture Dependencies (Optional - Skip if Not Needed)
-
-**Only install these if you specifically need human motion capture.** The core VFX pipeline works without them.
-
-```bash
-# Core packages
-pip install smplx trimesh
-
-# WHAM (world-grounded motion)
-git clone https://github.com/yohanshin/WHAM.git
-cd WHAM && pip install -e .
-# Download checkpoints from Google Drive
-
-# ECON (clothed reconstruction) - requires ICON registration
-git clone https://github.com/YuliangXiu/ECON.git
-cd ECON && pip install -r requirements.txt
-# Register at icon.is.tue.mpg.de for checkpoints
-
-# SMPL-X models - See "SMPL-X Model Access" section above
-# Automated download with SMPL.login.dat credentials
-```
-
-### Verify Installation
-
-```bash
-# Check core pipeline
-python scripts/run_pipeline.py --help
-
-# Check motion capture
-python scripts/run_mocap.py --check
-
-# Check all components
-python scripts/install_wizard.py --check-only
-```
-
-## For the Agent
-
-When continuing development:
-
-- **Test with real footage** - The workflows were built from node documentation, not extensive testing. Expect connection/type errors.
-- **Check actual node signatures** - ComfyUI node inputs/outputs change between versions. Use `grep -A 20 "INPUT_TYPES" ...` to verify.
-- **VRAM is the constraint** - 12GB minimum, 24GB comfortable. Batch sizes and model choices are driven by this.
-- **User's system** - Ubuntu, NVIDIA GPU, conda environment at `/media/menser/fauna/META_VFX/VFX/`
-
-The goal is a pipeline that a VFX artist can run overnight and come back to usable first-pass outputs.
+- Git
+- FFmpeg
+- NVIDIA GPU with CUDA support
+- Conda or Miniconda (recommended for environment management)
+
+**Note:** macOS and Windows compatibility untested. Linux strongly recommended.
+
+## Installation Requirements
+
+### Download Sizes (Approximate)
+
+**Core Pipeline:**
+- ComfyUI: 2.0 GB
+- PyTorch (with CUDA): 6.0 GB
+- Custom nodes (VideoHelperSuite, SAM3, ProPainter, etc.): 5.3 GB
+- Model checkpoints (Depth Anything V3, SAM2): 1.0 GB
+
+**Core Total: ~14 GB**
+
+**Optional Components:**
+- WHAM (motion capture): 3.0 GB
+- COLMAP (camera tracking): 0.5 GB
+- ECON (clothed reconstruction): ~2.0 GB
+- GS-IR (material decomposition): ~1.5 GB
+
+**Full Installation Total: ~21 GB**
+
+### Model Access Requirements
+
+**SMPL-X Models** (required for motion capture):
+- Registration required at https://smpl-x.is.tue.mpg.de/
+- Free academic/research license
+- Approval typically within 24-48 hours
+- Provides parametric body models for human reconstruction
+
+### GPU Memory (VRAM) Requirements
+
+**Per-Component VRAM Usage:**
+- Depth Anything V3: ~7 GB (Small model)
+- SAM3 (segmentation): ~4 GB
+- ProPainter (clean plates): ~6 GB
+- MatAnyone (matte refinement): 9+ GB
+- COLMAP: CPU-based (minimal GPU usage)
+- GS-IR (material decomposition): 12+ GB
+- WHAM/ECON (motion capture): 12+ GB
+
+**Minimum Recommendation: 9 GB VRAM** (covers core pipeline including MatAnyone)
+**Comfortable Recommendation: 12 GB VRAM** (supports all features including motion capture and material decomposition)
+**Optimal: 24 GB VRAM** (allows higher batch sizes and parallel processing)
+
+Note: NVIDIA GPU with CUDA support required for all ML models.
+
+## Tool Limitations by Shot Type
+
+Different components perform best under specific conditions:
+
+| Shot Type | Depth (DA3) | Roto (SAM3) | Clean Plate | Camera (COLMAP) | Material (GS-IR) | MoCap (WHAM/ECON) |
+|-----------|-------------|-------------|-------------|-----------------|------------------|-------------------|
+| **Static camera** | ✓ | ✓ | ✓ | ✗ | ✗ | ⚠ |
+| **Moving camera** | ✓ | ✓ | ⚠ | ✓ | ✓ | ✓ |
+| **Handheld/shaky** | ✓ | ⚠ | ⚠ | ⚠ | ⚠ | ⚠ |
+| **Fast motion** | ⚠ | ⚠ | ⚠ | ⚠ | ⚠ | ⚠ |
+| **Low texture** | ✓ | ✓ | ✓ | ✗ | ⚠ | ✓ |
+| **Full body person** | ✓ | ✓ | ✓ | ✓ | N/A | ✓ |
+| **Partial body/occluded** | ✓ | ⚠ | ⚠ | ✓ | N/A | ⚠ |
+| **Multiple people** | ✓ | ⚠ | ⚠ | ✓ | N/A | ✗ |
+| **In-focus background** | ✓ | ✓ | ✓ | ✓ | ✓ | N/A |
+| **Shallow DOF/bokeh** | ⚠ | ✓ | ⚠ | ⚠ | ⚠ | ✓ |
+| **High contrast lighting** | ✓ | ✓ | ✓ | ✓ | ⚠ | ✓ |
+| **150+ frames** | ✓ | ⚠ | ✓ | ✓ | ⚠ | ⚠ |
+
+**Legend:**
+- ✓ Works well
+- ⚠ Limited/challenging
+- ✗ Not suitable/fails
+- N/A Not applicable
+
+## License
+
+See individual component licenses. This pipeline integrates multiple open-source projects with varying licenses.
