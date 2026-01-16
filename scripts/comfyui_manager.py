@@ -263,21 +263,29 @@ def kill_all_comfyui_processes() -> int:
         pids_to_kill.append(str(_comfyui_process.pid))
 
     # Find any other ComfyUI processes
-    try:
-        result = subprocess.run(
-            ["pgrep", "-f", "ComfyUI.*main.py"],
-            capture_output=True,
-            text=True
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            for pid in result.stdout.strip().split('\n'):
-                pid = pid.strip()
-                if pid and pid not in pids_to_kill:
-                    pids_to_kill.append(pid)
-    except FileNotFoundError:
-        pass  # pgrep not available
-    except Exception:
-        pass
+    # Try multiple patterns since ComfyUI can be started different ways
+    patterns = [
+        "ComfyUI.*main.py",           # If ComfyUI is in the path
+        "main.py.*--port.*8188",      # ComfyUI's default port
+        "python.*main.py.*--listen",  # ComfyUI uses --listen flag
+    ]
+
+    for pattern in patterns:
+        try:
+            result = subprocess.run(
+                ["pgrep", "-f", pattern],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                for pid in result.stdout.strip().split('\n'):
+                    pid = pid.strip()
+                    if pid and pid not in pids_to_kill:
+                        pids_to_kill.append(pid)
+        except FileNotFoundError:
+            break  # pgrep not available, no point trying other patterns
+        except Exception:
+            pass
 
     # If nothing to kill, we're good
     if not pids_to_kill:
@@ -308,23 +316,24 @@ def kill_all_comfyui_processes() -> int:
         time.sleep(2)
 
         # Force kill any survivors
-        try:
-            result = subprocess.run(
-                ["pgrep", "-f", "ComfyUI.*main.py"],
-                capture_output=True,
-                text=True
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                for pid in result.stdout.strip().split('\n'):
-                    pid = pid.strip()
-                    if pid:
-                        try:
-                            subprocess.run(["kill", "-9", pid], capture_output=True)
-                            print(f"  → Force killed ComfyUI process (PID: {pid})")
-                        except Exception:
-                            pass
-        except Exception:
-            pass
+        for pattern in patterns:
+            try:
+                result = subprocess.run(
+                    ["pgrep", "-f", pattern],
+                    capture_output=True,
+                    text=True
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    for pid in result.stdout.strip().split('\n'):
+                        pid = pid.strip()
+                        if pid:
+                            try:
+                                subprocess.run(["kill", "-9", pid], capture_output=True)
+                                print(f"  → Force killed ComfyUI process (PID: {pid})")
+                            except Exception:
+                                pass
+            except Exception:
+                pass
 
     print(f"  → Killed {killed} ComfyUI process(es)")
     return killed
