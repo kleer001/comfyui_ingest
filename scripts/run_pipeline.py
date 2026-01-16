@@ -35,6 +35,25 @@ from comfyui_manager import ensure_comfyui, stop_comfyui
 # Workflow templates directory
 WORKFLOW_TEMPLATES_DIR = Path(__file__).parent.parent / "workflow_templates"
 
+
+def clear_gpu_memory() -> None:
+    """Clear GPU VRAM to free memory after a stage completes.
+
+    This helps prevent out-of-memory errors when running multiple
+    GPU-intensive stages sequentially. Safe to call even if CUDA
+    is not available.
+    """
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            print("  → Cleared GPU memory")
+    except ImportError:
+        pass  # torch not installed, skip
+    except Exception as e:
+        print(f"  → Warning: Could not clear GPU memory: {e}")
+
 START_FRAME = 1  # ComfyUI SaveImage outputs start at 1, so we match that
 SUPPORTED_FORMATS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".mxf", ".exr", ".dpx", ".jpg", ".png"}
 
@@ -1002,6 +1021,9 @@ def run_pipeline(
         if auto_movie and list(depth_dir.glob("*.png")):
             generate_preview_movie(depth_dir, project_dir / "preview" / "depth.mp4", fps)
 
+        # Clear GPU memory after depth stage
+        clear_gpu_memory()
+
     # Stage: Roto
     if "roto" in stages:
         print("\n=== Stage: roto ===")
@@ -1090,6 +1112,9 @@ def run_pipeline(
             else:
                 print("  → No person directories to separate")
 
+        # Clear GPU memory after roto stage
+        clear_gpu_memory()
+
     # Stage: MatAnyone (refine person mattes)
     if "matanyone" in stages:
         print("\n=== Stage: matanyone ===")
@@ -1159,6 +1184,9 @@ def run_pipeline(
             if auto_movie and list(combined_dir.glob("*.png")):
                 generate_preview_movie(combined_dir, project_dir / "preview" / "matte.mp4", fps)
 
+        # Clear GPU memory after matanyone stage
+        clear_gpu_memory()
+
     # Stage: Cleanplate
     if "cleanplate" in stages:
         print("\n=== Stage: cleanplate ===")
@@ -1221,6 +1249,9 @@ def run_pipeline(
         if auto_movie and list(cleanplate_dir.glob("*.png")):
             generate_preview_movie(cleanplate_dir, project_dir / "preview" / "cleanplate.mp4", fps)
 
+        # Clear GPU memory after cleanplate stage
+        clear_gpu_memory()
+
     # Stage: COLMAP reconstruction
     if "colmap" in stages:
         print("\n=== Stage: colmap ===")
@@ -1249,6 +1280,9 @@ def run_pipeline(
                 fps=fps,
             )
 
+        # Clear GPU memory after colmap stage
+        clear_gpu_memory()
+
     # Stage: Motion capture
     if "mocap" in stages:
         print("\n=== Stage: mocap ===")
@@ -1265,6 +1299,9 @@ def run_pipeline(
             ):
                 print("  → Motion capture failed", file=sys.stderr)
                 # Non-fatal - continue to other stages
+
+        # Clear GPU memory after mocap stage
+        clear_gpu_memory()
 
     # Stage: GS-IR material decomposition
     if "gsir" in stages:
@@ -1284,6 +1321,9 @@ def run_pipeline(
             ):
                 print("  → GS-IR material decomposition failed", file=sys.stderr)
                 # Non-fatal - continue to camera export
+
+        # Clear GPU memory after gsir stage
+        clear_gpu_memory()
 
     # Stage: Camera export
     if "camera" in stages:
