@@ -257,6 +257,9 @@ def match_features(
                 "SiftMatching.use_gpu": 1 if gpu else 0,
                 "SiftMatching.max_num_matches": 32768,
             }
+            # Explicitly set GPU index to avoid multi-GPU initialization issues (Issue #627)
+            if gpu:
+                args["SiftMatching.gpu_index"] = "0"
             mode = "GPU" if gpu else "CPU"
             run_colmap_command("sequential_matcher", args, f"Matching features (sequential, {mode})")
         elif matcher_type == "exhaustive":
@@ -265,6 +268,9 @@ def match_features(
                 "SiftMatching.use_gpu": 1 if gpu else 0,
                 "SiftMatching.max_num_matches": 32768,
             }
+            # Explicitly set GPU index to avoid multi-GPU initialization issues (Issue #627)
+            if gpu:
+                args["SiftMatching.gpu_index"] = "0"
             mode = "GPU" if gpu else "CPU"
             run_colmap_command("exhaustive_matcher", args, f"Matching features (exhaustive, {mode})")
         else:
