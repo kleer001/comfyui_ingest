@@ -251,12 +251,14 @@ def match_features(
             "database_path": str(database_path),
             "SequentialMatching.overlap": sequential_overlap,
             "SiftMatching.use_gpu": 1,
+            "SiftMatching.max_num_matches": 32768,  # Explicit default to avoid GPU init bug
         }
         run_colmap_command("sequential_matcher", args, "Matching features (sequential)")
     elif matcher_type == "exhaustive":
         args = {
             "database_path": str(database_path),
             "SiftMatching.use_gpu": 1,
+            "SiftMatching.max_num_matches": 32768,  # Explicit default to avoid GPU init bug
         }
         run_colmap_command("exhaustive_matcher", args, "Matching features (exhaustive)")
     else:
