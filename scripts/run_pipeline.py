@@ -964,6 +964,10 @@ def run_pipeline(
         print("Failed to set up project", file=sys.stderr)
         return False
 
+    # Clear GPU memory before starting pipeline stages
+    print("\n[GPU Memory]")
+    clear_gpu_memory()
+
     # Stage: Ingest
     if "ingest" in stages:
         print("\n=== Stage: ingest ===")
