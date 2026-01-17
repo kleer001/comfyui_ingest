@@ -12,673 +12,1620 @@
 
 This roadmap builds a FastAPI web application on top of the containerized pipeline, providing an intuitive browser interface for non-technical artists.
 
+### Architecture Principles
+
+**SOLID + DRY + Clean Architecture:**
+- **Single Responsibility** - Each layer has one job
+- **Separation of Concerns** - Data, Logic, UI are separate
+- **Dependency Inversion** - Layers depend on abstractions, not implementations
+- **DRY** - Reusable services, no duplication
+
+### Layered Architecture
+
+```
+┌────────────────────────────────────────────┐
+│   Frontend (Browser)                       │
+│   - Pure presentation (HTML/CSS/JS)        │
+│   - Makes API calls ONLY                   │
+│   - Zero business logic                    │
+└────────────────────────────────────────────┘
+              ↓ HTTP/REST/WebSocket
+┌────────────────────────────────────────────┐
+│   API Layer (FastAPI Routers)              │
+│   - Request/response handling              │
+│   - Input validation (Pydantic models)     │
+│   - Delegates to services                  │
+│   - Returns DTOs (Data Transfer Objects)   │
+└────────────────────────────────────────────┘
+              ↓ Service calls
+┌────────────────────────────────────────────┐
+│   Service Layer (Business Logic)           │
+│   - ProjectService                         │
+│   - PipelineService                        │
+│   - Orchestration and workflows            │
+│   - Business rules                         │
+└────────────────────────────────────────────┘
+              ↓ Repository calls
+┌────────────────────────────────────────────┐
+│   Repository Layer (Data Access)           │
+│   - ProjectRepository                      │
+│   - JobRepository                          │
+│   - Abstracts storage mechanism            │
+└────────────────────────────────────────────┘
+              ↓ Reads/writes
+┌────────────────────────────────────────────┐
+│   Storage (Filesystem/DB)                  │
+│   - Project directories                    │
+│   - State files (JSON)                     │
+│   - (Future: PostgreSQL)                   │
+└────────────────────────────────────────────┘
+```
+
 ### Key Principles
-- **Zero CLI Required** - All functionality accessible via browser
-- **Real-time Feedback** - Live progress updates via WebSockets
-- **Artist-Centric** - Designed for visual artists, not programmers
-- **One-Click Operations** - Start, stop, monitor with simple clicks
-- **Project Management** - Visual dashboard for all projects
+- **Frontend**: Dumb UI - only renders data from API
+- **API Layer**: Thin controllers - validate input, delegate to services
+- **Services**: Business logic - orchestration, rules, workflows
+- **Repositories**: Data access - abstract storage details
+- **No cross-layer violations**: Each layer only talks to layer below
 
 ---
 
-## Phase 2A: Web Server Foundation ⚪
+## Phase 2A: Foundation & Data Layer ⚪
 
-**Goal:** FastAPI server with basic routing and project management
+**Goal:** Set up project structure with proper layering
 
 ### Deliverables
-- `web/` directory structure
-- `web/server.py` - FastAPI application
-- `web/templates/` - HTML templates (Jinja2)
-- `web/static/` - CSS, JavaScript, images
-- Updated Dockerfile with web server
+- `web/` directory structure with layers
+- Pydantic models (DTOs and domain entities)
+- Repository layer for data access
+- Database/storage abstraction
 
 ### Tasks
 
-#### Task 2A.1: Create Web Application Structure
+#### Task 2A.1: Create Layered Directory Structure
 **Directory Structure:**
 ```
 web/
-├── server.py              # FastAPI app entry point
-├── routers/
+├── server.py                   # FastAPI app entry point
+├── config.py                   # Configuration management
+│
+├── api/                        # API Layer (Controllers)
 │   ├── __init__.py
-│   ├── dashboard.py       # Dashboard routes
-│   ├── projects.py        # Project CRUD routes
-│   ├── pipeline.py        # Pipeline execution routes
-│   └── api.py             # REST API endpoints
-├── templates/
-│   ├── base.html          # Base template
-│   ├── dashboard.html     # Main dashboard
-│   ├── project_new.html   # New project form
-│   ├── project_view.html  # Project details
-│   └── processing.html    # Real-time processing view
-├── static/
-│   ├── css/
-│   │   └── styles.css     # Custom styles
-│   ├── js/
-│   │   ├── dashboard.js   # Dashboard interactions
-│   │   └── websocket.js   # WebSocket client
-│   └── img/
-│       └── logo.png
-└── models.py              # Pydantic models for API
+│   ├── routers/
+│   │   ├── __init__.py
+│   │   ├── projects.py         # Project API endpoints
+│   │   ├── pipeline.py         # Pipeline API endpoints
+│   │   └── system.py           # System API endpoints (health, shutdown)
+│   └── dependencies.py         # FastAPI dependencies (DI)
+│
+├── services/                   # Service Layer (Business Logic)
+│   ├── __init__.py
+│   ├── project_service.py      # Project management business logic
+│   ├── pipeline_service.py     # Pipeline execution orchestration
+│   └── websocket_service.py    # WebSocket broadcast service
+│
+├── repositories/               # Repository Layer (Data Access)
+│   ├── __init__.py
+│   ├── base.py                 # Base repository interface
+│   ├── project_repository.py   # Project data access
+│   └── job_repository.py       # Pipeline job data access
+│
+├── models/                     # Data Models
+│   ├── __init__.py
+│   ├── domain.py               # Domain entities (internal)
+│   └── dto.py                  # DTOs (API contracts)
+│
+├── ui/                         # UI Layer (Presentation)
+│   ├── routers/
+│   │   ├── __init__.py
+│   │   └── pages.py            # HTML page routes
+│   ├── templates/
+│   │   ├── base.html
+│   │   ├── dashboard.html
+│   │   ├── project_new.html
+│   │   ├── project_view.html
+│   │   └── processing.html
+│   └── static/
+│       ├── css/
+│       │   └── styles.css
+│       ├── js/
+│       │   ├── api-client.js   # API client (abstraction)
+│       │   ├── dashboard.js    # Dashboard UI logic
+│       │   └── processing.js   # Processing UI logic
+│       └── img/
+│
+└── utils/                      # Utilities
+    ├── __init__.py
+    └── websocket_manager.py    # WebSocket connection manager
 ```
 
 **Success Criteria:**
 - [ ] Directory structure created
-- [ ] Basic file stubs present
+- [ ] Layers clearly separated
+- [ ] No cross-layer dependencies
 
 ---
 
-#### Task 2A.2: Create FastAPI Server
-**File:** `web/server.py`
+#### Task 2A.2: Define Domain Models
+**File:** `web/models/domain.py`
 
 ```python
-"""FastAPI web server for VFX Ingest Platform."""
+"""Domain entities - internal representation."""
 
-from fastapi import FastAPI, Request
-from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
-import uvicorn
+from dataclasses import dataclass
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Optional, List
 
-from web.routers import dashboard, projects, pipeline, api
 
-app = FastAPI(title="VFX Ingest Platform")
+class ProjectStatus(str, Enum):
+    """Project status enumeration."""
+    CREATED = "created"
+    PROCESSING = "processing"
+    COMPLETE = "complete"
+    FAILED = "failed"
+    UNKNOWN = "unknown"
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="web/static"), name="static")
 
-# Templates
-templates = Jinja2Templates(directory="web/templates")
+class JobStatus(str, Enum):
+    """Pipeline job status enumeration."""
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETE = "complete"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
 
-# Include routers
-app.include_router(dashboard.router)
-app.include_router(projects.router)
-app.include_router(pipeline.router)
-app.include_router(api.router, prefix="/api")
 
-@app.get("/", response_class=HTMLResponse)
-async def root(request: Request):
-    """Redirect to dashboard."""
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+@dataclass
+class Project:
+    """Project domain entity."""
+    name: str
+    path: Path
+    status: ProjectStatus
+    video_path: Optional[Path]
+    stages: List[str]
+    created_at: datetime
+    updated_at: datetime
 
-@app.get("/health")
-async def health():
-    """Health check endpoint."""
-    return {"status": "ok"}
+    @property
+    def source_dir(self) -> Path:
+        return self.path / "source"
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+    @property
+    def frames_dir(self) -> Path:
+        return self.path / "source" / "frames"
+
+    @property
+    def state_file(self) -> Path:
+        return self.path / "project_state.json"
+
+
+@dataclass
+class PipelineJob:
+    """Pipeline job domain entity."""
+    project_name: str
+    stages: List[str]
+    status: JobStatus
+    current_stage: Optional[str]
+    progress: float  # 0.0 to 1.0
+    message: Optional[str]
+    started_at: Optional[datetime]
+    completed_at: Optional[datetime]
+    error: Optional[str]
 ```
 
 **Success Criteria:**
-- [ ] Server starts without errors
-- [ ] `/health` endpoint responds
-- [ ] Static files served correctly
+- [ ] Domain models represent business concepts
+- [ ] No framework dependencies (FastAPI, etc.)
+- [ ] Type-safe with dataclasses
 
 ---
 
-#### Task 2A.3: Create Dashboard Router
-**File:** `web/routers/dashboard.py`
+#### Task 2A.3: Define DTOs (API Contracts)
+**File:** `web/models/dto.py`
 
 ```python
-"""Dashboard routes."""
+"""Data Transfer Objects - API contracts."""
 
-from fastapi import APIRouter, Request
-from fastapi.templating import Jinja2Templates
-from pathlib import Path
-import os
+from pydantic import BaseModel, Field
+from datetime import datetime
+from typing import Optional, List
+from web.models.domain import ProjectStatus, JobStatus
 
-router = APIRouter()
-templates = Jinja2Templates(directory="web/templates")
 
-PROJECTS_DIR = Path(os.environ.get("VFX_PROJECTS_DIR", "/workspace/projects"))
+class ProjectDTO(BaseModel):
+    """Project data for API responses."""
+    name: str
+    status: ProjectStatus
+    video_path: Optional[str] = None
+    stages: List[str] = []
+    created_at: datetime
+    updated_at: datetime
 
-@router.get("/dashboard")
-async def dashboard(request: Request):
-    """Main dashboard view."""
+    class Config:
+        from_attributes = True
 
-    # Scan for projects
-    projects = []
-    if PROJECTS_DIR.exists():
-        for project_path in PROJECTS_DIR.iterdir():
-            if project_path.is_dir():
-                # Read project metadata
-                state_file = project_path / "project_state.json"
-                if state_file.exists():
-                    import json
-                    with open(state_file) as f:
-                        state = json.load(f)
-                else:
-                    state = {"name": project_path.name, "status": "unknown"}
 
-                projects.append(state)
+class ProjectCreateRequest(BaseModel):
+    """Request to create a new project."""
+    name: str = Field(..., min_length=1, max_length=100)
+    stages: List[str] = Field(default_factory=list)
 
-    return templates.TemplateResponse(
-        "dashboard.html",
-        {
-            "request": request,
-            "projects": projects,
-        }
-    )
+
+class ProjectListResponse(BaseModel):
+    """Response with list of projects."""
+    projects: List[ProjectDTO]
+    total: int
+
+
+class JobDTO(BaseModel):
+    """Pipeline job data for API responses."""
+    project_name: str
+    stages: List[str]
+    status: JobStatus
+    current_stage: Optional[str] = None
+    progress: float = Field(ge=0.0, le=1.0)
+    message: Optional[str] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    error: Optional[str] = None
+
+
+class JobStartRequest(BaseModel):
+    """Request to start a pipeline job."""
+    stages: List[str] = Field(..., min_items=1)
+
+
+class JobStartResponse(BaseModel):
+    """Response after starting a job."""
+    status: str
+    job: JobDTO
+
+
+class ProgressUpdate(BaseModel):
+    """Real-time progress update (WebSocket)."""
+    stage: str
+    progress: float = Field(ge=0.0, le=1.0)
+    status: JobStatus
+    message: str
 ```
 
 **Success Criteria:**
-- [ ] Dashboard lists existing projects
-- [ ] Project metadata loaded correctly
-- [ ] Handles missing projects gracefully
+- [ ] DTOs use Pydantic for validation
+- [ ] Clear request/response models
+- [ ] No business logic in DTOs
 
 ---
 
-#### Task 2A.4: Create Project Management Router
-**File:** `web/routers/projects.py`
+#### Task 2A.4: Implement Repository Layer
+**File:** `web/repositories/base.py`
 
 ```python
-"""Project management routes."""
+"""Base repository interface."""
 
-from fastapi import APIRouter, Request, UploadFile, File, Form
-from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse
+from abc import ABC, abstractmethod
+from typing import Generic, TypeVar, Optional, List
+
+T = TypeVar('T')
+
+
+class Repository(ABC, Generic[T]):
+    """Base repository interface."""
+
+    @abstractmethod
+    def get(self, id: str) -> Optional[T]:
+        """Get entity by ID."""
+        pass
+
+    @abstractmethod
+    def list(self) -> List[T]:
+        """List all entities."""
+        pass
+
+    @abstractmethod
+    def save(self, entity: T) -> T:
+        """Save entity."""
+        pass
+
+    @abstractmethod
+    def delete(self, id: str) -> bool:
+        """Delete entity by ID."""
+        pass
+```
+
+**File:** `web/repositories/project_repository.py`
+
+```python
+"""Project repository - data access for projects."""
+
 from pathlib import Path
-import os
-import shutil
+from typing import Optional, List
 import json
+from datetime import datetime
+import shutil
 
-router = APIRouter()
-templates = Jinja2Templates(directory="web/templates")
+from web.models.domain import Project, ProjectStatus
+from web.repositories.base import Repository
 
-PROJECTS_DIR = Path(os.environ.get("VFX_PROJECTS_DIR", "/workspace/projects"))
 
-@router.get("/projects/new")
-async def new_project_form(request: Request):
-    """Show new project form."""
-    return templates.TemplateResponse("project_new.html", {"request": request})
+class ProjectRepository(Repository[Project]):
+    """Repository for project data access."""
 
-@router.post("/projects/create")
-async def create_project(
-    request: Request,
-    name: str = Form(...),
-    video: UploadFile = File(...),
-    stages: list[str] = Form([])
-):
-    """Create new project from uploaded video."""
+    def __init__(self, projects_dir: Path):
+        self.projects_dir = projects_dir
+        self.projects_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create project directory
-    project_dir = PROJECTS_DIR / name
-    project_dir.mkdir(parents=True, exist_ok=True)
+    def get(self, name: str) -> Optional[Project]:
+        """Get project by name."""
+        project_path = self.projects_dir / name
 
-    # Save uploaded video
-    video_path = project_dir / "source" / video.filename
-    video_path.parent.mkdir(exist_ok=True)
+        if not project_path.exists():
+            return None
 
-    with open(video_path, "wb") as f:
-        shutil.copyfileobj(video.file, f)
+        return self._load_project(project_path)
 
-    # Create project state
-    state = {
-        "name": name,
-        "status": "created",
-        "video_path": str(video_path),
-        "stages": stages,
-        "created": str(datetime.now()),
-    }
+    def list(self) -> List[Project]:
+        """List all projects."""
+        projects = []
 
-    with open(project_dir / "project_state.json", "w") as f:
-        json.dump(state, f, indent=2)
+        if not self.projects_dir.exists():
+            return projects
 
-    return RedirectResponse(f"/projects/{name}", status_code=303)
+        for project_path in self.projects_dir.iterdir():
+            if project_path.is_dir():
+                project = self._load_project(project_path)
+                if project:
+                    projects.append(project)
 
-@router.get("/projects/{name}")
-async def view_project(request: Request, name: str):
-    """View project details."""
+        return sorted(projects, key=lambda p: p.updated_at, reverse=True)
 
-    project_dir = PROJECTS_DIR / name
+    def save(self, project: Project) -> Project:
+        """Save project."""
+        # Ensure directory exists
+        project.path.mkdir(parents=True, exist_ok=True)
 
-    # Load state
-    state_file = project_dir / "project_state.json"
-    if state_file.exists():
-        with open(state_file) as f:
-            state = json.load(f)
-    else:
-        state = {"name": name, "status": "unknown"}
-
-    return templates.TemplateResponse(
-        "project_view.html",
-        {
-            "request": request,
-            "project": state,
+        # Save state file
+        state = {
+            "name": project.name,
+            "status": project.status.value,
+            "video_path": str(project.video_path) if project.video_path else None,
+            "stages": project.stages,
+            "created_at": project.created_at.isoformat(),
+            "updated_at": project.updated_at.isoformat(),
         }
-    )
 
-@router.post("/projects/{name}/delete")
-async def delete_project(name: str):
-    """Delete a project."""
+        with open(project.state_file, "w") as f:
+            json.dump(state, f, indent=2)
 
-    project_dir = PROJECTS_DIR / name
-    if project_dir.exists():
-        shutil.rmtree(project_dir)
+        return project
 
-    return RedirectResponse("/dashboard", status_code=303)
+    def delete(self, name: str) -> bool:
+        """Delete project."""
+        project_path = self.projects_dir / name
+
+        if project_path.exists():
+            shutil.rmtree(project_path)
+            return True
+
+        return False
+
+    def _load_project(self, project_path: Path) -> Optional[Project]:
+        """Load project from filesystem."""
+        state_file = project_path / "project_state.json"
+
+        if state_file.exists():
+            with open(state_file) as f:
+                state = json.load(f)
+
+            return Project(
+                name=state.get("name", project_path.name),
+                path=project_path,
+                status=ProjectStatus(state.get("status", "unknown")),
+                video_path=Path(state["video_path"]) if state.get("video_path") else None,
+                stages=state.get("stages", []),
+                created_at=datetime.fromisoformat(state["created_at"]),
+                updated_at=datetime.fromisoformat(state["updated_at"]),
+            )
+        else:
+            # Legacy project without state file
+            return Project(
+                name=project_path.name,
+                path=project_path,
+                status=ProjectStatus.UNKNOWN,
+                video_path=None,
+                stages=[],
+                created_at=datetime.now(),
+                updated_at=datetime.now(),
+            )
+```
+
+**File:** `web/repositories/job_repository.py`
+
+```python
+"""Job repository - in-memory storage for pipeline jobs."""
+
+from typing import Optional, Dict
+from web.models.domain import PipelineJob, JobStatus
+from web.repositories.base import Repository
+
+
+class JobRepository(Repository[PipelineJob]):
+    """Repository for pipeline job data (in-memory)."""
+
+    def __init__(self):
+        self._jobs: Dict[str, PipelineJob] = {}
+
+    def get(self, project_name: str) -> Optional[PipelineJob]:
+        """Get job by project name."""
+        return self._jobs.get(project_name)
+
+    def list(self) -> list[PipelineJob]:
+        """List all jobs."""
+        return list(self._jobs.values())
+
+    def save(self, job: PipelineJob) -> PipelineJob:
+        """Save job."""
+        self._jobs[job.project_name] = job
+        return job
+
+    def delete(self, project_name: str) -> bool:
+        """Delete job."""
+        if project_name in self._jobs:
+            del self._jobs[project_name]
+            return True
+        return False
+
+    def get_active_jobs(self) -> list[PipelineJob]:
+        """Get all running jobs."""
+        return [
+            job for job in self._jobs.values()
+            if job.status == JobStatus.RUNNING
+        ]
 ```
 
 **Success Criteria:**
-- [ ] New project form displays
-- [ ] Video upload works
-- [ ] Project directory created correctly
-- [ ] Project state saved
+- [ ] Repositories handle all data access
+- [ ] No SQL or file I/O outside repositories
+- [ ] Repository interface allows future DB migration
+- [ ] Type-safe with domain models
 
 ---
 
 ### Phase 2A Exit Criteria
 
-- [ ] Web server runs and responds
-- [ ] Dashboard displays projects
-- [ ] Can create new projects via web form
-- [ ] Can view project details
-- [ ] Can delete projects
-- [ ] Basic navigation works
+- [ ] Layered directory structure in place
+- [ ] Domain models defined (no framework deps)
+- [ ] DTOs defined (Pydantic validation)
+- [ ] Repository layer implemented
+- [ ] Data access abstracted from business logic
+- [ ] No cross-layer violations
 
 ---
 
-## Phase 2B: Pipeline Integration ⚪
+## Phase 2B: Service Layer (Business Logic) ⚪
 
-**Goal:** Execute pipeline from web interface with real-time progress
+**Goal:** Implement business logic separate from API/UI
 
 ### Deliverables
-- `web/routers/pipeline.py` - Pipeline execution routes
-- `web/websocket.py` - WebSocket handler for progress updates
-- `web/pipeline_manager.py` - Background job orchestration
-- Modified `scripts/run_pipeline.py` to emit JSON progress
+- `ProjectService` - Project management logic
+- `PipelineService` - Pipeline execution orchestration
+- `WebSocketService` - Real-time update broadcasting
 
 ### Tasks
 
-#### Task 2B.1: Create Pipeline Manager
-**File:** `web/pipeline_manager.py`
+#### Task 2B.1: Implement Project Service
+**File:** `web/services/project_service.py`
 
 ```python
-"""Background pipeline job management."""
+"""Project service - business logic for project management."""
+
+from pathlib import Path
+from datetime import datetime
+from typing import Optional, List
+import shutil
+
+from web.models.domain import Project, ProjectStatus
+from web.models.dto import ProjectDTO, ProjectCreateRequest, ProjectListResponse
+from web.repositories.project_repository import ProjectRepository
+
+
+class ProjectService:
+    """Service for project management business logic."""
+
+    def __init__(self, project_repo: ProjectRepository):
+        self.project_repo = project_repo
+
+    def list_projects(self) -> ProjectListResponse:
+        """List all projects."""
+        projects = self.project_repo.list()
+
+        return ProjectListResponse(
+            projects=[self._to_dto(p) for p in projects],
+            total=len(projects),
+        )
+
+    def get_project(self, name: str) -> Optional[ProjectDTO]:
+        """Get project by name."""
+        project = self.project_repo.get(name)
+
+        if not project:
+            return None
+
+        return self._to_dto(project)
+
+    def create_project(
+        self,
+        request: ProjectCreateRequest,
+        projects_dir: Path
+    ) -> ProjectDTO:
+        """Create a new project."""
+        # Business rule: Project name must be unique
+        existing = self.project_repo.get(request.name)
+        if existing:
+            raise ValueError(f"Project '{request.name}' already exists")
+
+        # Create project entity
+        now = datetime.now()
+        project = Project(
+            name=request.name,
+            path=projects_dir / request.name,
+            status=ProjectStatus.CREATED,
+            video_path=None,
+            stages=request.stages,
+            created_at=now,
+            updated_at=now,
+        )
+
+        # Persist
+        project = self.project_repo.save(project)
+
+        return self._to_dto(project)
+
+    def save_uploaded_video(
+        self,
+        project_name: str,
+        video_filename: str,
+        video_content: bytes
+    ) -> ProjectDTO:
+        """Save uploaded video to project."""
+        project = self.project_repo.get(project_name)
+        if not project:
+            raise ValueError(f"Project '{project_name}' not found")
+
+        # Save video file
+        video_path = project.source_dir / video_filename
+        video_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(video_path, "wb") as f:
+            f.write(video_content)
+
+        # Update project
+        project.video_path = video_path
+        project.updated_at = datetime.now()
+
+        project = self.project_repo.save(project)
+
+        return self._to_dto(project)
+
+    def delete_project(self, name: str) -> bool:
+        """Delete a project."""
+        return self.project_repo.delete(name)
+
+    def update_project_status(
+        self,
+        name: str,
+        status: ProjectStatus
+    ) -> Optional[ProjectDTO]:
+        """Update project status."""
+        project = self.project_repo.get(name)
+        if not project:
+            return None
+
+        project.status = status
+        project.updated_at = datetime.now()
+
+        project = self.project_repo.save(project)
+
+        return self._to_dto(project)
+
+    @staticmethod
+    def _to_dto(project: Project) -> ProjectDTO:
+        """Convert domain entity to DTO."""
+        return ProjectDTO(
+            name=project.name,
+            status=project.status,
+            video_path=str(project.video_path) if project.video_path else None,
+            stages=project.stages,
+            created_at=project.created_at,
+            updated_at=project.updated_at,
+        )
+```
+
+**Success Criteria:**
+- [ ] All project business logic in service
+- [ ] Service validates business rules
+- [ ] Service converts domain ↔ DTO
+- [ ] No direct file I/O (delegates to repository)
+
+---
+
+#### Task 2B.2: Implement Pipeline Service
+**File:** `web/services/pipeline_service.py`
+
+```python
+"""Pipeline service - orchestrates pipeline execution."""
 
 import asyncio
 import subprocess
-import json
-from pathlib import Path
-from typing import Optional
-import os
+from datetime import datetime
+from typing import Optional, Callable, Awaitable
 
-class PipelineJob:
-    """Represents a running pipeline job."""
+from web.models.domain import PipelineJob, JobStatus, ProjectStatus
+from web.models.dto import (
+    JobDTO, JobStartRequest, JobStartResponse, ProgressUpdate
+)
+from web.repositories.job_repository import JobRepository
+from web.services.project_service import ProjectService
 
-    def __init__(self, project_name: str, stages: list[str]):
-        self.project_name = project_name
-        self.stages = stages
-        self.process: Optional[subprocess.Popen] = None
-        self.status = "pending"
-        self.current_stage = None
-        self.progress = 0.0
 
-    async def start(self):
-        """Start the pipeline job."""
+class PipelineService:
+    """Service for pipeline execution orchestration."""
 
-        cmd = [
-            "python", "/app/scripts/run_pipeline.py",
-            "--name", self.project_name,
-            "--stages", ",".join(self.stages),
-            "--json-output",  # New flag for JSON progress
-        ]
+    def __init__(
+        self,
+        job_repo: JobRepository,
+        project_service: ProjectService
+    ):
+        self.job_repo = job_repo
+        self.project_service = project_service
 
-        self.process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+    async def start_job(
+        self,
+        project_name: str,
+        request: JobStartRequest,
+        progress_callback: Optional[Callable[[ProgressUpdate], Awaitable[None]]] = None
+    ) -> JobStartResponse:
+        """Start a pipeline job."""
+        # Business rule: Only one job per project at a time
+        existing_job = self.job_repo.get(project_name)
+        if existing_job and existing_job.status == JobStatus.RUNNING:
+            raise ValueError(f"Job already running for project '{project_name}'")
+
+        # Create job
+        job = PipelineJob(
+            project_name=project_name,
+            stages=request.stages,
+            status=JobStatus.PENDING,
+            current_stage=None,
+            progress=0.0,
+            message=None,
+            started_at=None,
+            completed_at=None,
+            error=None,
         )
 
-        self.status = "running"
+        job = self.job_repo.save(job)
 
-    async def monitor(self, callback):
-        """Monitor job progress and call callback with updates."""
+        # Update project status
+        self.project_service.update_project_status(
+            project_name,
+            ProjectStatus.PROCESSING
+        )
 
-        if not self.process:
-            return
+        # Start pipeline process
+        asyncio.create_task(
+            self._run_pipeline(job, progress_callback)
+        )
 
-        async for line in self.process.stdout:
-            try:
-                data = json.loads(line.decode())
+        return JobStartResponse(
+            status="started",
+            job=self._to_dto(job)
+        )
 
-                # Update state
-                if "stage" in data:
-                    self.current_stage = data["stage"]
-                if "progress" in data:
-                    self.progress = data["progress"]
-                if "status" in data:
-                    self.status = data["status"]
-
-                # Notify via callback
-                await callback(data)
-
-            except json.JSONDecodeError:
-                # Regular log line, ignore
-                pass
-
-        # Wait for completion
-        await self.process.wait()
-
-        if self.process.returncode == 0:
-            self.status = "complete"
-        else:
-            self.status = "failed"
-
-    def stop(self):
-        """Stop the job."""
-        if self.process:
-            self.process.terminate()
-            self.status = "cancelled"
-
-
-class PipelineManager:
-    """Manages pipeline jobs."""
-
-    def __init__(self):
-        self.jobs: dict[str, PipelineJob] = {}
-
-    def create_job(self, project_name: str, stages: list[str]) -> PipelineJob:
-        """Create a new job."""
-        job = PipelineJob(project_name, stages)
-        self.jobs[project_name] = job
-        return job
-
-    def get_job(self, project_name: str) -> Optional[PipelineJob]:
-        """Get a job by project name."""
-        return self.jobs.get(project_name)
-
-    def stop_job(self, project_name: str):
+    async def stop_job(self, project_name: str) -> bool:
         """Stop a running job."""
-        job = self.jobs.get(project_name)
-        if job:
-            job.stop()
+        job = self.job_repo.get(project_name)
+        if not job:
+            return False
+
+        if job.status != JobStatus.RUNNING:
+            return False
+
+        # TODO: Terminate subprocess
+        job.status = JobStatus.CANCELLED
+        job.completed_at = datetime.now()
+
+        self.job_repo.save(job)
+
+        # Update project status
+        self.project_service.update_project_status(
+            project_name,
+            ProjectStatus.FAILED
+        )
+
+        return True
+
+    def get_job(self, project_name: str) -> Optional[JobDTO]:
+        """Get job status."""
+        job = self.job_repo.get(project_name)
+        if not job:
+            return None
+
+        return self._to_dto(job)
+
+    async def _run_pipeline(
+        self,
+        job: PipelineJob,
+        progress_callback: Optional[Callable[[ProgressUpdate], Awaitable[None]]]
+    ):
+        """Run the pipeline process."""
+        # Update job to running
+        job.status = JobStatus.RUNNING
+        job.started_at = datetime.now()
+        self.job_repo.save(job)
+
+        try:
+            # Build command
+            cmd = [
+                "python", "/app/scripts/run_pipeline.py",
+                "--name", job.project_name,
+                "--stages", ",".join(job.stages),
+                "--json-output",
+            ]
+
+            # Start subprocess
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            # Monitor output
+            async for line in process.stdout:
+                await self._process_output_line(job, line, progress_callback)
+
+            # Wait for completion
+            await process.wait()
+
+            # Update final status
+            if process.returncode == 0:
+                job.status = JobStatus.COMPLETE
+                job.progress = 1.0
+
+                # Update project status
+                self.project_service.update_project_status(
+                    job.project_name,
+                    ProjectStatus.COMPLETE
+                )
+            else:
+                job.status = JobStatus.FAILED
+                job.error = "Pipeline exited with error"
+
+                # Update project status
+                self.project_service.update_project_status(
+                    job.project_name,
+                    ProjectStatus.FAILED
+                )
+
+        except Exception as e:
+            job.status = JobStatus.FAILED
+            job.error = str(e)
+
+            # Update project status
+            self.project_service.update_project_status(
+                job.project_name,
+                ProjectStatus.FAILED
+            )
+
+        finally:
+            job.completed_at = datetime.now()
+            self.job_repo.save(job)
+
+    async def _process_output_line(
+        self,
+        job: PipelineJob,
+        line: bytes,
+        progress_callback: Optional[Callable[[ProgressUpdate], Awaitable[None]]]
+    ):
+        """Process a line of output from pipeline."""
+        import json
+
+        try:
+            data = json.loads(line.decode())
+
+            # Update job state
+            if "stage" in data:
+                job.current_stage = data["stage"]
+            if "progress" in data:
+                job.progress = data["progress"]
+            if "status" in data:
+                job.status = JobStatus(data["status"])
+            if "message" in data:
+                job.message = data["message"]
+
+            self.job_repo.save(job)
+
+            # Notify via callback
+            if progress_callback:
+                update = ProgressUpdate(
+                    stage=data.get("stage", ""),
+                    progress=data.get("progress", 0.0),
+                    status=JobStatus(data.get("status", "running")),
+                    message=data.get("message", ""),
+                )
+                await progress_callback(update)
+
+        except json.JSONDecodeError:
+            # Regular log line, ignore
+            pass
+
+    @staticmethod
+    def _to_dto(job: PipelineJob) -> JobDTO:
+        """Convert domain entity to DTO."""
+        return JobDTO(
+            project_name=job.project_name,
+            stages=job.stages,
+            status=job.status,
+            current_stage=job.current_stage,
+            progress=job.progress,
+            message=job.message,
+            started_at=job.started_at,
+            completed_at=job.completed_at,
+            error=job.error,
+        )
 ```
 
 **Success Criteria:**
-- [ ] Can create pipeline jobs
-- [ ] Jobs run in background
-- [ ] Progress monitoring works
-- [ ] Can stop jobs
+- [ ] Pipeline orchestration in service
+- [ ] Business rules enforced (one job at a time)
+- [ ] Delegates to repositories for data
+- [ ] Async/await for background execution
 
 ---
 
-#### Task 2B.2: Add JSON Output to run_pipeline.py
-**File:** `scripts/run_pipeline.py`
-
-**Modifications:**
+#### Task 2B.3: Implement WebSocket Service
+**File:** `web/services/websocket_service.py`
 
 ```python
-import json
-import sys
-
-def emit_progress(stage: str, progress: float, status: str, message: str = ""):
-    """Emit progress as JSON to stdout."""
-
-    if os.environ.get("JSON_OUTPUT") == "true":
-        data = {
-            "stage": stage,
-            "progress": progress,
-            "status": status,
-            "message": message,
-        }
-        print(json.dumps(data), flush=True)
-    else:
-        # Regular console output
-        print(f"[{stage}] {progress:.0%} - {message}")
-
-
-def run_stage_ingest(project_dir, input_video):
-    """Run ingest stage."""
-
-    emit_progress("ingest", 0.0, "running", "Starting frame extraction")
-
-    # ... existing FFmpeg logic ...
-
-    emit_progress("ingest", 0.5, "running", "Extracting frames")
-
-    # ... extraction ...
-
-    emit_progress("ingest", 1.0, "complete", f"Extracted {frame_count} frames")
-
-
-# Apply to all stages...
-```
-
-**Success Criteria:**
-- [ ] `--json-output` flag added
-- [ ] All stages emit JSON progress
-- [ ] Regular output still works without flag
-- [ ] JSON format consistent
-
----
-
-#### Task 2B.3: Create WebSocket Handler
-**File:** `web/websocket.py`
-
-```python
-"""WebSocket handler for real-time progress updates."""
+"""WebSocket service - manages real-time updates."""
 
 from fastapi import WebSocket
 from typing import Dict, Set
-import asyncio
+from web.models.dto import ProgressUpdate
 
-class ConnectionManager:
-    """Manages WebSocket connections."""
+
+class WebSocketService:
+    """Service for managing WebSocket connections and broadcasting."""
 
     def __init__(self):
         # Map project_name -> set of WebSocket connections
-        self.active_connections: Dict[str, Set[WebSocket]] = {}
+        self._connections: Dict[str, Set[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket, project_name: str):
-        """Accept a new connection."""
+        """Register a WebSocket connection."""
         await websocket.accept()
 
-        if project_name not in self.active_connections:
-            self.active_connections[project_name] = set()
+        if project_name not in self._connections:
+            self._connections[project_name] = set()
 
-        self.active_connections[project_name].add(websocket)
+        self._connections[project_name].add(websocket)
 
     def disconnect(self, websocket: WebSocket, project_name: str):
-        """Remove a connection."""
-        if project_name in self.active_connections:
-            self.active_connections[project_name].discard(websocket)
+        """Unregister a WebSocket connection."""
+        if project_name in self._connections:
+            self._connections[project_name].discard(websocket)
 
-    async def broadcast(self, project_name: str, message: dict):
-        """Broadcast message to all connections for a project."""
-
-        if project_name not in self.active_connections:
+    async def broadcast_progress(
+        self,
+        project_name: str,
+        update: ProgressUpdate
+    ):
+        """Broadcast progress update to all clients for a project."""
+        if project_name not in self._connections:
             return
 
         dead_connections = set()
 
-        for connection in self.active_connections[project_name]:
+        for websocket in self._connections[project_name]:
             try:
-                await connection.send_json(message)
+                await websocket.send_json(update.dict())
             except Exception:
-                dead_connections.add(connection)
+                dead_connections.add(websocket)
 
         # Clean up dead connections
         for conn in dead_connections:
-            self.active_connections[project_name].discard(conn)
+            self._connections[project_name].discard(conn)
 ```
 
 **Success Criteria:**
-- [ ] WebSocket connections managed
-- [ ] Broadcasting works to multiple clients
-- [ ] Dead connections cleaned up
-
----
-
-#### Task 2B.4: Create Pipeline Routes
-**File:** `web/routers/pipeline.py`
-
-```python
-"""Pipeline execution routes."""
-
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from web.pipeline_manager import PipelineManager
-from web.websocket import ConnectionManager
-
-router = APIRouter()
-pipeline_manager = PipelineManager()
-connection_manager = ConnectionManager()
-
-@router.post("/projects/{name}/start")
-async def start_pipeline(name: str, stages: list[str]):
-    """Start pipeline for a project."""
-
-    # Create job
-    job = pipeline_manager.create_job(name, stages)
-
-    # Start in background
-    await job.start()
-
-    # Monitor progress
-    async def progress_callback(data):
-        await connection_manager.broadcast(name, data)
-
-    asyncio.create_task(job.monitor(progress_callback))
-
-    return {"status": "started"}
-
-@router.post("/projects/{name}/stop")
-async def stop_pipeline(name: str):
-    """Stop pipeline for a project."""
-
-    pipeline_manager.stop_job(name)
-    return {"status": "stopped"}
-
-@router.websocket("/ws/{project_name}")
-async def websocket_endpoint(websocket: WebSocket, project_name: str):
-    """WebSocket endpoint for real-time progress."""
-
-    await connection_manager.connect(websocket, project_name)
-
-    try:
-        while True:
-            # Keep connection alive
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        connection_manager.disconnect(websocket, project_name)
-```
-
-**Success Criteria:**
-- [ ] Can start pipeline from API
-- [ ] Can stop pipeline from API
-- [ ] WebSocket receives progress updates
-- [ ] Multiple clients can monitor same job
+- [ ] WebSocket connections managed centrally
+- [ ] Broadcasting logic isolated
+- [ ] Dead connection cleanup
 
 ---
 
 ### Phase 2B Exit Criteria
 
-- [ ] Pipeline executes from web interface
-- [ ] Real-time progress visible in browser
-- [ ] Can start/stop jobs
-- [ ] Multiple stages work correctly
-- [ ] Error handling in place
+- [ ] All business logic in service layer
+- [ ] Services delegate to repositories
+- [ ] Services return DTOs (not domain entities)
+- [ ] No file I/O or HTTP logic in services
+- [ ] Services are testable (mockable dependencies)
 
 ---
 
-## Phase 2C: User Interface Implementation ⚪
+## Phase 2C: API Layer (Controllers) ⚪
 
-**Goal:** Complete HTML/CSS/JavaScript frontend
+**Goal:** Thin API controllers that delegate to services
 
 ### Deliverables
-- All HTML templates
-- CSS styling
-- JavaScript for interactions
-- WebSocket client code
+- REST API routers (projects, pipeline, system)
+- WebSocket endpoint
+- Dependency injection setup
+- Input validation with Pydantic
 
 ### Tasks
 
-#### Task 2C.1: Create Base Template
-**File:** `web/templates/base.html`
+#### Task 2C.1: Set Up Dependency Injection
+**File:** `web/api/dependencies.py`
 
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}VFX Ingest Platform{% endblock %}</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
-    {% block extra_css %}{% endblock %}
-</head>
-<body>
-    <header>
-        <div class="container">
-            <h1>VFX Ingest Platform</h1>
-            <nav>
-                <a href="/dashboard">Dashboard</a>
-                <a href="/projects/new">New Project</a>
-                <a href="#" id="shutdown-btn">Shutdown</a>
-            </nav>
-        </div>
-    </header>
+```python
+"""FastAPI dependencies for dependency injection."""
 
-    <main class="container">
-        {% block content %}{% endblock %}
-    </main>
+from pathlib import Path
+import os
+from functools import lru_cache
 
-    <footer>
-        <div class="container">
-            <p>VFX Ingest Platform v1.0</p>
-        </div>
-    </footer>
+from web.repositories.project_repository import ProjectRepository
+from web.repositories.job_repository import JobRepository
+from web.services.project_service import ProjectService
+from web.services.pipeline_service import PipelineService
+from web.services.websocket_service import WebSocketService
 
-    <script src="/static/js/websocket.js"></script>
-    {% block extra_js %}{% endblock %}
-</body>
-</html>
+
+# Singleton instances
+_project_repo: ProjectRepository = None
+_job_repo: JobRepository = None
+_project_service: ProjectService = None
+_pipeline_service: PipelineService = None
+_websocket_service: WebSocketService = None
+
+
+def get_projects_dir() -> Path:
+    """Get projects directory from environment."""
+    return Path(os.environ.get("VFX_PROJECTS_DIR", "/workspace/projects"))
+
+
+def get_project_repository() -> ProjectRepository:
+    """Get project repository instance."""
+    global _project_repo
+    if _project_repo is None:
+        _project_repo = ProjectRepository(get_projects_dir())
+    return _project_repo
+
+
+def get_job_repository() -> JobRepository:
+    """Get job repository instance."""
+    global _job_repo
+    if _job_repo is None:
+        _job_repo = JobRepository()
+    return _job_repo
+
+
+def get_project_service() -> ProjectService:
+    """Get project service instance."""
+    global _project_service
+    if _project_service is None:
+        _project_service = ProjectService(get_project_repository())
+    return _project_service
+
+
+def get_pipeline_service() -> PipelineService:
+    """Get pipeline service instance."""
+    global _pipeline_service
+    if _pipeline_service is None:
+        _pipeline_service = PipelineService(
+            get_job_repository(),
+            get_project_service()
+        )
+    return _pipeline_service
+
+
+def get_websocket_service() -> WebSocketService:
+    """Get WebSocket service instance."""
+    global _websocket_service
+    if _websocket_service is None:
+        _websocket_service = WebSocketService()
+    return _websocket_service
 ```
+
+**Success Criteria:**
+- [ ] Dependency injection configured
+- [ ] Singletons for services/repositories
+- [ ] Easy to mock for testing
 
 ---
 
-#### Task 2C.2: Create Dashboard Template
-**File:** `web/templates/dashboard.html`
+#### Task 2C.2: Implement Projects API Router
+**File:** `web/api/routers/projects.py`
 
-```html
-{% extends "base.html" %}
+```python
+"""Projects API router - thin controller layer."""
 
-{% block content %}
-<h2>Projects</h2>
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from typing import Optional
 
-<div class="project-grid">
-    {% for project in projects %}
-    <div class="project-card" data-status="{{ project.status }}">
+from web.models.dto import (
+    ProjectDTO, ProjectCreateRequest, ProjectListResponse
+)
+from web.services.project_service import ProjectService
+from web.api.dependencies import get_project_service, get_projects_dir
+
+
+router = APIRouter(prefix="/api/projects", tags=["projects"])
+
+
+@router.get("", response_model=ProjectListResponse)
+async def list_projects(
+    service: ProjectService = Depends(get_project_service)
+):
+    """List all projects."""
+    return service.list_projects()
+
+
+@router.get("/{name}", response_model=ProjectDTO)
+async def get_project(
+    name: str,
+    service: ProjectService = Depends(get_project_service)
+):
+    """Get project by name."""
+    project = service.get_project(name)
+
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    return project
+
+
+@router.post("", response_model=ProjectDTO, status_code=201)
+async def create_project(
+    request: ProjectCreateRequest,
+    service: ProjectService = Depends(get_project_service),
+    projects_dir = Depends(get_projects_dir)
+):
+    """Create a new project."""
+    try:
+        return service.create_project(request, projects_dir)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{name}/upload-video", response_model=ProjectDTO)
+async def upload_video(
+    name: str,
+    video: UploadFile = File(...),
+    service: ProjectService = Depends(get_project_service)
+):
+    """Upload video file to project."""
+    try:
+        content = await video.read()
+        return service.save_uploaded_video(name, video.filename, content)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/{name}", status_code=204)
+async def delete_project(
+    name: str,
+    service: ProjectService = Depends(get_project_service)
+):
+    """Delete a project."""
+    success = service.delete_project(name)
+
+    if not success:
+        raise HTTPException(status_code=404, detail="Project not found")
+```
+
+**Success Criteria:**
+- [ ] Router is thin (no business logic)
+- [ ] All logic delegated to service
+- [ ] Input validation via Pydantic
+- [ ] Proper HTTP status codes
+
+---
+
+#### Task 2C.3: Implement Pipeline API Router
+**File:** `web/api/routers/pipeline.py`
+
+```python
+"""Pipeline API router - thin controller layer."""
+
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+
+from web.models.dto import JobDTO, JobStartRequest, JobStartResponse
+from web.services.pipeline_service import PipelineService
+from web.services.websocket_service import WebSocketService
+from web.api.dependencies import get_pipeline_service, get_websocket_service
+
+
+router = APIRouter(prefix="/api/pipeline", tags=["pipeline"])
+
+
+@router.post("/projects/{name}/start", response_model=JobStartResponse)
+async def start_job(
+    name: str,
+    request: JobStartRequest,
+    pipeline_service: PipelineService = Depends(get_pipeline_service),
+    ws_service: WebSocketService = Depends(get_websocket_service)
+):
+    """Start a pipeline job."""
+    try:
+        # Create callback to broadcast progress
+        async def progress_callback(update):
+            await ws_service.broadcast_progress(name, update)
+
+        return await pipeline_service.start_job(name, request, progress_callback)
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/projects/{name}/stop")
+async def stop_job(
+    name: str,
+    pipeline_service: PipelineService = Depends(get_pipeline_service)
+):
+    """Stop a running job."""
+    success = await pipeline_service.stop_job(name)
+
+    if not success:
+        raise HTTPException(status_code=404, detail="Job not found or not running")
+
+    return {"status": "stopped"}
+
+
+@router.get("/projects/{name}/status", response_model=JobDTO)
+async def get_job_status(
+    name: str,
+    pipeline_service: PipelineService = Depends(get_pipeline_service)
+):
+    """Get job status."""
+    job = pipeline_service.get_job(name)
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    return job
+
+
+@router.websocket("/ws/{project_name}")
+async def websocket_endpoint(
+    websocket: WebSocket,
+    project_name: str,
+    ws_service: WebSocketService = Depends(get_websocket_service)
+):
+    """WebSocket endpoint for real-time progress."""
+    await ws_service.connect(websocket, project_name)
+
+    try:
+        # Keep connection alive
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        ws_service.disconnect(websocket, project_name)
+```
+
+**Success Criteria:**
+- [ ] Router delegates all logic to service
+- [ ] WebSocket managed by service
+- [ ] Error handling with proper HTTP codes
+
+---
+
+#### Task 2C.4: Implement System API Router
+**File:** `web/api/routers/system.py`
+
+```python
+"""System API router - health, shutdown, etc."""
+
+from fastapi import APIRouter, Depends
+import os
+import signal
+
+from web.repositories.job_repository import JobRepository
+from web.api.dependencies import get_job_repository
+
+
+router = APIRouter(prefix="/api/system", tags=["system"])
+
+
+@router.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    return {"status": "ok"}
+
+
+@router.post("/shutdown")
+async def shutdown(
+    job_repo: JobRepository = Depends(get_job_repository)
+):
+    """Graceful shutdown."""
+    # Check for active jobs
+    active_jobs = job_repo.get_active_jobs()
+
+    if active_jobs:
+        return {
+            "status": "warning",
+            "message": "Active jobs running",
+            "jobs": [job.project_name for job in active_jobs],
+        }
+
+    # Trigger shutdown
+    os.kill(os.getpid(), signal.SIGTERM)
+
+    return {"status": "shutting_down"}
+```
+
+**Success Criteria:**
+- [ ] System operations exposed via API
+- [ ] Health check for monitoring
+- [ ] Graceful shutdown with job checks
+
+---
+
+### Phase 2C Exit Criteria
+
+- [ ] All API routers implemented
+- [ ] Routers are thin (delegate to services)
+- [ ] Dependency injection working
+- [ ] Input validation via Pydantic
+- [ ] Proper HTTP status codes
+- [ ] No business logic in routers
+
+---
+
+## Phase 2D: UI Layer (Presentation) ⚪
+
+**Goal:** Dumb UI that only calls APIs and renders
+
+### Deliverables
+- HTML templates (server-side rendering)
+- JavaScript API client (abstraction)
+- UI-specific JavaScript (no business logic)
+- CSS styling
+
+### Tasks
+
+#### Task 2D.1: Create JavaScript API Client
+**File:** `web/ui/static/js/api-client.js`
+
+```javascript
+/**
+ * API Client - Abstraction over fetch API
+ * Frontend makes ALL requests through this client
+ */
+
+class ApiClient {
+    constructor(baseUrl = '') {
+        this.baseUrl = baseUrl;
+    }
+
+    async request(endpoint, options = {}) {
+        const url = `${this.baseUrl}${endpoint}`;
+
+        const response = await fetch(url, {
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers,
+            },
+            ...options,
+        });
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({
+                detail: response.statusText
+            }));
+            throw new Error(error.detail || 'Request failed');
+        }
+
+        return response.json();
+    }
+
+    // Projects API
+    async listProjects() {
+        return this.request('/api/projects');
+    }
+
+    async getProject(name) {
+        return this.request(`/api/projects/${name}`);
+    }
+
+    async createProject(data) {
+        return this.request('/api/projects', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async uploadVideo(projectName, videoFile) {
+        const formData = new FormData();
+        formData.append('video', videoFile);
+
+        const response = await fetch(
+            `${this.baseUrl}/api/projects/${projectName}/upload-video`,
+            {
+                method: 'POST',
+                body: formData,
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error('Upload failed');
+        }
+
+        return response.json();
+    }
+
+    async deleteProject(name) {
+        return this.request(`/api/projects/${name}`, {
+            method: 'DELETE',
+        });
+    }
+
+    // Pipeline API
+    async startJob(projectName, stages) {
+        return this.request(`/api/pipeline/projects/${projectName}/start`, {
+            method: 'POST',
+            body: JSON.stringify({ stages }),
+        });
+    }
+
+    async stopJob(projectName) {
+        return this.request(`/api/pipeline/projects/${projectName}/stop`, {
+            method: 'POST',
+        });
+    }
+
+    async getJobStatus(projectName) {
+        return this.request(`/api/pipeline/projects/${projectName}/status`);
+    }
+
+    // System API
+    async shutdown() {
+        return this.request('/api/system/shutdown', {
+            method: 'POST',
+        });
+    }
+
+    // WebSocket
+    connectWebSocket(projectName, onMessage) {
+        const wsUrl = `ws://${window.location.host}/api/pipeline/ws/${projectName}`;
+        const ws = new WebSocket(wsUrl);
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            onMessage(data);
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+
+        return ws;
+    }
+}
+
+// Export singleton instance
+const api = new ApiClient();
+```
+
+**Success Criteria:**
+- [ ] All API calls abstracted
+- [ ] No fetch() calls in UI code
+- [ ] Type-safe client methods
+- [ ] Error handling centralized
+
+---
+
+#### Task 2D.2: Create Dashboard UI Logic
+**File:** `web/ui/static/js/dashboard.js`
+
+```javascript
+/**
+ * Dashboard UI Logic
+ * ONLY renders data from API - NO business logic
+ */
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadProjects();
+});
+
+async function loadProjects() {
+    try {
+        const response = await api.listProjects();
+        renderProjects(response.projects);
+    } catch (error) {
+        showError('Failed to load projects: ' + error.message);
+    }
+}
+
+function renderProjects(projects) {
+    const container = document.getElementById('project-grid');
+
+    // Clear existing
+    container.innerHTML = '';
+
+    // Render each project
+    projects.forEach(project => {
+        const card = createProjectCard(project);
+        container.appendChild(card);
+    });
+
+    // Add "New Project" card
+    container.appendChild(createNewProjectCard());
+}
+
+function createProjectCard(project) {
+    const card = document.createElement('div');
+    card.className = 'project-card';
+    card.setAttribute('data-status', project.status);
+
+    card.innerHTML = `
         <div class="project-thumbnail">
-            <img src="/static/img/placeholder.png" alt="{{ project.name }}">
+            <img src="/static/img/placeholder.png" alt="${project.name}">
         </div>
-        <h3>{{ project.name }}</h3>
-        <p class="status">{{ project.status }}</p>
+        <h3>${project.name}</h3>
+        <p class="status">${project.status}</p>
         <div class="actions">
-            <a href="/projects/{{ project.name }}" class="btn">Open</a>
+            <a href="/projects/${project.name}" class="btn">Open</a>
+            <button onclick="deleteProject('${project.name}')" class="btn btn-danger">Delete</button>
         </div>
-    </div>
-    {% endfor %}
+    `;
 
-    <div class="project-card new-project">
+    return card;
+}
+
+function createNewProjectCard() {
+    const card = document.createElement('div');
+    card.className = 'project-card new-project';
+
+    card.innerHTML = `
         <a href="/projects/new">
             <div class="plus-icon">+</div>
             <p>New Project</p>
         </a>
-    </div>
-</div>
-{% endblock %}
+    `;
+
+    return card;
+}
+
+async function deleteProject(name) {
+    if (!confirm(`Delete project "${name}"? This cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        await api.deleteProject(name);
+        await loadProjects(); // Refresh list
+    } catch (error) {
+        showError('Failed to delete project: ' + error.message);
+    }
+}
+
+function showError(message) {
+    // Simple error display
+    alert(message);
+}
 ```
+
+**Success Criteria:**
+- [ ] UI only renders data from API
+- [ ] No calculations or business logic
+- [ ] All actions delegate to API client
+- [ ] Clean separation of concerns
 
 ---
 
-#### Task 2C.3: Create Processing View Template
-**File:** `web/templates/processing.html`
+#### Task 2D.3: Create Processing UI Logic
+**File:** `web/ui/static/js/processing.js`
+
+```javascript
+/**
+ * Processing UI Logic
+ * ONLY renders progress from WebSocket - NO calculations
+ */
+
+let websocket = null;
+const projectName = document.getElementById('project-name').value;
+
+document.addEventListener('DOMContentLoaded', () => {
+    initializeWebSocket();
+    setupEventListeners();
+});
+
+function initializeWebSocket() {
+    websocket = api.connectWebSocket(projectName, handleProgressUpdate);
+}
+
+function handleProgressUpdate(data) {
+    // JUST RENDER - no logic
+
+    // Update progress bar (data.progress is already 0-1, convert to percentage)
+    const progressPercent = `${data.progress * 100}%`;
+    document.getElementById('stage-progress').style.width = progressPercent;
+
+    // Update stage name
+    if (data.stage) {
+        document.getElementById('current-stage').textContent = data.stage;
+    }
+
+    // Update message
+    if (data.message) {
+        document.getElementById('stage-status').textContent = data.message;
+        appendToLog(data.message);
+    }
+
+    // Update status indicator
+    if (data.status === 'complete') {
+        showCompletionMessage();
+    } else if (data.status === 'failed') {
+        showErrorMessage(data.message);
+    }
+}
+
+function appendToLog(message) {
+    const logs = document.getElementById('log-output');
+    logs.textContent += message + '\n';
+    logs.scrollTop = logs.scrollHeight;
+}
+
+function showCompletionMessage() {
+    document.getElementById('overall-status').textContent = 'Complete!';
+    document.getElementById('overall-status').className = 'status-complete';
+}
+
+function showErrorMessage(message) {
+    document.getElementById('overall-status').textContent = `Failed: ${message}`;
+    document.getElementById('overall-status').className = 'status-error';
+}
+
+function setupEventListeners() {
+    document.getElementById('stop-btn').addEventListener('click', async () => {
+        if (confirm('Stop processing? Progress will be lost.')) {
+            try {
+                await api.stopJob(projectName);
+                window.location.href = `/projects/${projectName}`;
+            } catch (error) {
+                alert('Failed to stop job: ' + error.message);
+            }
+        }
+    });
+
+    document.getElementById('toggle-logs').addEventListener('click', () => {
+        const logs = document.getElementById('log-output');
+        logs.style.display = logs.style.display === 'none' ? 'block' : 'none';
+    });
+}
+```
+
+**Success Criteria:**
+- [ ] UI just renders WebSocket data
+- [ ] No progress calculations in frontend
+- [ ] All actions via API client
+- [ ] Clean event handling
+
+---
+
+#### Task 2D.4: Create HTML Templates
+**File:** `web/ui/templates/processing.html`
 
 ```html
 {% extends "base.html" %}
 
 {% block content %}
+<input type="hidden" id="project-name" value="{{ project.name }}">
+
 <h2>{{ project.name }} - Processing</h2>
 
 <div class="progress-container">
@@ -699,15 +1646,7 @@ async def websocket_endpoint(websocket: WebSocket, project_name: str):
     </div>
 </div>
 
-<div class="stage-list">
-    <h3>Stages</h3>
-    <ul id="stages">
-        <!-- Populated by JavaScript -->
-    </ul>
-</div>
-
 <div class="actions">
-    <button id="pause-btn" class="btn">Pause</button>
     <button id="stop-btn" class="btn btn-danger">Stop</button>
 </div>
 
@@ -718,355 +1657,87 @@ async def websocket_endpoint(websocket: WebSocket, project_name: str):
 {% endblock %}
 
 {% block extra_js %}
-<script>
-    // WebSocket connection for real-time updates
-    const projectName = "{{ project.name }}";
-    const ws = new WebSocket(`ws://${window.location.host}/ws/${projectName}`);
-
-    ws.onmessage = function(event) {
-        const data = JSON.parse(event.data);
-
-        // Update progress bars
-        if (data.progress !== undefined) {
-            document.getElementById('stage-progress').style.width = (data.progress * 100) + '%';
-        }
-
-        if (data.stage) {
-            document.getElementById('current-stage').textContent = data.stage;
-        }
-
-        if (data.message) {
-            document.getElementById('stage-status').textContent = data.message;
-
-            // Append to logs
-            const logs = document.getElementById('log-output');
-            logs.textContent += data.message + '\n';
-            logs.scrollTop = logs.scrollHeight;
-        }
-    };
-
-    // Stop button
-    document.getElementById('stop-btn').addEventListener('click', async function() {
-        if (confirm('Are you sure you want to stop processing? Progress will be lost.')) {
-            await fetch(`/projects/${projectName}/stop`, { method: 'POST' });
-            window.location.href = `/projects/${projectName}`;
-        }
-    });
-</script>
+<script src="/static/js/api-client.js"></script>
+<script src="/static/js/processing.js"></script>
 {% endblock %}
 ```
 
----
-
-#### Task 2C.4: Create Stylesheet
-**File:** `web/static/css/styles.css`
-
-```css
-/* Base styles */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #f5f5f5;
-    color: #333;
-}
-
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
-}
-
-/* Header */
-header {
-    background: #2c3e50;
-    color: white;
-    padding: 20px 0;
-}
-
-header h1 {
-    display: inline-block;
-    margin-right: 40px;
-}
-
-nav {
-    display: inline-block;
-}
-
-nav a {
-    color: white;
-    text-decoration: none;
-    margin-right: 20px;
-}
-
-/* Project grid */
-.project-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 20px;
-    margin-top: 20px;
-}
-
-.project-card {
-    background: white;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.project-thumbnail img {
-    width: 100%;
-    height: 150px;
-    object-fit: cover;
-    border-radius: 4px;
-}
-
-/* Progress bars */
-.progress-bar {
-    width: 100%;
-    height: 30px;
-    background: #e0e0e0;
-    border-radius: 15px;
-    overflow: hidden;
-    margin: 10px 0;
-}
-
-.progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #3498db, #2ecc71);
-    transition: width 0.3s ease;
-}
-
-/* Buttons */
-.btn {
-    display: inline-block;
-    padding: 10px 20px;
-    background: #3498db;
-    color: white;
-    text-decoration: none;
-    border-radius: 4px;
-    border: none;
-    cursor: pointer;
-}
-
-.btn:hover {
-    background: #2980b9;
-}
-
-.btn-danger {
-    background: #e74c3c;
-}
-
-.btn-danger:hover {
-    background: #c0392b;
-}
-
-/* Logs */
-#log-output {
-    background: #1e1e1e;
-    color: #d4d4d4;
-    padding: 15px;
-    border-radius: 4px;
-    max-height: 300px;
-    overflow-y: auto;
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
-}
-```
-
----
-
-### Phase 2C Exit Criteria
-
-- [ ] All templates render correctly
-- [ ] Styling consistent and professional
-- [ ] Responsive design works on different screen sizes
-- [ ] JavaScript interactions functional
-- [ ] WebSocket client connects and updates UI
-
----
-
-## Phase 2D: Startup/Shutdown Management ⚪
-
-**Goal:** One-click platform startup and graceful shutdown
-
-### Deliverables
-- `start-platform.sh` / `start-platform.bat` - Platform launcher
-- `stop-platform.sh` / `stop-platform.bat` - Platform stopper
-- Desktop shortcuts (platform-specific)
-- Graceful shutdown handling in web app
-
-### Tasks
-
-#### Task 2D.1: Create Platform Launcher
-**File:** `start-platform.sh`
-
-```bash
-#!/bin/bash
-set -e
-
-echo "=== VFX Ingest Platform ==="
-
-# Check if already running
-if docker ps | grep -q vfx-ingest-web; then
-    echo "Platform already running!"
-    URL="http://localhost:5000"
-else
-    # Start container
-    echo "Starting platform..."
-    docker-compose up -d
-
-    # Wait for health check
-    echo "Waiting for server to start..."
-    for i in {1..30}; do
-        if curl -s http://localhost:5000/health > /dev/null 2>&1; then
-            break
-        fi
-        sleep 1
-    done
-
-    URL="http://localhost:5000"
-fi
-
-# Open browser
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    open "$URL"
-elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    xdg-open "$URL"
-fi
-
-echo "✓ Platform running at $URL"
-echo ""
-echo "To stop: Click 'Shutdown' in web interface"
-echo "  or run: ./stop-platform.sh"
-```
-
 **Success Criteria:**
-- [ ] Detects if already running
-- [ ] Starts container if needed
-- [ ] Opens browser automatically
-- [ ] Platform-specific browser opening works
-
----
-
-#### Task 2D.2: Create Shutdown Endpoint
-**File:** `web/routers/api.py`
-
-```python
-"""API routes."""
-
-from fastapi import APIRouter
-import os
-import signal
-
-router = APIRouter()
-
-@router.post("/shutdown")
-async def shutdown():
-    """Graceful shutdown of the platform."""
-
-    # Check for running jobs
-    from web.pipeline_manager import pipeline_manager
-
-    active_jobs = [
-        name for name, job in pipeline_manager.jobs.items()
-        if job.status == "running"
-    ]
-
-    if active_jobs:
-        return {
-            "status": "warning",
-            "message": f"Active jobs: {', '.join(active_jobs)}",
-            "jobs": active_jobs,
-        }
-
-    # Shutdown server
-    os.kill(os.getpid(), signal.SIGTERM)
-
-    return {"status": "shutting_down"}
-```
-
-**Success Criteria:**
-- [ ] Shutdown endpoint implemented
-- [ ] Warns about active jobs
-- [ ] Gracefully stops server
+- [ ] Templates are pure HTML
+- [ ] No inline JavaScript logic
+- [ ] All JS in separate files
+- [ ] Clean separation
 
 ---
 
 ### Phase 2D Exit Criteria
 
-- [ ] One-click startup works on all platforms
-- [ ] Browser opens automatically
-- [ ] Shutdown button functional
-- [ ] Active job warnings work
-- [ ] Graceful cleanup on shutdown
+- [ ] API client abstracts all HTTP calls
+- [ ] UI code has zero business logic
+- [ ] UI only renders data from API
+- [ ] JavaScript organized by page/feature
+- [ ] No calculations in frontend (done in backend)
 
 ---
 
-## Phase 2E: Testing & Polish ⚪
+## Phase 2E: Integration & Testing ⚪
 
-**Goal:** End-to-end testing and UX refinements
+**Goal:** End-to-end validation of layered architecture
 
 ### Test Cases
 
-#### Test 2E.1: Complete User Flow
-1. Run `./start-platform.sh`
-2. Browser opens to dashboard
-3. Click "New Project"
-4. Upload video file
-5. Select stages
-6. Click "Start Processing"
-7. Monitor real-time progress
-8. View completed results
-9. Click "Shutdown"
-10. Verify graceful shutdown
+#### Test 2E.1: Architecture Validation
+**Verify layer separation:**
+- [ ] Frontend imports nothing from services/repositories
+- [ ] API routers import only services (not repositories)
+- [ ] Services import only repositories (not HTTP/UI)
+- [ ] Repositories import only domain models
+- [ ] No circular dependencies
+
+#### Test 2E.2: Complete User Flow
+1. Start platform
+2. Create project via API
+3. Upload video
+4. Start job
+5. Monitor progress via WebSocket
+6. Verify completion
 
 **Success Criteria:**
-- [ ] Entire flow completes without errors
-- [ ] No console errors in browser
-- [ ] Progress updates smooth
-- [ ] Results accessible
+- [ ] Data flows: UI → API → Service → Repository → Storage
+- [ ] Updates flow: Storage → Repository → Service → WebSocket → UI
+- [ ] No layer violations
 
----
+#### Test 2E.3: Unit Tests
+```python
+# tests/test_services.py
 
-#### Test 2E.2: Multi-Project Management
-1. Create project A
-2. Start processing project A
-3. Create project B (should queue or warn)
-4. View both projects in dashboard
-5. Check status indicators correct
+def test_project_service_create():
+    """Test project service creates project via repository."""
+    mock_repo = Mock(ProjectRepository)
+    service = ProjectService(mock_repo)
 
-**Success Criteria:**
-- [ ] Multiple projects visible
-- [ ] Status accurate for each
-- [ ] Can't start two jobs simultaneously
+    request = ProjectCreateRequest(name="test", stages=["ingest"])
 
----
+    service.create_project(request, Path("/workspace"))
 
-#### Test 2E.3: Error Recovery
-1. Start pipeline with missing model
-2. Verify error displayed in UI
-3. Stop failed job
-4. Retry with correct configuration
+    # Verify repository was called
+    mock_repo.save.assert_called_once()
+```
 
 **Success Criteria:**
-- [ ] Errors surface in UI
-- [ ] Can recover from errors
-- [ ] No stale state
+- [ ] Services testable without HTTP
+- [ ] Repositories testable without filesystem
+- [ ] Easy to mock dependencies
 
 ---
 
 ### Phase 2E Exit Criteria
 
-- [ ] All test cases pass
-- [ ] No critical bugs
-- [ ] UX smooth and intuitive
-- [ ] Error messages helpful
-- [ ] Documentation complete
+- [ ] All layers properly separated
+- [ ] No cross-layer violations
+- [ ] Unit tests for services
+- [ ] Integration tests pass
+- [ ] Architecture documented
 
 ---
 
@@ -1074,23 +1745,22 @@ async def shutdown():
 
 **Ready for production when:**
 
-- [ ] All Phase 2A-2E tasks complete
-- [ ] Web interface fully functional
-- [ ] Real-time progress updates work
-- [ ] One-click startup/shutdown operational
-- [ ] All Roadmap 1 functionality accessible via web
-- [ ] User testing with 3+ artists successful
-- [ ] Documentation complete
-- [ ] No critical bugs
+- [ ] All phases complete
+- [ ] Proper layered architecture verified
+- [ ] Frontend has zero business logic
+- [ ] Services are unit testable
+- [ ] API contracts documented (OpenAPI)
 - [ ] Performance acceptable
+- [ ] User testing successful
+- [ ] Documentation complete
 
-**Future Enhancements (v2.0+):**
-- Batch processing queue
-- Remote server mode (multi-user)
-- Advanced preset management
-- Integrated help/tutorials
-- Export/import projects
-- Mobile monitoring app
+**Architecture Quality Checklist:**
+- [ ] SOLID principles followed
+- [ ] DRY - no duplication across layers
+- [ ] Separation of concerns maintained
+- [ ] Easy to test (mockable dependencies)
+- [ ] Easy to change (swap repositories, etc.)
+- [ ] Easy to understand (clear responsibilities)
 
 ---
 
