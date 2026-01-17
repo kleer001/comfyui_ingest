@@ -19,7 +19,7 @@ The atlas guides the transition to:
 
 ## Atlas Structure
 
-This atlas contains two sequential roadmaps:
+This atlas contains three sequential roadmaps:
 
 ### 📋 [Roadmap 1: Docker Migration](ROADMAP-1-DOCKER.md)
 **Status:** 🟡 In Progress
@@ -29,27 +29,48 @@ Migrate existing Python CLI workflow into Docker containers while maintaining ex
 
 **Key Outcomes:**
 - Dockerfile + docker-compose configuration
-- Container-aware code modifications
+- Container-aware code modifications (SOLID/DRY principles)
 - Model persistence via volume mounts
+- Comprehensive testing plan
 - Validated feature parity with local installation
 
 **Target Timeline:** 2-3 weeks
 
 ---
 
-### 🌐 [Roadmap 2: Web Interface](ROADMAP-2-WEB.md)
+### 🔌 [Roadmap 2: API Backend](ROADMAP-2-API.md)
 **Status:** ⚪ Not Started
-**Goal:** Add browser-based GUI layer over containerized backend
+**Goal:** Build REST/WebSocket API backend (no UI)
 
-Build a FastAPI web application that wraps the containerized pipeline, providing an intuitive web interface for non-technical artists.
+Create FastAPI backend with proper layered architecture (Services, Repositories, DTOs). Fully testable API that manages projects and pipeline execution.
 
 **Key Outcomes:**
-- FastAPI web server with dashboard
-- Project management UI
-- Real-time progress tracking
+- REST API for project management
+- WebSocket API for real-time progress
+- Service layer with business logic
+- Repository layer for data access
+- Comprehensive unit + integration tests
+- API fully validated before UI development
+
+**Target Timeline:** 2-3 weeks
+
+---
+
+### 🌐 [Roadmap 3: Web UI Frontend](ROADMAP-3-WEB-UI.md)
+**Status:** ⚪ Not Started
+**Goal:** Build browser-based UI (presentation layer only)
+
+Create artist-friendly web interface that consumes the API. Pure presentation layer with zero business logic.
+
+**Key Outcomes:**
+- HTML templates with server-side rendering
+- JavaScript API client (abstraction layer)
+- Real-time WebSocket updates
+- Responsive CSS styling
+- End-to-end UI testing
 - One-click startup/shutdown
 
-**Target Timeline:** 3-4 weeks
+**Target Timeline:** 2-3 weeks
 
 ---
 
@@ -58,10 +79,15 @@ Build a FastAPI web application that wraps the containerized pipeline, providing
 ```
 Roadmap 1 (Docker)
     ↓
-    Roadmap 2 (Web)
+Roadmap 2 (API Backend)
+    ↓
+Roadmap 3 (Web UI Frontend)
 ```
 
-Roadmap 2 **depends on** Roadmap 1 completion. Docker migration must be validated before building web layer.
+**Critical:** Each roadmap must be **fully tested and validated** before proceeding to the next. This ensures:
+- API is stable before building UI
+- Backend works independently (could support CLI, mobile, etc.)
+- Clear separation of concerns (backend ≠ frontend)
 
 ## Success Criteria
 
@@ -72,13 +98,28 @@ Roadmap 2 **depends on** Roadmap 1 completion. Docker migration must be validate
 - [ ] Output files accessible from host
 - [ ] COLMAP works without host installation
 - [ ] Performance comparable to local installation
+- [ ] Integration tests pass (all stages)
+- [ ] Code follows SOLID/DRY principles
 
 ### Roadmap 2 Complete When:
-- [ ] One-command startup opens browser interface
-- [ ] Artists can create/manage projects via GUI
-- [ ] Real-time progress visible in browser
-- [ ] Graceful shutdown with job protection
-- [ ] All Roadmap 1 functionality accessible via web
+- [ ] REST API endpoints operational (CRUD projects, start/stop jobs)
+- [ ] WebSocket streams real-time progress
+- [ ] Service layer enforces all business rules
+- [ ] Repository layer abstracts data access
+- [ ] Unit tests cover all services (90%+ coverage)
+- [ ] Integration tests validate API contracts
+- [ ] API documented with OpenAPI/Swagger
+- [ ] Can be used independently (no UI required)
+
+### Roadmap 3 Complete When:
+- [ ] Web UI loads and displays dashboard
+- [ ] Can create/manage projects via browser
+- [ ] Real-time progress visible in UI
+- [ ] Graceful shutdown with active job warnings
+- [ ] Frontend has zero business logic (API calls only)
+- [ ] End-to-end tests validate user flows
+- [ ] One-command startup opens browser automatically
+- [ ] Works on all major browsers (Chrome, Firefox, Safari, Edge)
 
 ## Current State
 
@@ -101,7 +142,8 @@ Roadmap 2 **depends on** Roadmap 1 completion. Docker migration must be validate
 ## Navigation
 
 - **Start Here:** [Roadmap 1: Docker Migration](ROADMAP-1-DOCKER.md)
-- **Future:** [Roadmap 2: Web Interface](ROADMAP-2-WEB.md)
+- **Next:** [Roadmap 2: API Backend](ROADMAP-2-API.md)
+- **Finally:** [Roadmap 3: Web UI Frontend](ROADMAP-3-WEB-UI.md)
 
 ## Maintenance
 
