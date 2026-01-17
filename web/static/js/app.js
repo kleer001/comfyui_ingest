@@ -13,6 +13,7 @@ const state = {
     stages: [],
     ws: null,
     startTime: null,
+    pingInterval: null,
 };
 
 // DOM Elements
@@ -573,7 +574,7 @@ function setupProcessingUI() {
     // Reset progress
     elements.processingProgressFill.style.width = '0%';
     elements.progressPercent.textContent = '0%';
-    elements.progressFrames.textContent = '0 / 0';
+    elements.progressFrames.textContent = 'Frame 0 / 0';
     elements.currentStageLabel.textContent = `STAGE 1/${state.stages.length}`;
     elements.currentStageName.textContent = (stageNames[state.stages[0]] || state.stages[0]).toUpperCase();
 
@@ -589,6 +590,12 @@ function connectWebSocket() {
         state.ws.close();
     }
 
+    // Clear existing ping interval
+    if (state.pingInterval) {
+        clearInterval(state.pingInterval);
+        state.pingInterval = null;
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws/${state.projectId}`;
 
@@ -600,6 +607,12 @@ function connectWebSocket() {
     };
 
     state.ws.onclose = () => {
+        // Clear ping interval
+        if (state.pingInterval) {
+            clearInterval(state.pingInterval);
+            state.pingInterval = null;
+        }
+
         // Reconnect if still processing (projectId is set and processing panel is visible)
         if (state.projectId && elements.processingPanel && !elements.processingPanel.classList.contains('hidden')) {
             setTimeout(connectWebSocket, 2000);
@@ -610,12 +623,13 @@ function connectWebSocket() {
         console.error('WebSocket error:', error);
     };
 
-    // Setup ping interval
-    const pingInterval = setInterval(() => {
+    // Setup ping interval and store it in state
+    state.pingInterval = setInterval(() => {
         if (state.ws && state.ws.readyState === WebSocket.OPEN) {
             state.ws.send(JSON.stringify({ type: 'ping' }));
         } else {
-            clearInterval(pingInterval);
+            clearInterval(state.pingInterval);
+            state.pingInterval = null;
         }
     }, 25000);
 }

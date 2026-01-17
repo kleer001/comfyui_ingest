@@ -188,8 +188,15 @@ async def list_projects():
                 proj_id = proj_dir.name
                 if proj_id not in [p["project_id"] for p in projects]:
                     # Check for outputs to determine status
-                    has_depth = (proj_dir / "depth").exists() and any((proj_dir / "depth").iterdir()) if (proj_dir / "depth").exists() else False
-                    has_roto = (proj_dir / "roto").exists() and any((proj_dir / "roto").iterdir()) if (proj_dir / "roto").exists() else False
+                    try:
+                        has_depth = (proj_dir / "depth").is_dir() and any((proj_dir / "depth").iterdir())
+                    except (OSError, StopIteration):
+                        has_depth = False
+
+                    try:
+                        has_roto = (proj_dir / "roto").is_dir() and any((proj_dir / "roto").iterdir())
+                    except (OSError, StopIteration):
+                        has_roto = False
 
                     status = "completed" if (has_depth or has_roto) else "pending"
 
@@ -312,7 +319,7 @@ async def get_outputs(project_id: str):
 
     # Also check for source frames
     frames_dir = project_dir / "source" / "frames"
-    if frames_dir.exists():
+    if frames_dir.exists() and frames_dir.is_dir():
         frame_files = list(frames_dir.glob("*.png")) + list(frames_dir.glob("*.jpg"))
         if frame_files:
             outputs["source"] = {
