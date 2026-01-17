@@ -290,7 +290,7 @@ async def get_outputs(project_id: str):
     outputs = {}
 
     # Check each output directory
-    output_dirs = ["depth", "roto", "matte", "cleanplate", "camera", "colmap", "mocap"]
+    output_dirs = ["depth", "roto", "matanyone", "cleanplate", "camera", "colmap", "gsir", "mocap"]
 
     for dir_name in output_dirs:
         dir_path = project_dir / dir_name
