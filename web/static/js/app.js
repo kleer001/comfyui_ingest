@@ -82,7 +82,7 @@ const elements = {
 const presets = {
     quick: ['depth', 'roto'],
     full: ['depth', 'roto', 'cleanplate'],
-    all: ['depth', 'roto', 'cleanplate', 'colmap', 'gsir', 'mocap'],
+    all: ['depth', 'roto', 'matanyone', 'cleanplate', 'colmap', 'gsir', 'mocap'],
 };
 
 // Stage display names
@@ -90,6 +90,7 @@ const stageNames = {
     ingest: 'Ingest',
     depth: 'Depth Maps',
     roto: 'Segmentation',
+    matanyone: 'Refine Mattes',
     cleanplate: 'Clean Plate',
     colmap: 'Camera Solve',
     gsir: 'Materials',
@@ -358,6 +359,7 @@ const stageTimePerFrame = {
     ingest: 0.05,       // FFmpeg - fast
     depth: 0.5,         // ComfyUI depth estimation
     roto: 0.8,          // ComfyUI segmentation
+    matanyone: 1.0,     // ComfyUI matte refinement
     cleanplate: 0.6,    // ComfyUI inpainting
     colmap: 2.0,        // COLMAP reconstruction (per frame average)
     gsir: 0.1,          // GS-IR training (amortized per frame)
