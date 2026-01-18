@@ -60,6 +60,17 @@ This pipeline automates first-pass VFX prep work that traditionally requires man
 
 Full GPU support with NVIDIA. Docker provides isolated environment and easier setup.
 
+**One-line install** (no clone needed):
+```bash
+curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap-docker.sh | bash
+```
+
+Or with tests:
+```bash
+wget -qO- https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap-docker.sh | bash -s -- --test
+```
+
+**Alternative** (clone first):
 ```bash
 git clone https://github.com/kleer001/comfyui_ingest.git
 cd comfyui_ingest
@@ -70,6 +81,7 @@ cd comfyui_ingest
 Run the pipeline:
 ```bash
 cp footage.mp4 ~/VFX-Projects/
+cd comfyui_ingest
 ./scripts/run_docker.sh --input /workspace/projects/footage.mp4 --name MyProject
 ```
 
@@ -87,20 +99,32 @@ Native Windows is not supported. Install WSL2 with Ubuntu, then follow Linux ins
 
 Full GPU support via Metal (Apple Silicon) or AMD (Intel Macs). Docker cannot access macOS GPUs.
 
+**One-line install** (no clone needed):
+```bash
+curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap.sh | bash
+```
+
+Or using wget:
+```bash
+wget -qO- https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap.sh | bash
+```
+
+**Alternative** (clone first):
 ```bash
 git clone https://github.com/kleer001/comfyui_ingest.git
 cd comfyui_ingest
-./scripts/bootstrap.sh
+python3 scripts/install_wizard.py
 ```
 
 Run the pipeline:
 ```bash
+cd comfyui_ingest
 python scripts/run_pipeline.py footage.mp4 -s ingest,depth,roto,cleanplate,colmap,camera
 ```
 
-### Alternative: Install Wizard
+### Alternative: Direct Wizard (After Cloning)
 
-Both methods can also be run via the install wizard:
+If you've already cloned the repository, run the wizard directly:
 ```bash
 python scripts/install_wizard.py --docker         # Docker installation
 python scripts/install_wizard.py --docker --test  # Docker + run tests
