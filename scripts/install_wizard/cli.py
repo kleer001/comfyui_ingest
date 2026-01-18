@@ -57,9 +57,9 @@ Examples:
         help="Non-interactive full install with auto-yes"
     )
     parser.add_argument(
-        "--skip-test",
+        "--test", "-t",
         action="store_true",
-        help="Skip test pipeline execution (Docker mode only)"
+        help="Run test pipeline after installation (Docker mode only)"
     )
 
     args = parser.parse_args()
@@ -75,13 +75,13 @@ Examples:
         wizard = DockerWizard()
         wizard.interactive_install(
             check_only=args.check_only,
-            skip_test=args.skip_test,
+            run_test=args.test,
             yolo=args.yolo,
             resume=args.resume
         )
     else:
-        if args.skip_test:
-            print("Warning: --skip-test is only available in Docker mode (--docker)")
+        if args.test:
+            print("Warning: --test is only available in Docker mode (--docker)")
 
         wizard = InstallationWizard()
 

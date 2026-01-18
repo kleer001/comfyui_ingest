@@ -635,18 +635,20 @@ class DockerWizard:
         print()
 
         email = tty_input("SMPL-X email (or Enter to skip): ").strip()
-        if email and '@' in email:
-            password = tty_input("SMPL-X password: ").strip()
-            if password:
-                with open(smpl_creds_file, 'w') as f:
-                    f.write(email + '\n')
-                    f.write(password + '\n')
-                smpl_creds_file.chmod(0o600)
-                print_success(f"Credentials saved to {smpl_creds_file}")
-            else:
-                print_info("Skipped - SMPL-X models will not be downloaded")
-        else:
+        if not email or '@' not in email:
             print_info("Skipped - SMPL-X models will not be downloaded")
+            return
+
+        password = tty_input("SMPL-X password: ").strip()
+        if not password:
+            print_info("Password required - SMPL-X models will not be downloaded")
+            return
+
+        with open(smpl_creds_file, 'w') as f:
+            f.write(email + '\n')
+            f.write(password + '\n')
+        smpl_creds_file.chmod(0o600)
+        print_success(f"Credentials saved to {smpl_creds_file}")
 
     def build_docker_image(self, force_rebuild: bool = False) -> bool:
         """Build the Docker image."""
@@ -778,7 +780,7 @@ class DockerWizard:
     def interactive_install(
         self,
         check_only: bool = False,
-        skip_test: bool = False,
+        run_test: bool = False,
         yolo: bool = False,
         resume: bool = False
     ):
@@ -789,7 +791,7 @@ class DockerWizard:
 
         Args:
             check_only: Only check prerequisites, don't install
-            skip_test: Skip the test pipeline after installation
+            run_test: Run the test pipeline after installation
             yolo: Ignored (kept for backward compatibility)
             resume: Ignored (kept for backward compatibility)
         """
@@ -875,7 +877,7 @@ class DockerWizard:
             print_error("Docker image build failed")
             sys.exit(1)
 
-        if not skip_test:
+        if run_test:
             self.run_test_pipeline()
 
         self.print_post_install_instructions(download_smplx)
