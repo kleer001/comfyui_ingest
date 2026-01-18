@@ -63,8 +63,6 @@ Use Docker for NVIDIA GPU support and isolated environment.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_docker.sh | bash
-# Or with tests:
-curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_docker_test.sh | bash
 ```
 
 **Prerequisites:** NVIDIA GPU with driver, Docker with nvidia-container-toolkit
@@ -94,8 +92,6 @@ Use Conda for GPU access (Docker can't access Metal/AMD GPUs on macOS).
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_conda.sh | bash
-# Or with tests:
-curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_conda_test.sh | bash
 ```
 
 **Prerequisites:** macOS 11+, Apple Silicon recommended (Intel Macs slower)
@@ -108,10 +104,8 @@ curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/script
 
 If you've already cloned the repo, run the wizard directly:
 ```bash
-python scripts/install_wizard.py --docker         # Docker
-python scripts/install_wizard.py --docker --test  # Docker + tests
-python scripts/install_wizard.py                  # Conda
-python scripts/install_wizard.py --test           # Conda + tests
+python scripts/install_wizard.py --docker  # Docker
+python scripts/install_wizard.py           # Conda
 ```
 
 ## Documentation
