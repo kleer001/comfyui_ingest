@@ -2,15 +2,36 @@
 
 **Goal:** Build REST/WebSocket API with proper architecture (backend only, no UI)
 
-**Status:** ⚪ Not Started
+**Status:** 🟡 60% Complete (Core: 80%, Testing/Docs: 10%)
 
-**Dependencies:** Roadmap 1 (Docker Migration) must be complete
+**Dependencies:** Originally planned after Roadmap 1 (Docker), but developed in parallel for local mode
+
+---
+
+## Implementation Status
+
+### ✅ Completed (60%)
+- **Phase 2A (Partial)**: ConfigService with DRY configuration (`web/services/config_service.py`)
+- **Phase 2B (Partial)**: WebSocket service for real-time updates (`web/websocket.py`)
+- **Phase 2C**: REST API endpoints (`web/api.py`)
+  - Project upload and creation
+  - Pipeline execution
+  - System health/status
+  - Video metadata extraction
+- **Configuration**: `web/config/pipeline_config.json` - single source of truth
+
+### ⚪ Remaining (40%)
+- **Phase 2A**: Full repository pattern implementation
+- **Phase 2A**: DTO vs Domain model separation
+- **Phase 2B**: Extract service layer from API layer
+- **Phase 2D**: Comprehensive unit + integration tests
+- **Phase 2E**: OpenAPI/Swagger documentation
 
 ---
 
 ## Overview
 
-This roadmap builds a FastAPI backend with clean layered architecture. **No UI is built in this phase** - only REST and WebSocket APIs that can be tested independently via tools like Postman, curl, or automated tests.
+This roadmap builds a FastAPI backend with clean layered architecture. The core API is operational in local development mode, but needs architectural improvements (repository pattern) and comprehensive testing before production use.
 
 ### Why API-First?
 
@@ -71,52 +92,85 @@ This roadmap builds a FastAPI backend with clean layered architecture. **No UI i
 
 ---
 
-## Phase 2A: Foundation & Data Layer ⚪
+## Phase 2A: Foundation & Data Layer 🟡
+
+**Status:** 40% Complete
 
 **Goal:** Set up project structure with proper layering
 
 ### Deliverables
-- `web/` directory structure with layers
-- Pydantic models (DTOs and domain entities)
-- Repository layer for data access
-- Database/storage abstraction
+- ✅ `web/` directory structure (basic) - `services/`, `static/`, `templates/`
+- ✅ ConfigService with DRY configuration management
+- ⚪ Pydantic models (DTOs and domain entities) - needs separation
+- ⚪ Repository layer for data access - not yet extracted
+- ⚪ Database/storage abstraction - currently inline in `api.py`
 
 ### Tasks
 
+#### Task 2A.0: ✅ ConfigService Implementation (COMPLETED)
+**File:** `web/services/config_service.py`
+
+**Implemented Features:**
+- Single source of truth for pipeline configuration (`web/config/pipeline_config.json`)
+- DRY configuration management (no duplication)
+- Stage metadata: dependencies, output directories, time estimates
+- Preset configurations (quick, full, all)
+- Supported video formats configuration
+- WebSocket and UI configuration
+- Singleton pattern for global access
+
+**Code Quality:**
+- ✅ Self-documenting function names
+- ✅ Comprehensive docstrings
+- ✅ Type hints throughout
+- ✅ SOLID principles (SRP, OCP, DRY)
+- ✅ No hardcoded values (all in JSON config)
+
+**Success Criteria:**
+- [x] Configuration centralized in single JSON file
+- [x] Service provides clean API for config access
+- [x] No duplication across codebase
+- [x] Follows CLAUDE.md standards
+
+---
+
 #### Task 2A.1: Create Layered Directory Structure
-**Directory Structure:**
+
+**Current Structure (Partially Implemented):**
 ```
 web/
-├── server.py                   # FastAPI app entry point
-├── config.py                   # Configuration management
+├── server.py                   # ✅ FastAPI app entry point
+├── api.py                      # ✅ API endpoints (monolithic - needs split)
+├── websocket.py                # ✅ WebSocket handler
+├── pipeline_runner.py          # ✅ Pipeline execution
 │
-├── api/                        # API Layer (Controllers)
-│   ├── __init__.py
-│   ├── routers/
-│   │   ├── __init__.py
-│   │   ├── projects.py         # Project API endpoints
-│   │   ├── pipeline.py         # Pipeline API endpoints
-│   │   └── system.py           # System API endpoints (health, shutdown)
-│   └── dependencies.py         # FastAPI dependencies (DI)
+├── services/                   # 🟡 PARTIAL
+│   ├── __init__.py             # ✅
+│   └── config_service.py       # ✅ Configuration service (DRY pattern)
 │
-├── services/                   # Service Layer (Business Logic)
-│   ├── __init__.py
-│   ├── project_service.py      # Project management business logic
-│   ├── pipeline_service.py     # Pipeline execution orchestration
-│   └── websocket_service.py    # WebSocket broadcast service
+├── config/                     # ✅ Configuration directory
+│   └── pipeline_config.json    # ✅ Single source of truth
 │
-├── repositories/               # Repository Layer (Data Access)
+├── static/                     # ✅ Frontend assets
+│   ├── js/                     # ✅ Modular ES6 (Roadmap 3)
+│   └── css/                    # ✅ Responsive styling
+│
+├── templates/                  # ✅ HTML templates
+│   ├── base.html               # ✅
+│   └── components/             # ✅ Reusable components
+│
+├── repositories/               # ⚪ NOT YET IMPLEMENTED
 │   ├── __init__.py
 │   ├── base.py                 # Base repository interface
 │   ├── project_repository.py   # Project data access
 │   └── job_repository.py       # Pipeline job data access
 │
-├── models/                     # Data Models
+├── models/                     # ⚪ NOT YET IMPLEMENTED
 │   ├── __init__.py
 │   ├── domain.py               # Domain entities (internal)
 │   └── dto.py                  # DTOs (API contracts)
 │
-└── tests/                      # Tests (co-located with code)
+└── tests/                      # ⚪ NOT YET IMPLEMENTED
     ├── __init__.py
     ├── unit/                   # Unit tests
     │   ├── test_services.py
@@ -126,9 +180,12 @@ web/
 ```
 
 **Success Criteria:**
-- [ ] Directory structure created
-- [ ] Layers clearly separated
-- [ ] No cross-layer dependencies
+- [x] Basic directory structure created
+- [x] ConfigService extracted to services layer
+- [ ] Repository layer implemented (data access abstraction)
+- [ ] DTO/Domain models separated
+- [ ] API endpoints split into routers
+- [ ] Test structure created
 
 ---
 
@@ -730,28 +787,54 @@ class ProjectService:
 
 ---
 
-## Phase 2C: API Layer (Controllers) ⚪
+## Phase 2C: API Layer (Controllers) ✅
+
+**Status:** 90% Complete
 
 **Goal:** Thin API controllers that delegate to services
 
 ### Deliverables
-- REST API routers (projects, pipeline, system)
-- WebSocket endpoint
-- Dependency injection setup
-- Input validation with Pydantic
-- OpenAPI/Swagger documentation
+- ✅ REST API endpoints (`web/api.py`)
+  - Project upload and creation
+  - Pipeline execution
+  - System health/status endpoints
+  - Video metadata extraction (ffprobe)
+- ✅ WebSocket endpoint (`web/websocket.py`)
+  - Real-time progress updates
+  - Connection management
+- ✅ Input validation with Pydantic (BaseModel classes)
+- ⚪ Proper dependency injection (partially - needs improvement)
+- ⚪ OpenAPI/Swagger documentation (basic auto-gen, needs enhancement)
 
-(Tasks from original ROADMAP-2-WEB.md Phase 2C - same code)
+### Implementation Details
+
+**File:** `web/api.py`
+- Project creation with video upload
+- Pipeline job management (start, status, stop)
+- Video metadata extraction (duration, fps, resolution, frame count)
+- System health checks
+- Pydantic models for request validation
+
+**File:** `web/websocket.py`
+- WebSocket connection handling
+- Progress broadcast to connected clients
+- Automatic reconnection support
+
+**File:** `web/server.py`
+- FastAPI app initialization
+- CORS configuration
+- Static file serving
+- Template rendering
 
 ### Phase 2C Exit Criteria
 
-- [ ] All API routers implemented
-- [ ] Routers are thin (delegate to services)
-- [ ] Dependency injection working
-- [ ] Input validation via Pydantic
-- [ ] Proper HTTP status codes (200, 201, 204, 400, 404, 500)
-- [ ] No business logic in routers
-- [ ] OpenAPI docs auto-generated at `/docs`
+- [x] All core API endpoints implemented
+- [~] Routers are thin (mostly - some logic should move to services)
+- [~] Dependency injection working (basic - needs proper DI container)
+- [x] Input validation via Pydantic
+- [x] Proper HTTP status codes
+- [~] No business logic in routers (mostly clean - needs service extraction)
+- [~] OpenAPI docs auto-generated at `/docs` (basic - needs documentation)
 
 ---
 

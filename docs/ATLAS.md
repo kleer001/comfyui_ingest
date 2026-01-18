@@ -22,72 +22,108 @@ The atlas guides the transition to:
 This atlas contains three sequential roadmaps:
 
 ### 📋 [Roadmap 1: Docker Migration](ROADMAP-1-DOCKER.md)
-**Status:** 🟡 In Progress
+**Status:** 🟡 Planning Complete
 **Goal:** Replicate current CLI functionality in Docker containers
+**Completion:** 0% (Planning: 100%, Implementation: 0%)
 
 Migrate existing Python CLI workflow into Docker containers while maintaining exact feature parity. Users still interact via command-line but benefit from containerized dependencies.
 
-**Key Outcomes:**
-- Dockerfile + docker-compose configuration
-- Container-aware code modifications (SOLID/DRY principles)
-- Model persistence via volume mounts
-- Comprehensive testing plan
-- Validated feature parity with local installation
+**Completed:**
+- ✅ Comprehensive testing plan with Football CIF test video
+- ✅ SOLID/DRY principles documented for infrastructure
+- ✅ Multi-stage Docker architecture designed
+- ✅ Container-aware code patterns identified
+
+**Remaining:**
+- ⚪ Dockerfile implementation (Phases 1A-1E)
+- ⚪ Container-aware code modifications
+- ⚪ Model download automation
+- ⚪ Integration testing execution
+- ⚪ Documentation and user tools
 
 **Target Timeline:** 2-3 weeks
 
 ---
 
 ### 🔌 [Roadmap 2: API Backend](ROADMAP-2-API.md)
-**Status:** ⚪ Not Started
+**Status:** 🟡 In Progress
 **Goal:** Build REST/WebSocket API backend (no UI)
+**Completion:** 60% (Core: 80%, Testing/Docs: 10%)
 
 Create FastAPI backend with proper layered architecture (Services, Repositories, DTOs). Fully testable API that manages projects and pipeline execution.
 
-**Key Outcomes:**
-- REST API for project management
-- WebSocket API for real-time progress
-- Service layer with business logic
-- Repository layer for data access
-- Comprehensive unit + integration tests
-- API fully validated before UI development
+**Completed:**
+- ✅ ConfigService with DRY configuration management (`web/services/config_service.py`)
+- ✅ Pipeline configuration JSON (single source of truth)
+- ✅ REST API endpoints for projects and pipeline (`web/api.py`)
+- ✅ WebSocket real-time progress updates (`web/websocket.py`)
+- ✅ Video metadata extraction (ffprobe integration)
+- ✅ Modular architecture with separation of concerns
 
-**Target Timeline:** 2-3 weeks
+**Remaining:**
+- ⚪ Repository pattern implementation (Phase 2A)
+- ⚪ DTO vs Domain model separation (Phase 2A)
+- ⚪ Full service layer extraction from API layer (Phase 2B)
+- ⚪ Comprehensive unit + integration tests (Phase 2D)
+- ⚪ OpenAPI/Swagger documentation (Phase 2E)
+
+**Target Timeline:** 1-2 weeks (for remaining work)
 
 ---
 
 ### 🌐 [Roadmap 3: Web UI Frontend](ROADMAP-3-WEB-UI.md)
-**Status:** ⚪ Not Started
+**Status:** 🟡 In Progress
 **Goal:** Build browser-based UI (presentation layer only)
+**Completion:** 70% (Core UI: 90%, Testing/Polish: 20%)
 
 Create artist-friendly web interface that consumes the API. Pure presentation layer with zero business logic.
 
-**Key Outcomes:**
-- HTML templates with server-side rendering
-- JavaScript API client (abstraction layer)
-- Real-time WebSocket updates
-- Responsive CSS styling
-- End-to-end UI testing
-- One-click startup/shutdown
+**Completed:**
+- ✅ Modular ES6 architecture with SOLID principles (`web/static/js/`)
+- ✅ Controllers: Upload, Config, Processing, Projects, System
+- ✅ API Service abstraction (follows "dumb UI" pattern)
+- ✅ WebSocket Service for real-time updates
+- ✅ State Manager for application state
+- ✅ Reusable template components (upload, config, progress, etc.)
+- ✅ Multiple layout options (cards, compact, dashboard, split)
+- ✅ Base HTML templates with Jinja2
+- ✅ Responsive CSS styling
 
-**Target Timeline:** 2-3 weeks
+**Remaining:**
+- ⚪ Comprehensive UI testing suite (Phase 3E)
+- ⚪ Accessibility improvements (ARIA labels, keyboard nav)
+- ⚪ Performance optimization (lazy loading, code splitting)
+- ⚪ Cross-browser compatibility testing
+- ⚪ One-click startup script (Phase 3F)
+
+**Target Timeline:** 1 week (for remaining work)
 
 ---
 
 ## Dependencies
 
+**Original Plan:**
 ```
-Roadmap 1 (Docker)
-    ↓
-Roadmap 2 (API Backend)
-    ↓
-Roadmap 3 (Web UI Frontend)
+Roadmap 1 (Docker) → Roadmap 2 (API Backend) → Roadmap 3 (Web UI Frontend)
 ```
 
-**Critical:** Each roadmap must be **fully tested and validated** before proceeding to the next. This ensures:
-- API is stable before building UI
-- Backend works independently (could support CLI, mobile, etc.)
-- Clear separation of concerns (backend ≠ frontend)
+**Actual Development:**
+```
+Roadmap 1 (Planning) ─┐
+                      ├─→ Roadmap 2 (60% complete) ─→ Roadmap 3 (70% complete)
+                      └─→ Needs implementation
+```
+
+**Current Reality:** Development proceeded in parallel:
+- ✅ Roadmap 2 & 3 were developed iteratively with good SOLID/DRY architecture
+- ⚪ Roadmap 1 (Docker) is still needed for production deployment
+- ✅ Web GUI works in local development mode
+- ⚪ Testing infrastructure needs completion across all roadmaps
+
+**Going Forward:**
+- **Roadmap 1 is now critical** - Docker deployment needed for robust production use
+- **Roadmap 2 & 3** - Complete testing and polish (API tests, UI tests, documentation)
+- **All three** can proceed in parallel with proper coordination
 
 ## Success Criteria
 
@@ -126,18 +162,26 @@ Roadmap 3 (Web UI Frontend)
 **Branch:** `claude/containerize-colmap-pipeline-vAOqu`
 
 **Existing Architecture:**
-- Python 3.10+ conda environment
+- Python 3.10+ conda environment (local development)
 - ComfyUI with custom nodes (SAM3, Depth Anything, MatAnyone, ProPainter)
 - COLMAP for camera tracking
 - FFmpeg for video processing
 - Multiple ML models (~15-20GB total)
 - Project-based directory structure
 
+**Web GUI (Recently Implemented):**
+- FastAPI backend with modular architecture
+- WebSocket real-time progress updates
+- Modular ES6 frontend (SOLID principles)
+- Multiple responsive layouts (cards, compact, dashboard, split)
+- ConfigService for DRY configuration management
+- Works in local development mode (non-Docker)
+
 **Pain Points Being Addressed:**
-- COLMAP installation difficulties across platforms
-- Complex conda environment setup
-- Command-line interface barrier for artists
-- Dependency version conflicts
+- ✅ Command-line interface barrier for artists (Web GUI implemented)
+- ⚪ COLMAP installation difficulties (Docker migration needed)
+- ⚪ Complex conda environment setup (Docker migration needed)
+- ⚪ Dependency version conflicts (Docker migration needed)
 
 ## Navigation
 
@@ -155,6 +199,10 @@ These documents are living specifications and should be updated as:
 
 ---
 
-**Last Updated:** 2026-01-17
-**Current Phase:** Roadmap 1, Phase 1A
-**Next Milestone:** Working Dockerfile with all dependencies
+**Last Updated:** 2026-01-18
+**Current Phase:** Parallel development across all three roadmaps
+**Active Work:**
+- Roadmap 1: Ready to implement (planning complete)
+- Roadmap 2: Core complete, needs testing & repository pattern
+- Roadmap 3: Core complete, needs testing & accessibility
+**Next Milestone:** Docker deployment (Roadmap 1) OR comprehensive testing (Roadmaps 2 & 3)
