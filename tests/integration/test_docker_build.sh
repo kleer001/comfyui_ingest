@@ -31,7 +31,7 @@ fi
 cd "$REPO_ROOT"
 
 # Test 1: Build base layer
-echo -e "${BLUE}[Test 1/6] Building base layer...${NC}"
+echo -e "${BLUE}[Test 1/7] Building base layer...${NC}"
 if docker build --target base -t vfx-ingest:base . > /tmp/docker_base_build.log 2>&1; then
     echo -e "${GREEN}✓ Base layer built successfully${NC}"
 else
@@ -41,7 +41,7 @@ else
 fi
 
 # Test 2: Verify COLMAP installed
-echo -e "${BLUE}[Test 2/6] Verifying COLMAP installation...${NC}"
+echo -e "${BLUE}[Test 2/7] Verifying COLMAP installation...${NC}"
 if docker run --rm vfx-ingest:base colmap --help > /dev/null 2>&1; then
     echo -e "${GREEN}✓ COLMAP installed and working${NC}"
 else
@@ -50,7 +50,7 @@ else
 fi
 
 # Test 3: Verify FFmpeg installed
-echo -e "${BLUE}[Test 3/6] Verifying FFmpeg installation...${NC}"
+echo -e "${BLUE}[Test 3/7] Verifying FFmpeg installation...${NC}"
 if docker run --rm vfx-ingest:base ffmpeg -version > /dev/null 2>&1; then
     echo -e "${GREEN}✓ FFmpeg installed and working${NC}"
 else
@@ -59,7 +59,7 @@ else
 fi
 
 # Test 4: Build python-deps layer
-echo -e "${BLUE}[Test 4/6] Building python-deps layer...${NC}"
+echo -e "${BLUE}[Test 4/7] Building python-deps layer...${NC}"
 if docker build --target python-deps -t vfx-ingest:python . > /tmp/docker_python_build.log 2>&1; then
     echo -e "${GREEN}✓ Python dependencies layer built successfully${NC}"
 else
@@ -69,7 +69,7 @@ else
 fi
 
 # Test 5: Verify Python packages
-echo -e "${BLUE}[Test 5/6] Verifying Python packages...${NC}"
+echo -e "${BLUE}[Test 5/7] Verifying Python packages...${NC}"
 if docker run --rm vfx-ingest:python python3 -c "import numpy, scipy, trimesh, PIL, torch; print('Core deps OK')" 2>&1 | grep -q "Core deps OK"; then
     echo -e "${GREEN}✓ Python packages installed and importable${NC}"
 else
@@ -78,7 +78,7 @@ else
 fi
 
 # Test 6: Build full image
-echo -e "${BLUE}[Test 6/6] Building full image...${NC}"
+echo -e "${BLUE}[Test 6/7] Building full image...${NC}"
 if docker build -t vfx-ingest:latest . > /tmp/docker_full_build.log 2>&1; then
     echo -e "${GREEN}✓ Full image built successfully${NC}"
 else

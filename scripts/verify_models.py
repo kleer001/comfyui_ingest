@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 # Model directory - use environment variable or default
-MODEL_DIR = Path(os.environ.get("VFX_MODELS_DIR", Path.home() / ".vfx_pipeline/models"))
+MODEL_DIR = Path(os.environ.get("VFX_MODELS_DIR") or Path.home() / ".vfx_pipeline/models")
 
 REQUIRED_MODELS = {
     "sam3": {

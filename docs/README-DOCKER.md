@@ -260,9 +260,12 @@ ls -ld ~/VFX-Projects
 # Download test video
 ./tests/fixtures/download_football.sh
 
+# Copy to projects directory (tests/ is not in container)
+cp tests/fixtures/football_short.mp4 ~/VFX-Projects/
+
 # Test with Football CIF
 ./scripts/run_docker.sh \
-  --input tests/fixtures/football_short.mp4 \
+  --input /workspace/projects/football_short.mp4 \
   --name FootballTest \
   --stages ingest,depth
 ```

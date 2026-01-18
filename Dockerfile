@@ -22,8 +22,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Set environment variables
-ENV PYTHONUNBUFFERED=1 \
-    DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
 
 # Stage 2: Python dependencies
 FROM base AS python-deps

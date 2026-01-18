@@ -1,7 +1,6 @@
 # Git
 .git/
 .gitignore
-.github/
 
 # Python
 __pycache__/
@@ -28,7 +27,6 @@ test_*/
 # Docs (don't need in image)
 docs/
 *.md
-README.md
 
 # Large files that should be mounted
 .vfx_pipeline/models/
