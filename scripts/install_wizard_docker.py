@@ -274,6 +274,30 @@ Install Docker Desktop for Windows with WSL2 backend:
 Then verify in WSL2:
     docker info
 """
+        elif platform_name == "windows" and environment == "native":
+            return """
+Install Docker Desktop for Windows:
+
+1. Download: https://www.docker.com/products/docker-desktop
+2. Install Docker Desktop
+3. During installation, choose:
+   - "Use WSL 2 instead of Hyper-V" (Recommended)
+   - OR Hyper-V (requires Windows Pro/Enterprise)
+4. Restart computer when prompted
+5. Open Docker Desktop and complete setup
+6. Verify: docker --version
+
+⚠️  Important: GPU Support on Windows
+Docker Desktop on Windows cannot access NVIDIA GPUs directly.
+
+For GPU-accelerated workloads:
+  1. Install WSL2 (Ubuntu) - https://aka.ms/wsl
+  2. Run this wizard inside WSL2 Ubuntu
+  3. GPU will be accessible via NVIDIA Container Toolkit
+
+Alternative: Use conda-based installation (no Docker)
+  python scripts/install_wizard.py
+"""
         else:
             return "Visit https://docs.docker.com/get-docker/"
 
@@ -846,6 +870,24 @@ class DockerWizard:
     ):
         """Interactive installation flow."""
         print_header("VFX Ingest Platform - Docker Installation Wizard")
+
+        if not yolo and not check_only:
+            print(f"\n{Colors.BOLD}💡 Installation Method{Colors.ENDC}")
+            print()
+            print("You're using the Docker-based wizard. This is recommended for:")
+            print("  ✓ Linux native systems with NVIDIA GPU")
+            print("  ✓ WSL2 (Windows Subsystem for Linux) with NVIDIA GPU")
+            print("  ✓ Production deployments and isolated environments")
+            print()
+            print("Alternative: Conda-based wizard")
+            print("  • Better for macOS (Docker can't access GPU)")
+            print("  • More flexible for development/debugging")
+            print("  • Direct filesystem access")
+            print("  → Run: python scripts/install_wizard.py")
+            print()
+            if not ask_yes_no("Continue with Docker-based installation?", default=True):
+                print_info("Installation cancelled")
+                return
 
         if yolo:
             print_info("YOLO mode: Full install with auto-yes")
