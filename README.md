@@ -108,9 +108,48 @@ python scripts/install_wizard.py --docker  # Docker
 python scripts/install_wizard.py           # Conda
 ```
 
+## Running Your First Project
+
+### Docker Environment
+
+Process a video file with all pipeline stages:
+
+```bash
+./scripts/run_docker.sh --input /path/to/video.mp4 --name MyFirstProject --stages all
+```
+
+Run specific stages (depth estimation and segmentation only):
+
+```bash
+./scripts/run_docker.sh --input /path/to/video.mp4 --name MyProject --stages depth,roto
+```
+
+**See [Docker Guide](docs/README-DOCKER.md) for complete Docker documentation, troubleshooting, and advanced usage.**
+
+---
+
+### Conda Environment
+
+Process a video with selected stages:
+
+```bash
+python scripts/run_pipeline.py /path/to/video.mp4 -s ingest,depth,roto,cleanplate,colmap,camera
+```
+
+Run with custom segmentation prompt:
+
+```bash
+python scripts/run_pipeline.py video.mp4 -s roto --prompt "person, car, building"
+```
+
+**Output location:** `../vfx_projects/MyProject/` (configurable via `VFX_PROJECTS_DIR`)
+
+**Available stages:** `ingest`, `depth`, `roto`, `matte`, `cleanplate`, `colmap`, `camera`, `mocap`
+
 ## Documentation
 
 Complete documentation available in [docs/](docs/):
+- [Docker Guide](docs/README-DOCKER.md) - Complete Docker setup, usage, and troubleshooting
 - [Installation Guide](docs/install_wizard.md) - Detailed setup instructions
 - [Pipeline Reference](docs/run_pipeline.md) - Command-line usage and options
 - [Component Scripts](docs/component_scripts.md) - Individual tool documentation
