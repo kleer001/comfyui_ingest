@@ -14,6 +14,7 @@ from .conda import CondaEnvironmentManager
 from .config import ConfigurationGenerator
 from .downloader import CheckpointDownloader
 from .installers import CondaPackageInstaller, GitRepoInstaller, PythonPackageInstaller, SystemPackageInstaller
+from .platform import PlatformManager
 from .state import InstallationStateManager
 from .utils import (
     Colors,
@@ -40,11 +41,14 @@ class InstallationWizard:
         self.repo_root = INSTALL_DIR.parent
         self.install_dir = INSTALL_DIR
 
+        self.platform_manager = PlatformManager()
         self.conda_manager = CondaEnvironmentManager()
         self.state_manager = InstallationStateManager(self.install_dir / "install_state.json")
         self.checkpoint_downloader = CheckpointDownloader(self.install_dir)
         self.validator = InstallationValidator(self.conda_manager, self.install_dir)
         self.config_generator = ConfigurationGenerator(self.conda_manager, self.install_dir)
+
+        self.os_name, self.environment, self.pkg_manager = self.platform_manager.detect_platform()
         self.setup_components()
 
     def setup_components(self):
@@ -199,6 +203,11 @@ class InstallationWizard:
         """Check system requirements."""
         print_header("System Requirements Check")
 
+        env_str = f"({self.environment})" if self.environment != "native" else ""
+        print_info(f"Platform: {self.os_name} {env_str}")
+        if self.pkg_manager != "unknown":
+            print_info(f"Package manager: {self.pkg_manager}")
+
         # Python version
         py_version = sys.version_info
         if py_version >= (3, 8):
@@ -220,6 +229,10 @@ class InstallationWizard:
             print_success("Git available")
         else:
             print_error("Git not found (required for cloning repositories)")
+            print()
+            print(self.platform_manager.get_missing_dependency_instructions(
+                "git", self.os_name, self.environment, self.pkg_manager
+            ))
             return False
 
         # Disk space
@@ -251,14 +264,20 @@ class InstallationWizard:
             print_success("ffmpeg available")
         else:
             print_warning("ffmpeg not found (required for video ingestion)")
-            print_info("Install: sudo apt install ffmpeg")
+            print()
+            print(self.platform_manager.get_missing_dependency_instructions(
+                "ffmpeg", self.os_name, self.environment, self.pkg_manager
+            ))
 
         # COLMAP
         if check_command_available("colmap"):
             print_success("COLMAP available")
         else:
             print_warning("COLMAP not found (optional, for 3D reconstruction)")
-            print_info("Install: sudo apt install colmap")
+            print()
+            print(self.platform_manager.get_missing_dependency_instructions(
+                "colmap", self.os_name, self.environment, self.pkg_manager
+            ))
 
         return True
 
@@ -476,10 +495,21 @@ class InstallationWizard:
             resume: Resume previous interrupted installation
             yolo: Non-interactive mode - full stack install with auto-yes
         """
-        print_header("VFX Pipeline Installation Wizard")
+        print_header("VFX Pipeline Installation Wizard (Conda-Based)")
 
         if yolo:
             print_info("YOLO mode: Full stack install with auto-yes")
+        else:
+            has_gpu, _ = check_gpu_available()
+            recommendation = self.platform_manager.get_wizard_recommendation(
+                self.os_name, self.environment, has_gpu
+            )
+            print(recommendation)
+            print()
+            if not ask_yes_no("Continue with conda-based installation?", default=True):
+                print_info("Installation cancelled")
+                print_info("For Docker-based installation: python scripts/install_wizard_docker.py")
+                return True
 
         # Check for resumable installation
         if not resume and self.state_manager.can_resume():
