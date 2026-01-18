@@ -28,7 +28,6 @@ from .downloader import CheckpointDownloader
 from .platform import PlatformManager
 from .utils import (
     Colors,
-    ask_yes_no,
     check_command_available,
     format_size_gb,
     get_disk_space,
@@ -562,46 +561,30 @@ class DockerWizard:
             print_error(f"Unexpected error: {e}")
             return False
 
-    def offer_nvidia_toolkit_installation(self) -> bool:
-        """Offer to install NVIDIA Container Toolkit if not present."""
+    def install_nvidia_toolkit_if_needed(self) -> bool:
+        """Install NVIDIA Container Toolkit if not present."""
         nvidia_ok, _ = self.docker_manager.check_nvidia_docker()
         if nvidia_ok:
             return True
 
         print()
-        print("The NVIDIA Container Toolkit is required for GPU access in Docker containers.")
+        print_info("NVIDIA Container Toolkit not detected - installing automatically...")
         print()
 
         if self.environment == "wsl2":
             print("Detected: WSL2 environment")
-            print()
-            print("Installation will:")
-            print("  - Add NVIDIA package repository")
-            print("  - Install nvidia-container-toolkit")
-            print("  - Configure Docker to use NVIDIA runtime")
-            print("  - Restart Docker service")
-            print()
             print("Note: GPU support in WSL2 requires Windows NVIDIA driver")
         else:
             print("Detected: Native Linux")
-            print()
-            print("Installation will:")
-            print("  - Clean up any conflicting repository configurations")
-            print("  - Add NVIDIA package repository with GPG key")
-            print("  - Install nvidia-container-toolkit package")
-            print("  - Configure Docker daemon for NVIDIA runtime")
-            print("  - Restart Docker service")
 
         print()
-        if not ask_yes_no("Would you like to install NVIDIA Container Toolkit now?", default=True):
-            print_warning("Skipping NVIDIA Container Toolkit installation")
-            print()
-            print("You can install it manually later. See:")
-            print("https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html")
-            print()
-            return False
 
         if not self.install_nvidia_container_toolkit():
+            print_error("NVIDIA Container Toolkit installation failed")
+            print()
+            print("Manual installation instructions:")
+            print("https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html")
+            print()
             return False
 
         print_info("Verifying installation...")
@@ -628,57 +611,48 @@ class DockerWizard:
         """Prompt user to set up credentials for authenticated downloads.
 
         Sets up SMPL.login.dat for SMPL-X body models (required for mocap).
+        Only prompts if credentials don't exist and models aren't downloaded.
         """
         smpl_creds_file = self.repo_root / "SMPL.login.dat"
 
         if smpl_creds_file.exists():
-            print_success("SMPL-X credentials file already exists")
+            print_success("SMPL-X credentials file found")
             return
 
         smplx_dir = self.models_dir / "smplx"
         if smplx_dir.exists() and any(smplx_dir.iterdir()):
+            print_success("SMPL-X models already downloaded")
             return
 
-        print_header("Credentials Setup")
+        print_header("SMPL-X Credentials Required")
         print("SMPL-X body models require registration for download.")
         print("These models are required for the motion capture (mocap) stage.")
         print()
-
-        print(f"{Colors.BOLD}SMPL-X Credentials Setup{Colors.ENDC}")
-        print("Required for: Body model (skeleton, mesh topology, UV layout)")
-        print()
         print("Registration: https://smpl-x.is.tue.mpg.de/register.php")
         print()
-        print("Steps:")
-        print("  1. Register at the website above")
-        print("  2. Wait for approval email (usually within 24-48 hours)")
-        print("  3. Enter your credentials below")
+        print("If you have registered, enter your credentials below.")
+        print("Press Enter to skip (mocap stage will not be available).")
         print()
 
-        if ask_yes_no("Set up SMPL-X credentials now?", default=True):
-            email = tty_input("Enter your SMPL-X registered email: ").strip()
-            if email and '@' in email:
-                password = tty_input("Enter your SMPL-X password: ").strip()
-                if password:
-                    with open(smpl_creds_file, 'w') as f:
-                        f.write(email + '\n')
-                        f.write(password + '\n')
-                    smpl_creds_file.chmod(0o600)
-                    print_success(f"Credentials saved to {smpl_creds_file}")
-                else:
-                    print_info("Skipped - you can add SMPL.login.dat later")
+        email = tty_input("SMPL-X email (or Enter to skip): ").strip()
+        if email and '@' in email:
+            password = tty_input("SMPL-X password: ").strip()
+            if password:
+                with open(smpl_creds_file, 'w') as f:
+                    f.write(email + '\n')
+                    f.write(password + '\n')
+                smpl_creds_file.chmod(0o600)
+                print_success(f"Credentials saved to {smpl_creds_file}")
             else:
-                print_info("Skipped - you can add SMPL.login.dat later")
+                print_info("Skipped - SMPL-X models will not be downloaded")
         else:
-            print_info("Skipped - you can add SMPL.login.dat later")
-            print_info("SMPL-X models will not be downloaded without credentials")
+            print_info("Skipped - SMPL-X models will not be downloaded")
 
-    def build_docker_image(self) -> bool:
+    def build_docker_image(self, force_rebuild: bool = False) -> bool:
         """Build the Docker image."""
-        if self.state_manager.state.get("image_built"):
-            print_info("Docker image already built")
-            if not ask_yes_no("Rebuild image?", default=False):
-                return True
+        if self.state_manager.state.get("image_built") and not force_rebuild:
+            print_success("Docker image already built")
+            return True
 
         print_header("Building Docker Image")
         print_info("First build takes 10-15 minutes (cached afterwards)...")
@@ -708,12 +682,11 @@ class DockerWizard:
             print_error("Docker image build failed")
             return False
 
-    def run_test_pipeline(self) -> bool:
+    def run_test_pipeline(self, force_rerun: bool = False) -> bool:
         """Download test video and run test pipeline."""
-        if self.state_manager.state.get("test_completed"):
-            print_info("Test already completed")
-            if not ask_yes_no("Run test again?", default=False):
-                return True
+        if self.state_manager.state.get("test_completed") and not force_rerun:
+            print_success("Test pipeline already completed")
+            return True
 
         print_header("Running Test Pipeline")
 
@@ -809,38 +782,18 @@ class DockerWizard:
         yolo: bool = False,
         resume: bool = False
     ):
-        """Interactive installation flow."""
+        """Full installation flow.
+
+        The wizard proceeds automatically with full installation.
+        Only prompts for SMPL-X credentials if not present.
+
+        Args:
+            check_only: Only check prerequisites, don't install
+            skip_test: Skip the test pipeline after installation
+            yolo: Ignored (kept for backward compatibility)
+            resume: Ignored (kept for backward compatibility)
+        """
         print_header("VFX Ingest Platform - Docker Installation Wizard")
-
-        if not yolo and not check_only:
-            print(f"\n{Colors.BOLD}Installation Method{Colors.ENDC}")
-            print()
-            print("You're using the Docker-based wizard. This is recommended for:")
-            print("  - Linux native systems with NVIDIA GPU")
-            print("  - WSL2 (Windows Subsystem for Linux) with NVIDIA GPU")
-            print("  - Production deployments and isolated environments")
-            print()
-            print("Alternative: Conda-based wizard")
-            print("  - Better for macOS (Docker can't access GPU)")
-            print("  - More flexible for development/debugging")
-            print("  - Direct filesystem access")
-            print("  -> Run: python scripts/install_wizard.py")
-            print()
-            if not ask_yes_no("Continue with Docker-based installation?", default=True):
-                print_info("Installation cancelled")
-                return
-
-        if yolo:
-            print_info("YOLO mode: Full install with auto-yes")
-            print()
-
-        if not resume and self.state_manager.can_resume():
-            print_warning("Found incomplete installation from previous run")
-            if ask_yes_no("Resume previous installation?", default=True):
-                resume = True
-            else:
-                if ask_yes_no("Start fresh (clear previous state)?", default=False):
-                    self.state_manager.clear_state()
 
         if not self.check_system_requirements():
             if check_only:
@@ -861,104 +814,68 @@ class DockerWizard:
 
         nvidia_ok, _ = self.docker_manager.check_nvidia_docker()
         if not nvidia_ok and not self.state_manager.state.get("nvidia_runtime_installed"):
-            if yolo or self.offer_nvidia_toolkit_installation():
-                print_success("NVIDIA Container Toolkit ready")
-            else:
+            if not self.install_nvidia_toolkit_if_needed():
                 print_error("NVIDIA Container Toolkit not available")
                 print_info("Install it manually and run this wizard again")
                 sys.exit(1)
+            print_success("NVIDIA Container Toolkit ready")
 
-        if not yolo:
-            self.setup_credentials()
-
-        print_header("Component Selection")
+        self.setup_credentials()
 
         checkpoints_to_download = ['sam3', 'video_depth_anything', 'wham', 'matanyone']
         download_smplx = False
-        download_models = True
-        build_image = True
-        run_test = not skip_test
 
         smpl_creds_file = self.repo_root / "SMPL.login.dat"
         if smpl_creds_file.exists():
             checkpoints_to_download.append('smplx')
             download_smplx = True
 
-        if not yolo:
-            total_size = self.checkpoint_downloader.get_total_size_gb(checkpoints_to_download)
-            if not ask_yes_no(f"Download required models (~{total_size:.1f}GB)?", default=True):
-                download_models = False
+        print_header("Installation Summary")
+        model_size = self.checkpoint_downloader.get_total_size_gb(checkpoints_to_download)
+        image_size = 8.0
+        total_size = model_size + image_size
+        working_space = 10.0
 
-            if not ask_yes_no("Build Docker image?", default=True):
-                build_image = False
+        print(f"  {'Models':30s} {format_size_gb(model_size):>10s}")
+        print(f"  {'Docker image':30s} {format_size_gb(image_size):>10s}")
+        print("  " + "-" * 42)
+        print(f"  {'Total':30s} {format_size_gb(total_size):>10s}")
+        print(f"  {'Working space (per project)':30s} ~{format_size_gb(working_space):>9s}")
 
-            if download_models and build_image:
-                if not ask_yes_no("Run test pipeline after installation?", default=True):
-                    run_test = False
+        available_gb, _ = get_disk_space(self.models_dir)
+        if available_gb > 0:
+            print(f"\n  Available disk space: {format_size_gb(available_gb)}")
 
-        if download_models or build_image:
-            print_header("Disk Space Estimate")
-
-            total_size = 0.0
-            if download_models:
-                model_size = self.checkpoint_downloader.get_total_size_gb(checkpoints_to_download)
-                total_size += model_size
-                print(f"  {'Models':30s} {format_size_gb(model_size):>10s}")
-
-            if build_image:
-                image_size = 8.0
-                total_size += image_size
-                print(f"  {'Docker image':30s} {format_size_gb(image_size):>10s}")
-
-            working_space = 10.0
-            print("  " + "-" * 42)
-            print(f"  {'Total':30s} {format_size_gb(total_size):>10s}")
-            print(f"  {'Working space (per project)':30s} ~{format_size_gb(working_space):>9s}")
-            print(f"  {'Recommended total':30s} ~{format_size_gb(total_size + working_space):>9s}")
-
-            available_gb, _ = get_disk_space(self.models_dir)
-            if available_gb > 0:
-                print(f"\n  Available disk space: {format_size_gb(available_gb)}")
-
-                if available_gb >= total_size + working_space:
-                    print_success("Sufficient disk space available")
-                elif available_gb >= total_size:
-                    print_warning("Sufficient for installation, but limited working space")
-                else:
-                    print_error(f"Insufficient disk space (need {format_size_gb(total_size)})")
-                    sys.exit(1)
-
-            print()
-            if not yolo:
-                if not ask_yes_no("Proceed with installation?", default=True):
-                    print_info("Installation cancelled")
-                    sys.exit(0)
-
-        if download_models:
-            print_header("Downloading Models")
-            total_size = self.checkpoint_downloader.get_total_size_gb(checkpoints_to_download)
-            print(f"Total download size: ~{format_size_gb(total_size)}")
-            print()
-
-            for checkpoint_id in checkpoints_to_download:
-                if not self.checkpoint_downloader.download_checkpoint(
-                    checkpoint_id,
-                    self.state_manager,
-                    self.repo_root
-                ):
-                    if checkpoint_id == 'smplx':
-                        print_warning("SMPL-X download failed - mocap stage will not be available")
-                        download_smplx = False
-                    else:
-                        print_error(f"Failed to download {checkpoint_id}")
-                        sys.exit(1)
-
-        if build_image:
-            if not self.build_docker_image():
-                print_error("Docker image build failed")
+            if available_gb >= total_size + working_space:
+                print_success("Sufficient disk space available")
+            elif available_gb >= total_size:
+                print_warning("Sufficient for installation, but limited working space")
+            else:
+                print_error(f"Insufficient disk space (need {format_size_gb(total_size)})")
                 sys.exit(1)
 
-        if run_test:
+        print_header("Downloading Models")
+        print(f"Total download size: ~{format_size_gb(model_size)}")
+        print()
+
+        for checkpoint_id in checkpoints_to_download:
+            if not self.checkpoint_downloader.download_checkpoint(
+                checkpoint_id,
+                self.state_manager,
+                self.repo_root
+            ):
+                if checkpoint_id == 'smplx':
+                    print_warning("SMPL-X download failed - mocap stage will not be available")
+                    download_smplx = False
+                else:
+                    print_error(f"Failed to download {checkpoint_id}")
+                    sys.exit(1)
+
+        if not self.build_docker_image():
+            print_error("Docker image build failed")
+            sys.exit(1)
+
+        if not skip_test:
             self.run_test_pipeline()
 
         self.print_post_install_instructions(download_smplx)
