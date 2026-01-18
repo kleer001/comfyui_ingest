@@ -8,7 +8,8 @@ This pipeline automates first-pass VFX prep work that traditionally requires man
 
 **Target workflow:** Run the pipeline overnight, come back to usable first-pass outputs ready for VFX compositing and matchmove.
 
-## Capabilities
+<details>
+<summary><strong>Capabilities</strong></summary>
 
 - **Frame extraction** - Convert video files to PNG frame sequences
 - **Depth estimation** - Monocular depth maps with temporal consistency (Depth Anything V3)
@@ -28,7 +29,10 @@ This pipeline automates first-pass VFX prep work that traditionally requires man
 - **Batch processing** - Automated multi-stage pipeline orchestration
 - **Web interface** - Browser-based GUI for drag-and-drop operation
 
-## Tools & Dependencies
+</details>
+
+<details>
+<summary><strong>Tools & Dependencies</strong></summary>
 
 ### Core Pipeline
 - [ComfyUI](https://github.com/comfyanonymous/ComfyUI) - Node-based workflow engine for ML inference
@@ -53,6 +57,8 @@ This pipeline automates first-pass VFX prep work that traditionally requires man
 - PyTorch - Deep learning framework
 - NumPy, OpenCV, Pillow - Image processing
 - trimesh, smplx - 3D geometry (motion capture only)
+
+</details>
 
 ## Getting Started
 
