@@ -1,200 +1,191 @@
-# VFX Ingest Platform - Developer Quick Start
+# VFX Ingest Platform - Quick Start
 
-Get the Docker-based VFX pipeline running in under 10 minutes.
+Get the Docker-based VFX pipeline running in **under 10 minutes** with the automated installer.
 
-## Platform Compatibility
-
-| Platform | Status | Notes |
-|----------|--------|-------|
-| **Linux** | ✅ Fully Supported | Native Docker + NVIDIA runtime |
-| **Windows** | ✅ Supported | Via WSL2 + Docker Desktop + NVIDIA CUDA on WSL |
-| **macOS** | ❌ Not Supported | Docker Desktop doesn't support GPU passthrough |
-
-**Why macOS doesn't work:** This pipeline requires NVIDIA CUDA for GPU acceleration. Docker on macOS cannot access NVIDIA GPUs, making it incompatible with the containerized workflow.
-
-**macOS users:** Use the local conda installation instead (see main README.md).
-
----
-
-## Prerequisites
-
-### All Platforms
-- **NVIDIA GPU** with CUDA support (GTX 1060 or better recommended)
-- **16GB+ RAM** (32GB recommended)
-- **50GB+ free disk space** (Docker image + models + projects)
-
-### Linux
-- Docker Engine 20.10+
-- NVIDIA Docker runtime (Container Toolkit)
-
-### Windows
-- Windows 10/11 with WSL2 enabled
-- Docker Desktop for Windows
-- NVIDIA CUDA on WSL2
-
----
-
-## Quick Start (Linux)
-
-### 1. Install Prerequisites
+## One-Command Install
 
 ```bash
-# Install Docker (Ubuntu/Debian)
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-sudo usermod -aG docker $USER
-newgrp docker
-
-# Install NVIDIA Container Toolkit
-distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
-curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
-    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-    sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-
-sudo apt-get update
-sudo apt-get install -y nvidia-container-toolkit
-sudo nvidia-ctk runtime configure --runtime=docker
-sudo systemctl restart docker
-
-# Verify GPU access
-docker run --rm --gpus all nvidia/cuda:12.1.0-base-ubuntu22.04 nvidia-smi
-```
-
-### 2. Clone Repository
-
-```bash
+# Clone repository
 git clone https://github.com/kleer001/comfyui_ingest.git
 cd comfyui_ingest
+
+# Run the installation wizard
+python3 scripts/install_wizard_docker.py
 ```
 
-### 3. Download Models
+That's it! The wizard will:
+1. ✓ Detect your platform (Linux/Windows/macOS)
+2. ✓ Check prerequisites (Docker, NVIDIA driver, etc.)
+3. ✓ Guide you through any missing installations
+4. ✓ Download ML models (~15-20GB)
+5. ✓ Build Docker image (~10-15 minutes)
+6. ✓ Run test pipeline to verify everything works
+
+---
+
+## Platform Support
+
+| Platform | Status | Installation Method |
+|----------|--------|---------------------|
+| **Linux** | ✅ Fully Supported | Automated wizard |
+| **Windows** | ✅ Supported via WSL2 | Automated wizard |
+| **macOS** | ❌ Not Supported | Use local conda (see below) |
+
+**Why macOS won't work:** Docker on macOS cannot access NVIDIA GPUs. macOS users must use the local conda installation:
 
 ```bash
-# Create models directory
-mkdir -p ~/.vfx_pipeline/models
-
-# Download models (15-20GB, takes 10-20 minutes)
-./scripts/download_models.sh
-
-# Verify downloads
-python3 scripts/verify_models.py
+# macOS only - use conda installation
+python3 scripts/install_wizard.py
 ```
 
-**Manual step required:** SMPL-X models need registration:
-1. Visit https://smpl-x.is.tue.mpg.de/
-2. Register and download SMPL-X models
-3. Extract to `~/.vfx_pipeline/models/smplx/`
+---
 
-### 4. Build Docker Image
+## What You Need
+
+### Hardware
+- **NVIDIA GPU** with CUDA support (GTX 1060 or better)
+- **16GB+ RAM** (32GB recommended)
+- **50GB+ free disk space**
+
+### Software (wizard will check)
+- Docker Engine (or Docker Desktop for Windows)
+- NVIDIA drivers
+- NVIDIA Container Toolkit (Linux) or NVIDIA CUDA on WSL (Windows)
+
+---
+
+## Platform-Specific Notes
+
+### Linux
+The wizard will guide you through installing:
+- Docker via official install script
+- NVIDIA Container Toolkit
+- All prerequisites automatically detected
+
+### Windows (WSL2)
+Before running the wizard:
+
+1. **Enable WSL2** (PowerShell as Administrator):
+   ```powershell
+   wsl --install
+   wsl --set-default-version 2
+   wsl --install -d Ubuntu-22.04
+   ```
+
+2. **Install NVIDIA CUDA on WSL2**:
+   - Follow: https://docs.nvidia.com/cuda/wsl-user-guide/index.html
+   - Verify with `nvidia-smi` in WSL2
+
+3. **Install Docker Desktop**:
+   - Download: https://www.docker.com/products/docker-desktop
+   - Enable WSL2 backend in settings
+   - Enable integration with your Ubuntu distro
+
+4. **Run wizard in WSL2 Ubuntu terminal**:
+   ```bash
+   python3 scripts/install_wizard_docker.py
+   ```
+
+---
+
+## Usage After Installation
+
+### Process Your Own Video
 
 ```bash
-# First build takes 10-15 minutes
-docker-compose build
+# Copy video to projects directory
+cp /path/to/your/video.mp4 ~/VFX-Projects/
 
-# Verify build
-docker images | grep vfx-ingest
-```
-
-### 5. Download Test Video
-
-```bash
-# Download Football CIF test video (academic standard, ~2MB)
-./tests/fixtures/download_football.sh
-
-# Copy to projects directory
-mkdir -p ~/VFX-Projects
-cp tests/fixtures/football_short.mp4 ~/VFX-Projects/
-```
-
-### 6. Run Test Pipeline
-
-```bash
-# Test depth analysis stage (fastest, ~1 minute)
+# Run pipeline
 ./scripts/run_docker.sh \
-  --input /workspace/projects/football_short.mp4 \
-  --name FootballTest \
-  --stages depth
-
-# Check output
-ls -lh ~/VFX-Projects/FootballTest/depth/
-```
-
-**Success looks like:**
-```
-~/VFX-Projects/FootballTest/
-├── source/frames/         # 30 PNG frames
-├── depth/                 # 30 depth maps
-├── workflows/             # ComfyUI workflow JSON
-└── project.json           # Project metadata
-```
-
-### 7. Run Full Pipeline (Optional)
-
-```bash
-# All stages (takes 5-10 minutes for 30 frames)
-./scripts/run_docker.sh \
-  --input /workspace/projects/football_short.mp4 \
-  --name FootballFull \
+  --input /workspace/projects/video.mp4 \
+  --name MyProject \
   --stages all
 ```
 
----
-
-## Quick Start (Windows + WSL2)
-
-### 1. Install WSL2
-
-```powershell
-# Run in PowerShell as Administrator
-wsl --install
-wsl --set-default-version 2
-
-# Install Ubuntu
-wsl --install -d Ubuntu-22.04
-
-# Restart computer
-```
-
-### 2. Install NVIDIA CUDA on WSL2
-
-Follow NVIDIA's official guide:
-https://docs.nvidia.com/cuda/wsl-user-guide/index.html
+### Available Stages
 
 ```bash
-# Inside WSL2 Ubuntu terminal, verify CUDA
-nvidia-smi
+# List all stages
+./scripts/run_docker.sh --list-stages
+
+# Common workflows:
+./scripts/run_docker.sh --input /workspace/projects/video.mp4 --name Test --stages depth,roto
+./scripts/run_docker.sh --input /workspace/projects/video.mp4 --name Test --stages colmap,camera
+./scripts/run_docker.sh --input /workspace/projects/video.mp4 --name Test --stages all
 ```
 
-### 3. Install Docker Desktop
-
-1. Download Docker Desktop for Windows: https://www.docker.com/products/docker-desktop
-2. Install with WSL2 backend enabled
-3. In Docker Desktop settings:
-   - Enable "Use the WSL 2 based engine"
-   - Under "Resources > WSL Integration", enable your Ubuntu distro
-
-### 4. Verify GPU Access
+### Use ComfyUI Web Interface
 
 ```bash
-# Inside WSL2 Ubuntu terminal
-docker run --rm --gpus all nvidia/cuda:12.1.0-base-ubuntu22.04 nvidia-smi
+# Start container with web interface
+docker-compose up
+
+# Open browser to http://localhost:8188
 ```
 
-### 5. Follow Linux Steps
+### Output Location
 
-Once GPU access works in WSL2, follow the Linux quick start steps above (steps 2-7).
+All projects saved to `~/VFX-Projects/` on your host machine:
 
-**Windows-specific notes:**
-- All commands run inside WSL2 Ubuntu terminal
-- Projects saved to `~/VFX-Projects` in WSL2 filesystem (accessible from Windows at `\\wsl$\Ubuntu-22.04\home\<username>\VFX-Projects`)
-- For best performance, keep all files in WSL2 filesystem (not `/mnt/c/`)
+```
+~/VFX-Projects/
+└── MyProject/
+    ├── source/frames/      # Extracted frames
+    ├── depth/              # Depth maps
+    ├── roto/               # Segmentation masks
+    ├── cleanplate/         # Clean plates
+    ├── colmap/             # Camera tracking
+    ├── mocap/              # Motion capture
+    ├── camera/             # Camera exports (.abc, .chan, .clip)
+    └── preview/            # Preview videos
+```
 
 ---
 
-## Common Issues
+## Wizard Options
 
-### "CUDA not available" or GPU not detected
+```bash
+# Check prerequisites without installing
+python3 scripts/install_wizard_docker.py --check-only
+
+# Skip test pipeline (faster)
+python3 scripts/install_wizard_docker.py --skip-test
+
+# Custom models directory
+python3 scripts/install_wizard_docker.py --models-dir /path/to/models
+
+# Show help
+python3 scripts/install_wizard_docker.py --help
+```
+
+---
+
+## Troubleshooting
+
+### Wizard Says Prerequisites Missing
+
+The wizard checks for:
+1. **NVIDIA driver** - Install from: https://www.nvidia.com/Download/index.aspx
+2. **Docker** - Follow wizard's instructions
+3. **NVIDIA Container Toolkit** - Follow wizard's instructions
+
+Re-run wizard after installing missing components.
+
+### Docker Build Fails
+
+```bash
+# Check disk space
+df -h
+
+# Clean old images
+docker system prune -a
+
+# Retry build
+docker-compose build --no-cache
+```
+
+### GPU Not Detected
 
 **Linux:**
 ```bash
@@ -203,156 +194,104 @@ nvidia-smi
 
 # Verify Docker GPU access
 docker run --rm --gpus all nvidia/cuda:12.1.0-base nvidia-smi
-
-# Restart Docker daemon
-sudo systemctl restart docker
-```
-
-**Windows:**
-```bash
-# In WSL2, verify CUDA
-nvidia-smi
-
-# Verify Docker Desktop is using WSL2 backend
-docker info | grep "Operating System"
-# Should show: Operating System: Docker Desktop
-```
-
-### "Models not found"
-
-```bash
-# Verify models downloaded
-ls -lh ~/.vfx_pipeline/models/
-
-# Expected directories:
-# - sam3/
-# - videodepthanything/
-# - wham/
-# - matanyone/
-# - smplx/ (manual download required)
-
-# Re-run download script
-./scripts/download_models.sh
-
-# Check with verification script
-python3 scripts/verify_models.py
-```
-
-### "Permission denied" mounting volumes
-
-**Linux:**
-```bash
-# Ensure directories exist with correct permissions
-mkdir -p ~/.vfx_pipeline/models
-mkdir -p ~/VFX-Projects
-chmod 755 ~/.vfx_pipeline/models
-chmod 755 ~/VFX-Projects
 ```
 
 **Windows/WSL2:**
 ```bash
-# Use WSL2 home directory, not /mnt/c/
-# ✓ Good: ~/VFX-Projects
-# ✗ Bad:  /mnt/c/Users/YourName/VFX-Projects
+# In WSL2, verify CUDA
+nvidia-smi
+
+# Should show Windows GPU driver version
 ```
 
-### Docker build fails
+### Models Download Fails
 
 ```bash
-# Check disk space
-df -h
+# Retry download manually
+./scripts/download_models.sh
 
-# Clean old Docker images
-docker system prune -a
-
-# Retry build with no cache
-docker-compose build --no-cache
+# Verify
+python3 scripts/verify_models.py
 ```
 
-### Out of memory during pipeline
+### Out of Memory
 
 ```bash
-# Check Docker memory limit
-docker info | grep Memory
+# Increase Docker memory limit
+# Linux: Edit daemon.json
+# Windows: Docker Desktop > Settings > Resources > Memory (16GB+)
 
-# Increase in Docker Desktop: Settings > Resources > Memory (set to 16GB+)
-
-# Or process fewer frames
-ffmpeg -i input.mp4 -vframes 10 short.mp4
+# Or process shorter videos
+ffmpeg -i input.mp4 -t 5 short.mp4  # First 5 seconds
 ```
+
+---
+
+## Manual Installation (Not Recommended)
+
+If you prefer manual installation or the wizard doesn't work, see [docs/README-DOCKER.md](docs/README-DOCKER.md) for step-by-step instructions.
 
 ---
 
 ## Verify Installation
 
-Run all tests:
+After wizard completes:
 
 ```bash
-# Python test suite (7 tests)
+# Run test suite
 python3 tests/test_phase_1_complete.py
 
-# Docker build tests (requires Docker, 7 tests)
-./tests/integration/test_docker_build.sh
-
-# All tests should pass ✓
+# All 7 tests should pass ✓
 ```
+
+---
+
+## Performance Expectations
+
+**First-time setup:** ~20-30 minutes
+- Model downloads: 10-20 minutes
+- Docker build: 10-15 minutes
+- Test pipeline: 1 minute
+
+**Processing 30 frames:**
+- Depth: ~1 minute
+- Roto: ~1.5 minutes
+- COLMAP: ~2 minutes
+- Full pipeline: ~5-10 minutes
+
+**Processing 260 frames (10 seconds @ 24fps):**
+- Depth: ~8 minutes
+- Roto: ~12 minutes
+- COLMAP: ~10 minutes
+- Full pipeline: ~30-40 minutes
+
+*(Times vary by GPU/CPU)*
 
 ---
 
 ## Next Steps
 
-**Option 1: Process your own video**
-```bash
-# Copy your video to projects directory
-cp /path/to/your/video.mp4 ~/VFX-Projects/
+**Explore the pipeline:**
+- [Main README](README.md) - Full platform documentation
+- [Docker Guide](docs/README-DOCKER.md) - Comprehensive Docker usage
+- [ATLAS](docs/ATLAS.md) - Development roadmap
 
-# Run pipeline
-./scripts/run_docker.sh \
-  --input /workspace/projects/your_video.mp4 \
-  --name YourProject \
-  --stages depth,roto,colmap
+**Try different stages:**
+```bash
+# Depth only
+./scripts/run_docker.sh --input /workspace/projects/video.mp4 --name Test --stages depth
+
+# Segmentation with custom prompt
+./scripts/run_docker.sh --input /workspace/projects/video.mp4 --name Test --stages roto --prompt "person, car"
+
+# Camera tracking
+./scripts/run_docker.sh --input /workspace/projects/video.mp4 --name Test --stages colmap,camera
 ```
 
-**Option 2: Use ComfyUI web interface**
-```bash
-# Start container with web interface
-docker-compose up
-
-# Open browser to http://localhost:8188
-# Load workflows from project's workflows/ directory
-```
-
-**Option 3: Explore other stages**
-```bash
-# List all available stages
-./scripts/run_docker.sh --list-stages
-
-# Run specific stages
-./scripts/run_docker.sh \
-  --input /workspace/projects/video.mp4 \
-  --name Test \
-  --stages roto \
-  --prompt "person, ball, car"  # Custom segmentation
-```
-
----
-
-## Platform-Specific Performance
-
-**Linux (Native):**
-- Best performance
-- Minimal overhead (~2-5%)
-- Direct GPU access
-
-**Windows (WSL2):**
-- Good performance
-- Slight overhead (~5-10%)
-- GPU access via WSL2 passthrough
-- Keep files in WSL2 filesystem for best speed
-
-**macOS:**
-- Not supported (no GPU access)
-- Use local conda installation instead
+**Access ComfyUI workflows:**
+- Start: `docker-compose up`
+- Open: http://localhost:8188
+- Load workflows from `~/VFX-Projects/YourProject/workflows/`
 
 ---
 
@@ -362,9 +301,6 @@ docker-compose up
 - **Issues:** https://github.com/kleer001/comfyui_ingest/issues
 - **Discussions:** https://github.com/kleer001/comfyui_ingest/discussions
 
-## See Also
+---
 
-- [Main README](README.md) - Full platform documentation
-- [Docker Guide](docs/README-DOCKER.md) - Comprehensive Docker usage
-- [ATLAS](docs/ATLAS.md) - Development roadmap
-- [Roadmap 1](docs/ROADMAP-1-DOCKER.md) - Docker migration technical details
+**That's it!** You should now have a fully functional Docker-based VFX pipeline. The wizard handles all the complexity - just run it and follow the prompts!
