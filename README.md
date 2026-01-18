@@ -96,6 +96,11 @@ Full GPU support via Metal (Apple Silicon) or AMD (Intel Macs). Docker cannot ac
 curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap.sh | bash
 ```
 
+Or with tests:
+```bash
+curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_test.sh | bash
+```
+
 Run the pipeline:
 ```bash
 cd comfyui_ingest
@@ -109,6 +114,7 @@ If you've already cloned the repository, run the wizard directly:
 python scripts/install_wizard.py --docker         # Docker installation
 python scripts/install_wizard.py --docker --test  # Docker + run tests
 python scripts/install_wizard.py                  # Local Conda installation
+python scripts/install_wizard.py --test           # Local Conda + run tests
 ```
 
 ## Documentation
