@@ -6,9 +6,14 @@ all dependencies for the VFX pipeline including:
 - Dynamic scene segmentation (SAM3)
 - Human motion capture (WHAM, ECON)
 
+Supports two installation modes:
+- Conda-based: Direct local installation (default)
+- Docker-based: Containerized installation (--docker flag)
+
 Usage:
     python -m scripts.install_wizard
     python scripts/install_wizard.py
+    python scripts/install_wizard.py --docker          # Docker mode
     python scripts/install_wizard.py --component mocap
     python scripts/install_wizard.py --check-only
 """
@@ -16,6 +21,7 @@ Usage:
 from .cli import main
 from .conda import CondaEnvironmentManager
 from .config import ConfigurationGenerator
+from .docker import DockerManager, DockerModelDownloader, DockerStateManager, DockerWizard
 from .downloader import CheckpointDownloader
 from .installers import ComponentInstaller, GitRepoInstaller, PythonPackageInstaller
 from .progress import ProgressBarManager
@@ -36,7 +42,10 @@ __all__ = [
     'InstallationStateManager',
     'InstallationValidator',
     'InstallationWizard',
-    # Utility functions used by other scripts (e.g., janitor.py)
+    'DockerManager',
+    'DockerModelDownloader',
+    'DockerStateManager',
+    'DockerWizard',
     'print_success',
     'print_warning',
     'print_error',
