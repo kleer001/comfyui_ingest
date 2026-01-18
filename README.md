@@ -56,122 +56,62 @@ This pipeline automates first-pass VFX prep work that traditionally requires man
 
 ## Getting Started
 
-### Platform-Specific Installation
-
-The VFX Pipeline supports three operating systems, each with specific requirements for GPU acceleration and dependency management. Follow the instructions for your platform below.
-
----
-
 ### Linux
 
-**Recommended: Docker**
+Use Docker for NVIDIA GPU support and isolated environment.
 
-Docker is the recommended installation method for Linux systems. It provides:
-- Full NVIDIA GPU support via nvidia-container-toolkit
-- Isolated environment with all dependencies pre-configured
-- Consistent behavior across different Linux distributions
-- Simplified updates and maintenance
 
-**One-line install** (no clone needed):
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_docker.sh | bash
-```
-
-Or with automatic test pipeline:
-```bash
+# Or with tests:
 curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_docker_test.sh | bash
 ```
 
-**Prerequisites:**
-- NVIDIA GPU with driver installed
-- Docker with nvidia-container-toolkit
+**Prerequisites:** NVIDIA GPU with driver, Docker with nvidia-container-toolkit
 
-**Run the pipeline:**
-```bash
-cp footage.mp4 ~/VFX-Projects/
-cd comfyui_ingest
-./scripts/run_docker.sh --input /workspace/projects/footage.mp4 --name MyProject
-```
-
-**Alternative: Local Conda**
-
-Advanced users who prefer direct filesystem access for development can use the Conda installation. This requires manual management of dependencies and may encounter compatibility issues across different distributions.
+**Run:** `./scripts/run_docker.sh --input /workspace/projects/video.mp4 --name MyProject`
 
 ---
 
 ### Windows
 
-**Required: WSL2 + Docker**
+Native Windows unsupported. Use WSL2 + Docker:
 
-Native Windows is not supported due to incompatibilities with PyTorch, CUDA drivers, and POSIX-specific tooling. All Windows users must use WSL2 (Windows Subsystem for Linux) with Docker.
-
-**Setup process:**
-
-1. **Install WSL2** with Ubuntu:
-   ```powershell
-   wsl --install
-   ```
-   Or visit: https://aka.ms/wsl
-
-2. **Install Docker Desktop** for Windows with WSL2 backend enabled:
-   - Download from: https://www.docker.com/products/docker-desktop
-   - Enable "Use the WSL2 based engine" in settings
-   - Enable integration with your Ubuntu distribution
-
-3. **Run installation from within WSL2:**
+1. Install WSL2: `wsl --install` or visit https://aka.ms/wsl
+2. Install Docker Desktop with WSL2 backend enabled
+3. Run from WSL2 terminal:
    ```bash
-   # Inside WSL2 terminal
    curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_docker.sh | bash
    ```
 
-**Prerequisites:**
-- Windows 10 version 2004+ or Windows 11
-- NVIDIA GPU with Windows driver installed (WSL2 will use it automatically)
-- Docker Desktop with WSL2 backend
-
-All pipeline operations must be run from within the WSL2 terminal. File paths should reference your WSL2 filesystem (`~/VFX-Projects/`) or mounted Windows directories (`/mnt/c/...`).
+**Prerequisites:** Windows 10 2004+ or Windows 11, NVIDIA GPU with driver
 
 ---
 
 ### macOS
 
-**Required: Local Conda**
+Use Conda for GPU access (Docker can't access Metal/AMD GPUs on macOS).
 
-macOS users must use the local Conda installation because Docker Desktop for Mac cannot access GPU acceleration. macOS provides native GPU support through Metal (Apple Silicon) and AMD drivers (Intel Macs), but this is only available to processes running directly on the host system, not within Docker containers.
-
-**One-line install** (no clone needed):
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_conda.sh | bash
-```
-
-Or with automatic test pipeline:
-```bash
+# Or with tests:
 curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_conda_test.sh | bash
 ```
 
-**Prerequisites:**
-- macOS 11 (Big Sur) or newer
-- Apple Silicon (M1/M2/M3) recommended for best performance
-- Intel Macs supported but slower (CPU-only for some operations)
+**Prerequisites:** macOS 11+, Apple Silicon recommended (Intel Macs slower)
 
-**Run the pipeline:**
-```bash
-cd comfyui_ingest
-python scripts/run_pipeline.py footage.mp4 -s ingest,depth,roto,cleanplate,colmap,camera
-```
-
-**Note:** The Conda installation downloads all dependencies during setup. Installation time varies based on network speed and may take 15-30 minutes. Some packages may require compilation on Intel Macs.
+**Run:** `python scripts/run_pipeline.py video.mp4 -s ingest,depth,roto,cleanplate,colmap,camera`
 
 ---
 
-### Alternative: Direct Wizard (After Cloning)
+### After Cloning
 
-If you've already cloned the repository, run the wizard directly:
+If you've already cloned the repo, run the wizard directly:
 ```bash
-python scripts/install_wizard.py --docker         # Docker installation
-python scripts/install_wizard.py --docker --test  # Docker + run tests
-python scripts/install_wizard.py                  # Local Conda installation
-python scripts/install_wizard.py --test           # Local Conda + run tests
+python scripts/install_wizard.py --docker         # Docker
+python scripts/install_wizard.py --docker --test  # Docker + tests
+python scripts/install_wizard.py                  # Conda
+python scripts/install_wizard.py --test           # Conda + tests
 ```
 
 ## Documentation
