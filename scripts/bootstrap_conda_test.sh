@@ -1,11 +1,11 @@
 #!/bin/bash
-# VFX Pipeline Bootstrap Script
-# Downloads and runs the installation wizard
+# VFX Pipeline Bootstrap Script - Conda Edition (with tests)
+# Downloads and runs the installation wizard with test pipeline
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_conda_test.sh | bash
 #   or
-#   wget -qO- https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap.sh | bash
+#   wget -qO- https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_conda_test.sh | bash
 
 set -e  # Exit on error
 
@@ -13,7 +13,7 @@ REPO_URL="https://github.com/kleer001/comfyui_ingest.git"
 INSTALL_DIR="$(pwd)/comfyui_ingest"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  VFX Pipeline - Automated Installer"
+echo "  VFX Pipeline - Automated Installer (with tests)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
@@ -56,12 +56,12 @@ fi
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Launching Installation Wizard"
+echo "  Launching Installation Wizard (with tests)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-# Run the wizard
-python3 scripts/install_wizard.py "$@"
+# Run the wizard with --test flag
+python3 scripts/install_wizard.py --test "$@"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

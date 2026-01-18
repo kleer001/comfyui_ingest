@@ -93,12 +93,12 @@ Full GPU support via Metal (Apple Silicon) or AMD (Intel Macs). Docker cannot ac
 
 **One-line install** (no clone needed):
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_conda.sh | bash
 ```
 
 Or with tests:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_test.sh | bash
+curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_conda_test.sh | bash
 ```
 
 Run the pipeline:
