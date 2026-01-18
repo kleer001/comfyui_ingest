@@ -2,24 +2,36 @@
 
 Get the Docker-based VFX pipeline running in **under 10 minutes** with the automated installer.
 
-## One-Command Install
+## One-Line Install
 
+**Linux / WSL2:**
 ```bash
-# Clone repository
+curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap-docker.sh | bash
+```
+
+**Windows (PowerShell as Administrator):**
+```powershell
+irm https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap-docker.ps1 | iex
+```
+
+**Or manual clone:**
+```bash
 git clone https://github.com/kleer001/comfyui_ingest.git
 cd comfyui_ingest
-
-# Run the installation wizard
 python3 scripts/install_wizard_docker.py
 ```
 
-That's it! The wizard will:
-1. ✓ Detect your platform (Linux/Windows/macOS)
-2. ✓ Check prerequisites (Docker, NVIDIA driver, etc.)
-3. ✓ Guide you through any missing installations
-4. ✓ Download ML models (~15-20GB)
-5. ✓ Build Docker image (~10-15 minutes)
-6. ✓ Run test pipeline to verify everything works
+That's it! The bootstrap script will:
+1. ✓ Clone the repository (or update if already exists)
+2. ✓ Launch the installation wizard
+3. ✓ Detect your platform (Linux/Windows/macOS)
+4. ✓ Check prerequisites (Docker, NVIDIA driver, etc.)
+5. ✓ Guide you through any missing installations
+6. ✓ Download ML models (~15-20GB)
+7. ✓ Build Docker image (~10-15 minutes)
+8. ✓ Run test pipeline to verify everything works
+
+**Windows note:** The PowerShell script sets up WSL2 and Ubuntu, then runs the Linux bootstrap inside WSL.
 
 ---
 
