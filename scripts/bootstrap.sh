@@ -3,9 +3,9 @@
 # Downloads and runs the installation wizard
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap.sh | bash
 #   or
-#   wget -qO- https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap.sh | bash
+#   wget -qO- https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap.sh | bash
 
 set -e  # Exit on error
 

@@ -62,20 +62,12 @@ Full GPU support with NVIDIA. Docker provides isolated environment and easier se
 
 **One-line install** (no clone needed):
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap-docker.sh | bash
+curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_docker.sh | bash
 ```
 
 Or with tests:
 ```bash
-wget -qO- https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap-docker.sh | bash -s -- --test
-```
-
-**Alternative** (clone first):
-```bash
-git clone https://github.com/kleer001/comfyui_ingest.git
-cd comfyui_ingest
-./scripts/bootstrap_docker.sh            # Install
-./scripts/bootstrap_docker_test.sh       # Install + run tests
+curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_docker_test.sh | bash
 ```
 
 Run the pipeline:
@@ -101,19 +93,7 @@ Full GPU support via Metal (Apple Silicon) or AMD (Intel Macs). Docker cannot ac
 
 **One-line install** (no clone needed):
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap.sh | bash
-```
-
-Or using wget:
-```bash
-wget -qO- https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap.sh | bash
-```
-
-**Alternative** (clone first):
-```bash
-git clone https://github.com/kleer001/comfyui_ingest.git
-cd comfyui_ingest
-python3 scripts/install_wizard.py
+curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap.sh | bash
 ```
 
 Run the pipeline:
