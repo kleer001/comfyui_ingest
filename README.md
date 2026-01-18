@@ -56,70 +56,55 @@ This pipeline automates first-pass VFX prep work that traditionally requires man
 
 ## Getting Started
 
-### Option 1: Docker (Recommended)
+### Linux (Recommended: Docker)
 
-Best for: Quick setup, consistent environment, isolation from system packages.
-
-**Requirements:** Linux or WSL2, NVIDIA GPU, Docker installed.
+Full GPU support with NVIDIA. Docker provides isolated environment and easier setup.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap-docker.sh | bash
+git clone https://github.com/kleer001/comfyui_ingest.git
+cd comfyui_ingest
+./scripts/bootstrap_docker.sh            # Install
+./scripts/bootstrap_docker_test.sh       # Install + run tests
 ```
 
-The installer will:
-- Check prerequisites (NVIDIA driver, Docker)
-- Offer to install NVIDIA Container Toolkit if missing
-- Download models (~15-20GB)
-- Build the Docker image
-- Run a test pipeline
-
-**Run the pipeline:**
+Run the pipeline:
 ```bash
 cp footage.mp4 ~/VFX-Projects/
 ./scripts/run_docker.sh --input /workspace/projects/footage.mp4 --name MyProject
 ```
 
-### Option 2: Local Conda Installation
+Local Conda also works if you prefer direct file access for development.
 
-Best for: Development, customization, macOS (CPU-only), systems without Docker.
+### Windows (Recommended: Docker via WSL2)
 
-**Requirements:** Linux or macOS, NVIDIA GPU (optional on macOS), Conda/Miniconda.
+Native Windows is not supported. Install WSL2 with Ubuntu, then follow Linux instructions.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap.sh | bash
-```
+1. Install WSL2: https://aka.ms/wsl
+2. Install Docker Desktop with WSL2 backend
+3. Run the Docker installation from within WSL2
 
-Or manually:
+### macOS (Recommended: Local Conda)
+
+Full GPU support via Metal (Apple Silicon) or AMD (Intel Macs). Docker cannot access macOS GPUs.
+
 ```bash
 git clone https://github.com/kleer001/comfyui_ingest.git
 cd comfyui_ingest
-python scripts/install_wizard.py
+./scripts/bootstrap.sh
 ```
 
-**Run the pipeline:**
+Run the pipeline:
 ```bash
 python scripts/run_pipeline.py footage.mp4 -s ingest,depth,roto,cleanplate,colmap,camera
 ```
 
-### Which Should I Use?
+### Alternative: Install Wizard
 
-| Factor | Docker | Local Conda |
-|--------|--------|-------------|
-| **Setup time** | ~20 min | ~30-60 min |
-| **Isolation** | Full container isolation | Conda environment |
-| **Disk usage** | Higher (Docker layers) | Lower |
-| **Customization** | Rebuild image needed | Direct file editing |
-| **WSL2 support** | Yes | Limited |
-| **macOS support** | No (no GPU passthrough) | Yes (CPU-only) |
-| **Windows native** | No | No |
-
-**Basic usage (local installation):**
+Both methods can also be run via the install wizard:
 ```bash
-# Process footage with full VFX pipeline
-python scripts/run_pipeline.py footage.mp4 -s ingest,depth,roto,cleanplate,colmap,camera
-
-# Web interface
-./start_web.py
+python scripts/install_wizard.py --docker         # Docker installation
+python scripts/install_wizard.py --docker --test  # Docker + run tests
+python scripts/install_wizard.py                  # Local Conda installation
 ```
 
 ## Documentation
