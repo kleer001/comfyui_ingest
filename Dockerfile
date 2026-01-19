@@ -78,8 +78,11 @@ RUN apt-get update && apt-get install -y \
 
 # Copy built COLMAP from builder stage
 COPY --from=colmap-builder /usr/local/bin/colmap /usr/local/bin/colmap
-COPY --from=colmap-builder /usr/local/lib/colmap /usr/local/lib/colmap
-COPY --from=colmap-builder /usr/local/share/colmap /usr/local/share/colmap
+# COLMAP libraries are installed directly to lib/, not lib/colmap/
+COPY --from=colmap-builder /usr/local/lib/libcolmap* /usr/local/lib/
+
+# Update dynamic linker cache so COLMAP can find its libraries
+RUN ldconfig
 
 # Create application directory
 WORKDIR /app
