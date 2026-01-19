@@ -13,7 +13,7 @@ Usage:
 Examples:
     python bug_reporter.py
     python bug_reporter.py --latest
-    python bug_reporter.py --log logs/20260119_143022_linux_conda.log
+    python bug_reporter.py --log logs/20260119_143022_123456_linux_conda.log
 """
 
 import argparse
@@ -45,11 +45,14 @@ def list_logs(count: int = 10) -> None:
     print("-" * 80)
 
     for i, log_file in enumerate(logs, 1):
-        size_kb = log_file.stat().st_size / 1024
-        mtime = log_file.stat().st_mtime
-        mtime_str = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
-
-        print(f"{i:<4} {log_file.name:<45} {size_kb:>7.1f} KB {mtime_str}")
+        try:
+            stat_info = log_file.stat()
+            size_kb = stat_info.st_size / 1024
+            mtime_str = datetime.fromtimestamp(stat_info.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+            print(f"{i:<4} {log_file.name:<45} {size_kb:>7.1f} KB {mtime_str}")
+        except (FileNotFoundError, OSError):
+            print(f"{i:<4} {log_file.name:<45} {'<deleted>':<10} {'<unavailable>'}")
+            continue
 
     print(f"\nTo view a log: python {Path(__file__).name} --log {logs[0].name}")
     print(f"Latest log:    python {Path(__file__).name} --latest")
@@ -69,7 +72,11 @@ def view_log(log_file: Path) -> None:
 
     print(f"\n{'='*80}")
     print(f"Log file: {log_file.absolute()}")
-    print(f"Size: {log_file.stat().st_size / 1024:.1f} KB")
+    try:
+        size_kb = log_file.stat().st_size / 1024
+        print(f"Size: {size_kb:.1f} KB")
+    except (FileNotFoundError, OSError):
+        print("Size: <unavailable>")
     print(f"{'='*80}\n")
 
 
@@ -171,6 +178,8 @@ Examples:
     )
 
     args = parser.parse_args()
+
+    args.count = max(1, min(args.count, 100))
 
     if args.email:
         logs = get_recent_logs(count=1)

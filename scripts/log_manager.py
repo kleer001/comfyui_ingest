@@ -41,6 +41,9 @@ class TeeWriter:
         If writing to any stream fails, continues with remaining streams.
         Always writes to first stream (stdout/stderr) first.
         """
+        if not isinstance(data, str):
+            data = str(data)
+
         for stream in self.streams:
             try:
                 stream.write(data)
@@ -92,7 +95,7 @@ class LogCapture:
             log_dir = repo_root / "logs"
 
         self.log_dir = Path(log_dir)
-        self.max_logs = max_logs
+        self.max_logs = max(1, min(max_logs, 100))
         self.log_file: Optional[Path] = None
         self.log_handle: Optional[TextIO] = None
         self._logging_enabled = False
@@ -100,8 +103,8 @@ class LogCapture:
         self.stdout_buffer = StringIO()
         self.stderr_buffer = StringIO()
 
-        self._original_stdout = sys.stdout
-        self._original_stderr = sys.stderr
+        self._original_stdout = sys.stdout if sys.stdout is not None else sys.__stdout__
+        self._original_stderr = sys.stderr if sys.stderr is not None else sys.__stderr__
 
     def __enter__(self):
         """Start log capture.
@@ -203,6 +206,8 @@ class LogCapture:
 
         git_commit = self._get_git_commit()
 
+        command_str = ' '.join(str(arg) for arg in sys_module.argv)
+
         header = f"""{'='*80}
 VFX Pipeline Log
 {'='*80}
@@ -213,7 +218,7 @@ Package Manager: {pkg_mgr}
 Environment:     {env_type}
 Python Version:  {sys_module.version.split()[0]}
 Platform:        {platform.platform()}
-Command:         {' '.join(sys_module.argv)}
+Command:         {command_str}
 {'='*80}
 
 """
@@ -315,7 +320,18 @@ def print_log_summary(log_file: Path) -> None:
         print(f"Log file not found: {log_file}", file=sys.stderr)
         return
 
-    lines = log_file.read_text(encoding='utf-8').splitlines()
+    try:
+        lines = log_file.read_text(encoding='utf-8').splitlines()
+    except UnicodeDecodeError:
+        try:
+            lines = log_file.read_text(encoding='latin-1').splitlines()
+            print("Warning: Log file is not UTF-8, reading as Latin-1", file=sys.stderr)
+        except Exception as e:
+            print(f"Error reading log file: {e}", file=sys.stderr)
+            return
+    except Exception as e:
+        print(f"Error reading log file: {e}", file=sys.stderr)
+        return
 
     header_end = 0
     for i, line in enumerate(lines):
