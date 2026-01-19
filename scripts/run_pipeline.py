@@ -1268,7 +1268,7 @@ def run_pipeline(
                 stage_name="cleanplate",
             ):
                 print("  → Cleanplate stage failed", file=sys.stderr)
-                return False
+                # Non-fatal: continue to 3D stages (colmap, mocap, camera)
         # Generate preview movie
         if auto_movie and list(cleanplate_dir.glob("*.png")):
             generate_preview_movie(cleanplate_dir, project_dir / "preview" / "cleanplate.mp4", fps)
