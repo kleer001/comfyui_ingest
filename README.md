@@ -141,7 +141,8 @@ Complete documentation available in [docs/](docs/):
 - [Maintenance](docs/janitor.md) - System health and updates
 - [Windows Compatibility](docs/windows-compatibility.md) - Roadmap for Windows support
 
-## Project Structure
+<details>
+<summary><strong>Project Structure</strong></summary>
 
 Output follows VFX production conventions:
 ```
@@ -156,6 +157,8 @@ Output follows VFX production conventions:
 ```
 
 **Note on frame numbering:** Frame sequences start at 0001 rather than the VFX industry standard of 1001. Unfortunately, ComfyUI's SaveImage node and WHAM's output constraints make custom start frame numbering infeasible. We apologize for this deviation from convention.
+
+</details>
 
 ## System Requirements
 
@@ -219,7 +222,8 @@ Output follows VFX production conventions:
 
 Note: NVIDIA GPU with CUDA support required for all ML models.
 
-## Tool Limitations by Shot Type
+<details>
+<summary><strong>Tool Limitations by Shot Type</strong></summary>
 
 Different components perform best under specific conditions:
 
@@ -243,6 +247,8 @@ Different components perform best under specific conditions:
 - ⚠ Limited/challenging
 - ✗ Not suitable/fails
 - N/A Not applicable
+
+</details>
 
 ## License
 
