@@ -25,21 +25,39 @@ from env_config import is_in_container
 
 
 class TeeWriter:
-    """Write to multiple streams simultaneously (tee-like behavior)."""
+    """Write to multiple streams simultaneously (tee-like behavior).
+
+    Fails gracefully - if writing to one stream fails, continues with others.
+    Always prioritizes the first stream (typically stdout/stderr) to ensure
+    user sees output even if log file writing fails.
+    """
 
     def __init__(self, *streams: TextIO):
         self.streams = streams
 
     def write(self, data: str) -> None:
-        """Write data to all streams."""
+        """Write data to all streams.
+
+        If writing to any stream fails, continues with remaining streams.
+        Always writes to first stream (stdout/stderr) first.
+        """
         for stream in self.streams:
-            stream.write(data)
-            stream.flush()
+            try:
+                stream.write(data)
+                stream.flush()
+            except Exception:
+                pass
 
     def flush(self) -> None:
-        """Flush all streams."""
+        """Flush all streams.
+
+        If flushing any stream fails, continues with remaining streams.
+        """
         for stream in self.streams:
-            stream.flush()
+            try:
+                stream.flush()
+            except Exception:
+                pass
 
 
 class LogCapture:
@@ -51,6 +69,11 @@ class LogCapture:
     - Saves to timestamped log file
     - Rotates logs (keeps newest 10)
     - Includes system metadata (OS, environment, command)
+
+    IMPORTANT: This class is designed to be fail-safe. If logging setup
+    fails for any reason (permissions, disk space, etc.), it will silently
+    disable logging and allow the wrapped code to run normally. This ensures
+    that logging never interrupts critical operations like renders or simulations.
 
     Attributes:
         log_dir: Directory where logs are stored (default: logs/)
@@ -72,6 +95,7 @@ class LogCapture:
         self.max_logs = max_logs
         self.log_file: Optional[Path] = None
         self.log_handle: Optional[TextIO] = None
+        self._logging_enabled = False
 
         self.stdout_buffer = StringIO()
         self.stderr_buffer = StringIO()
@@ -80,49 +104,83 @@ class LogCapture:
         self._original_stderr = sys.stderr
 
     def __enter__(self):
-        """Start log capture."""
-        self.log_dir.mkdir(parents=True, exist_ok=True)
+        """Start log capture.
 
-        self.log_file = self._generate_log_filename()
-        self.log_handle = open(self.log_file, 'w', encoding='utf-8')
+        If logging setup fails for any reason, silently disables logging
+        and continues without interrupting the wrapped code.
+        """
+        try:
+            self.log_dir.mkdir(parents=True, exist_ok=True)
+            self.log_file = self._generate_log_filename()
+            self.log_handle = open(self.log_file, 'w', encoding='utf-8')
+            self._write_log_header()
 
-        self._write_log_header()
+            sys.stdout = TeeWriter(self._original_stdout, self.stdout_buffer, self.log_handle)
+            sys.stderr = TeeWriter(self._original_stderr, self.stderr_buffer, self.log_handle)
 
-        sys.stdout = TeeWriter(self._original_stdout, self.stdout_buffer, self.log_handle)
-        sys.stderr = TeeWriter(self._original_stderr, self.stderr_buffer, self.log_handle)
+            self._logging_enabled = True
+
+        except Exception:
+            self._logging_enabled = False
+            if self.log_handle:
+                try:
+                    self.log_handle.close()
+                except Exception:
+                    pass
+            self.log_handle = None
+            self.log_file = None
 
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Stop log capture and finalize log file."""
+        """Stop log capture and finalize log file.
+
+        Always restores original stdout/stderr, even if logging failed.
+        Never raises exceptions to avoid interrupting user code.
+        """
         sys.stdout = self._original_stdout
         sys.stderr = self._original_stderr
 
-        if exc_type is not None:
-            self.log_handle.write(f"\n{'='*80}\n")
-            self.log_handle.write(f"FATAL ERROR: {exc_type.__name__}: {exc_val}\n")
-            self.log_handle.write(f"{'='*80}\n")
+        if self._logging_enabled and self.log_handle:
+            try:
+                if exc_type is not None:
+                    self.log_handle.write(f"\n{'='*80}\n")
+                    self.log_handle.write(f"FATAL ERROR: {exc_type.__name__}: {exc_val}\n")
+                    self.log_handle.write(f"{'='*80}\n")
+            except Exception:
+                pass
 
-        if self.log_handle:
-            self.log_handle.close()
+            try:
+                self.log_handle.close()
+            except Exception:
+                pass
 
-        self._rotate_logs()
+        if self._logging_enabled:
+            try:
+                self._rotate_logs()
+            except Exception:
+                pass
 
         return False
 
     def _generate_log_filename(self) -> Path:
         """Generate timestamped log filename with OS and environment.
 
-        Format: YYYYMMDD_HHMMSS_<osname>_<conda|docker>.log
+        Format: YYYYMMDD_HHMMSS_microseconds_<osname>_<conda|docker>.log
         Examples:
-            20260119_143022_linux_conda.log
-            20260119_150033_macos_docker.log
-            20260119_161544_windows_conda.log
+            20260119_143022_123456_linux_conda.log
+            20260119_150033_789012_macos_docker.log
+            20260119_161544_345678_windows_conda.log
+
+        Microseconds ensure unique filenames even if multiple logs
+        are created in the same second.
 
         Returns:
             Path to log file
         """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        now = datetime.now()
+        timestamp = now.strftime("%Y%m%d_%H%M%S")
+        microseconds = f"{now.microsecond:06d}"
 
         os_name, environment, _ = PlatformManager.detect_platform()
 
@@ -131,7 +189,7 @@ class LogCapture:
 
         env_type = "docker" if is_in_container() else "conda"
 
-        filename = f"{timestamp}_{os_name}_{env_type}.log"
+        filename = f"{timestamp}_{microseconds}_{os_name}_{env_type}.log"
         return self.log_dir / filename
 
     def _write_log_header(self) -> None:

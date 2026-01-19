@@ -16,6 +16,8 @@ Usage:
 """
 
 from install_wizard import main
+from log_manager import LogCapture
 
 if __name__ == "__main__":
-    main()
+    with LogCapture():
+        main()

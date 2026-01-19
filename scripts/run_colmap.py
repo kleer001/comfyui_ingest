@@ -28,6 +28,9 @@ import numpy as np
 # Environment check - ensure correct conda environment is active
 from env_config import check_conda_env_or_warn
 
+# Log capture for debugging
+from log_manager import LogCapture
+
 
 # COLMAP quality presets
 QUALITY_PRESETS = {
@@ -1284,4 +1287,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    with LogCapture():
+        main()

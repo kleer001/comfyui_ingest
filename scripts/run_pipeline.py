@@ -32,6 +32,9 @@ from comfyui_utils import (
 )
 from comfyui_manager import ensure_comfyui, stop_comfyui, kill_all_comfyui_processes
 
+# Log capture for debugging
+from log_manager import LogCapture
+
 # Workflow templates directory
 WORKFLOW_TEMPLATES_DIR = Path(__file__).parent.parent / "workflow_templates"
 
@@ -1540,4 +1543,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    with LogCapture():
+        main()

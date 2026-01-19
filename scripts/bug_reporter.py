@@ -18,12 +18,13 @@ Examples:
 
 import argparse
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from log_manager import get_recent_logs, print_log_summary
 
 
-MAINTAINER_EMAIL = "your-email@example.com"  # TODO: Update with actual email
+MAINTAINER_EMAIL = "kleer001code@gmail.com"
 
 
 def list_logs(count: int = 10) -> None:
@@ -46,7 +47,6 @@ def list_logs(count: int = 10) -> None:
     for i, log_file in enumerate(logs, 1):
         size_kb = log_file.stat().st_size / 1024
         mtime = log_file.stat().st_mtime
-        from datetime import datetime
         mtime_str = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
 
         print(f"{i:<4} {log_file.name:<45} {size_kb:>7.1f} KB {mtime_str}")
@@ -172,9 +172,6 @@ Examples:
 
     args = parser.parse_args()
 
-    repo_root = Path(__file__).parent.parent
-    log_dir = repo_root / "logs"
-
     if args.email:
         logs = get_recent_logs(count=1)
         show_email_instructions(logs[0] if logs else None)
@@ -191,6 +188,8 @@ Examples:
     elif args.log:
         log_path = Path(args.log)
         if not log_path.is_absolute():
+            repo_root = Path(__file__).parent.parent
+            log_dir = repo_root / "logs"
             log_path = log_dir / log_path
         view_log(log_path)
         print("\nTo submit this log:")
