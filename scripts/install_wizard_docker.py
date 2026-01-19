@@ -32,6 +32,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from install_wizard.docker import DockerWizard
+from log_manager import LogCapture
 
 
 def main():
@@ -84,4 +85,5 @@ Note: You can also use the unified wizard with --docker flag:
 
 
 if __name__ == "__main__":
-    main()
+    with LogCapture():
+        main()

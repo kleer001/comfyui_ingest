@@ -15,6 +15,8 @@ from pathlib import Path
 # Add scripts to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "scripts"))
 
+from log_manager import LogCapture
+
 def main():
     parser = argparse.ArgumentParser(description="Launch VFX Pipeline web interface")
     parser.add_argument("--no-browser", action="store_true", help="Don't auto-open browser")
@@ -79,4 +81,5 @@ Or run the install wizard:
 
 
 if __name__ == "__main__":
-    main()
+    with LogCapture():
+        main()

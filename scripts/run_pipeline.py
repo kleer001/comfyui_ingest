@@ -51,6 +51,9 @@ from stage_runners import (
     setup_project,
 )
 
+# Log capture for debugging
+from log_manager import LogCapture
+
 
 def sanitize_stages(stages: list[str]) -> list[str]:
     """Deduplicate, inject dependencies, and reorder stages.
@@ -684,4 +687,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    with LogCapture():
+        main()

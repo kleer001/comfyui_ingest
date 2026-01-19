@@ -25,6 +25,9 @@ from typing import Optional, List, Dict
 # Environment check and configuration
 from env_config import require_conda_env, INSTALL_DIR
 
+# Log capture for debugging
+from log_manager import LogCapture
+
 
 # Dependencies check results (cached)
 _DEPS_CHECKED = {}
@@ -319,4 +322,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    with LogCapture():
+        main()

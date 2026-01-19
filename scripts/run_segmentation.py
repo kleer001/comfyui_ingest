@@ -36,6 +36,9 @@ from comfyui_utils import (
     wait_for_completion,
 )
 
+# Log capture for debugging
+from log_manager import LogCapture
+
 
 def update_segmentation_prompt(workflow: dict, prompt: str) -> dict:
     """Update the text prompt in the segmentation workflow.
@@ -299,4 +302,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    with LogCapture():
+        main()
