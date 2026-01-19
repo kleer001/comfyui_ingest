@@ -14,6 +14,17 @@ NC='\033[0m' # No Color
 MODELS_DIR="${VFX_MODELS_DIR:-${HOME}/.vfx_pipeline/models}"
 PROJECTS_DIR="${VFX_PROJECTS_DIR:-${HOME}/VFX-Projects}"
 
+# Detect docker compose command (plugin vs standalone)
+if docker compose version > /dev/null 2>&1; then
+    DOCKER_COMPOSE="docker compose"
+elif command -v docker-compose > /dev/null 2>&1; then
+    DOCKER_COMPOSE="docker-compose"
+else
+    echo -e "${RED}ERROR: Neither 'docker compose' nor 'docker-compose' found${NC}"
+    echo "Install Docker Compose: https://docs.docker.com/compose/install/"
+    exit 1
+fi
+
 # Check Docker is running
 if ! docker info > /dev/null 2>&1; then
     echo -e "${RED}ERROR: Docker is not running${NC}"
@@ -47,7 +58,7 @@ if ! docker image inspect vfx-ingest:latest > /dev/null 2>&1; then
     echo -e "${YELLOW}Docker image not found. Building...${NC}"
     echo "(This is a one-time operation and may take 10-15 minutes)"
     echo ""
-    docker-compose build
+    $DOCKER_COMPOSE build
     echo ""
     echo -e "${GREEN}✓ Docker image built successfully${NC}"
     echo ""
@@ -59,4 +70,4 @@ echo "Models: $MODELS_DIR (read-only)"
 echo "Projects: $PROJECTS_DIR"
 echo ""
 
-docker-compose run --rm vfx-ingest "$@"
+$DOCKER_COMPOSE run --rm vfx-ingest "$@"
