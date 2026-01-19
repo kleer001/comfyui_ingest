@@ -64,6 +64,30 @@ else
     echo -e "${YELLOW}  WARNING: MatAnyone model not found at $MATANYONE_SRC${NC}"
 fi
 
+# SAM3 expects model at ComfyUI root (downloads automatically if missing, but symlink avoids re-download)
+SAM3_SRC="/models/sam3/sam3.pt"
+SAM3_DST="/app/.vfx_pipeline/ComfyUI/sam3.pt"
+if [ -f "$SAM3_SRC" ]; then
+    if [ ! -e "$SAM3_DST" ]; then
+        ln -sf "$SAM3_SRC" "$SAM3_DST"
+        echo -e "${GREEN}  ✓ Linked SAM3 model${NC}"
+    else
+        echo -e "${GREEN}  ✓ SAM3 model already linked${NC}"
+    fi
+fi
+
+# SMPL-X models for mocap stage (manual download required)
+SMPLX_SRC="/models/smplx"
+SMPLX_DST="/app/.vfx_pipeline/smplx_models"
+if [ -d "$SMPLX_SRC" ]; then
+    if [ ! -e "$SMPLX_DST" ]; then
+        ln -sf "$SMPLX_SRC" "$SMPLX_DST"
+        echo -e "${GREEN}  ✓ Linked SMPL-X models${NC}"
+    else
+        echo -e "${GREEN}  ✓ SMPL-X models already linked${NC}"
+    fi
+fi
+
 # Start ComfyUI in background if requested
 if [ "$START_COMFYUI" = "true" ]; then
     echo -e "${GREEN}Starting ComfyUI...${NC}"
