@@ -6,8 +6,8 @@ This module provides Docker-specific functionality for the install wizard:
 - DockerModelDownloader: Full model downloads for Docker workflow
 - DockerWizard: Main Docker installation orchestrator
 
-The Docker wizard downloads the same models as the conda wizard, just to
-a different location (~/.vfx_pipeline/models/) for container mounting.
+The Docker wizard downloads the same models as the conda wizard, to
+<repo>/.vfx_pipeline/models/ for container mounting.
 
 Usage:
     from install_wizard.docker import DockerWizard
@@ -28,6 +28,7 @@ from .downloader import CheckpointDownloader
 from .platform import PlatformManager
 from .utils import (
     Colors,
+    ask_yes_no,
     check_command_available,
     format_size_gb,
     get_disk_space,
@@ -54,7 +55,12 @@ class DockerStateManager:
 
         try:
             with open(self.state_file, 'r') as f:
-                return json.load(f)
+                loaded_state = json.load(f)
+            initial_state = self._create_initial_state()
+            for key, value in initial_state.items():
+                if key not in loaded_state:
+                    loaded_state[key] = value
+            return loaded_state
         except (json.JSONDecodeError, IOError):
             print_warning(f"Could not load state from {self.state_file}, creating new state")
             return self._create_initial_state()
@@ -308,85 +314,35 @@ Verify in WSL2:
 class DockerCheckpointDownloader(CheckpointDownloader):
     """Checkpoint downloader configured for Docker's flat directory structure.
 
-    Docker mounts models from ~/.vfx_pipeline/models/ into the container,
+    Docker mounts models from <repo>/.vfx_pipeline/models/ into the container,
     using a flat structure rather than the nested ComfyUI layout.
+
+    Inherits checkpoint source configs (URLs, auth, files) from base class
+    and only overrides dest_dir_rel for Docker's directory layout.
     """
 
-    DOCKER_CHECKPOINTS: Dict = {
-        'sam3': {
-            'name': 'SAM3 Model',
-            'requires_auth': False,
-            'use_huggingface': True,
-            'hf_repo_id': '1038lab/sam3',
-            'files': [{'filename': 'sam3.pt', 'size_mb': 3200}],
-            'dest_dir_rel': 'sam3',
-            'instructions': '''SAM3 model will be downloaded from HuggingFace (1038lab/sam3).
-If automatic download fails, manually download from:
-  https://huggingface.co/1038lab/sam3/blob/main/sam3.pt'''
-        },
-        'video_depth_anything': {
-            'name': 'Video Depth Anything Model',
-            'requires_auth': False,
-            'use_huggingface': True,
-            'hf_repo_id': 'depth-anything/Video-Depth-Anything-Small',
-            'files': [{'filename': 'video_depth_anything_vits.pth', 'size_mb': 120}],
-            'dest_dir_rel': 'videodepthanything',
-            'instructions': '''Video Depth Anything Small model will be downloaded from HuggingFace.
-This model uses ~6.8GB VRAM (vs 23.6GB for Large), suitable for most GPUs.'''
-        },
-        'wham': {
-            'name': 'WHAM Checkpoints',
-            'requires_auth': False,
-            'use_huggingface': True,
-            'hf_repo_id': 'yohanshin/WHAM',
-            'files': [{'filename': 'wham_vit_w_3dpw.pth.tar', 'size_mb': 1200}],
-            'dest_dir_rel': 'wham',
-            'instructions': '''WHAM checkpoints will be downloaded from HuggingFace.
-If automatic download fails, manually download from:
-  https://huggingface.co/yohanshin/WHAM'''
-        },
-        'matanyone': {
-            'name': 'MatAnyone Model',
-            'requires_auth': False,
-            'use_huggingface': False,
-            'files': [{
-                'url': 'https://github.com/pq-yang/MatAnyone/releases/download/v1.0.0/matanyone.pth',
-                'filename': 'matanyone.pth',
-                'size_mb': 141,
-            }],
-            'dest_dir_rel': 'matanyone',
-            'instructions': '''MatAnyone model for stable video matting.
-Download from: https://github.com/pq-yang/MatAnyone/releases/download/v1.0.0/matanyone.pth
-Place in ~/.vfx_pipeline/models/matanyone/matanyone.pth'''
-        },
-        'smplx': {
-            'name': 'SMPL-X Models',
-            'requires_auth': True,
-            'auth_type': 'smplx',
-            'auth_file': 'SMPL.login.dat',
-            'login_url': 'https://smpl-x.is.tue.mpg.de/login.php',
-            'download_page': 'https://smpl-x.is.tue.mpg.de/download.php',
-            'files': [{
-                'url': 'https://download.is.tue.mpg.de/download.php?domain=smplx&sfile=models_smplx_v1_1.zip',
-                'filename': 'models_smplx_v1_1.zip',
-                'size_mb': 830,
-                'sha256': None,
-                'extract': True
-            }],
-            'dest_dir_rel': 'smplx',
-            'instructions': '''SMPL-X models require registration:
-1. Register at https://smpl-x.is.tue.mpg.de/register.php
-2. Wait for approval email (usually within 24-48 hours)
-3. Create SMPL.login.dat in repository root with:
-   Line 1: your email
-   Line 2: your password
-4. Re-run the wizard to download models'''
-        }
+    DOCKER_DEST_DIRS: Dict[str, str] = {
+        'sam3': 'sam3',
+        'video_depth_anything': 'videodepthanything',
+        'wham': 'wham',
+        'matanyone': 'matanyone',
+        'smplx': 'smplx',
     }
 
     def __init__(self, models_dir: Path):
         super().__init__(base_dir=models_dir)
-        self.CHECKPOINTS = self.DOCKER_CHECKPOINTS
+        self.CHECKPOINTS = self._build_docker_checkpoints()
+
+    def _build_docker_checkpoints(self) -> Dict:
+        """Build Docker checkpoints by copying base configs with Docker dest_dir_rel."""
+        import copy
+        docker_checkpoints = {}
+        for checkpoint_id, dest_dir in self.DOCKER_DEST_DIRS.items():
+            if checkpoint_id in CheckpointDownloader.CHECKPOINTS:
+                config = copy.deepcopy(CheckpointDownloader.CHECKPOINTS[checkpoint_id])
+                config['dest_dir_rel'] = dest_dir
+                docker_checkpoints[checkpoint_id] = config
+        return docker_checkpoints
 
     def get_total_size_gb(self, checkpoint_ids: List[str]) -> float:
         """Calculate total download size in GB."""
@@ -403,7 +359,8 @@ class DockerWizard:
 
     def __init__(self):
         self.repo_root = Path(__file__).parent.parent.parent
-        self.models_dir = Path.home() / ".vfx_pipeline" / "models"
+        self.models_dir = self.repo_root / ".vfx_pipeline" / "models"
+        self.projects_dir = self.repo_root.parent / "vfx_projects"
         self.state_file = self.models_dir / "docker_install_state.json"
 
         self.state_manager = DockerStateManager(self.state_file)
@@ -705,12 +662,12 @@ class DockerWizard:
             return True
 
         test_video = self.repo_root / "tests" / "fixtures" / "football_short.mp4"
-        projects_dir = Path.home() / "VFX-Projects"
+        projects_dir = self.projects_dir
         projects_dir.mkdir(parents=True, exist_ok=True)
 
         if test_video.exists():
             shutil.copy2(test_video, projects_dir / "football_short.mp4")
-            print_success("Test video copied to ~/VFX-Projects/")
+            print_success(f"Test video copied to {projects_dir}/")
         else:
             print_warning("Test video not found, skipping test")
             return True
@@ -722,9 +679,9 @@ class DockerWizard:
             subprocess.run(
                 [
                     "bash", str(run_script),
-                    "--input", "/workspace/projects/football_short.mp4",
                     "--name", "FootballTest",
-                    "--stages", "depth"
+                    "--stages", "depth",
+                    "/workspace/projects/football_short.mp4"
                 ],
                 cwd=self.repo_root,
                 check=True
@@ -750,9 +707,9 @@ class DockerWizard:
         print_header("Next Steps")
 
         print_info("Quick start:")
-        print("  1. Copy your video to ~/VFX-Projects/")
+        print(f"  1. Copy your video to {self.projects_dir}/")
         print("  2. Run:")
-        print("     ./scripts/run_docker.sh --input /workspace/projects/video.mp4 --name MyProject")
+        print("     bash scripts/run_docker.sh --name MyProject /workspace/projects/video.mp4")
         print()
 
         print_info("Available stages:")
