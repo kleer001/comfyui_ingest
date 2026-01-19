@@ -74,10 +74,53 @@ if ! docker image inspect vfx-ingest:latest > /dev/null 2>&1; then
     echo ""
 fi
 
-# Run container
-echo -e "${GREEN}Running VFX Ingest Platform in Docker...${NC}"
-echo "Models: $MODELS_DIR (read-only)"
-echo "Projects: $PROJECTS_DIR"
-echo ""
+# Parse arguments to find input file and mount it
+INPUT_FILE=""
+DOCKER_ARGS=()
+FOUND_INPUT=false
 
-$DOCKER_COMPOSE run --rm vfx-ingest "$@"
+for arg in "$@"; do
+    if [[ "$arg" != -* ]] && [ "$FOUND_INPUT" = false ]; then
+        INPUT_FILE="$arg"
+        FOUND_INPUT=true
+    else
+        DOCKER_ARGS+=("$arg")
+    fi
+done
+
+# Prepare volume mount for input file
+INPUT_VOLUME_ARGS=""
+CONTAINER_INPUT_PATH=""
+
+if [ -n "$INPUT_FILE" ]; then
+    ABSOLUTE_INPUT="$(cd "$(dirname "$INPUT_FILE")" 2>/dev/null && pwd)/$(basename "$INPUT_FILE")"
+
+    if [ ! -f "$ABSOLUTE_INPUT" ]; then
+        echo -e "${RED}ERROR: Input file not found: $INPUT_FILE${NC}"
+        echo "Resolved path: $ABSOLUTE_INPUT"
+        exit 1
+    fi
+
+    INPUT_DIR="$(dirname "$ABSOLUTE_INPUT")"
+    INPUT_FILENAME="$(basename "$ABSOLUTE_INPUT")"
+    CONTAINER_INPUT_PATH="/input/$INPUT_FILENAME"
+    INPUT_VOLUME_ARGS="-v ${INPUT_DIR}:/input:ro"
+
+    echo -e "${GREEN}Running VFX Ingest Platform in Docker...${NC}"
+    echo "Input: $ABSOLUTE_INPUT -> $CONTAINER_INPUT_PATH"
+    echo "Models: $MODELS_DIR (read-only)"
+    echo "Projects: $PROJECTS_DIR"
+    echo ""
+else
+    echo -e "${GREEN}Running VFX Ingest Platform in Docker...${NC}"
+    echo "Models: $MODELS_DIR (read-only)"
+    echo "Projects: $PROJECTS_DIR"
+    echo ""
+fi
+
+# Run container with input volume mount if needed
+if [ -n "$INPUT_VOLUME_ARGS" ]; then
+    $DOCKER_COMPOSE run --rm $INPUT_VOLUME_ARGS vfx-ingest "$CONTAINER_INPUT_PATH" "${DOCKER_ARGS[@]}"
+else
+    $DOCKER_COMPOSE run --rm vfx-ingest "$@"
+fi
