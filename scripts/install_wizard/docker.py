@@ -342,13 +342,17 @@ This model uses ~6.8GB VRAM (vs 23.6GB for Large), suitable for most GPUs.'''
         'wham': {
             'name': 'WHAM Checkpoints',
             'requires_auth': False,
-            'use_huggingface': True,
-            'hf_repo_id': 'yohanshin/WHAM',
-            'files': [{'filename': 'wham_vit_w_3dpw.pth.tar', 'size_mb': 1200}],
+            'use_huggingface': False,
+            'use_gdown': True,
+            'files': [{
+                'url': 'https://drive.google.com/uc?id=1i7kt9RlCCCNEW2aYaDWVr-G778JkLNcB',
+                'filename': 'wham_vit_w_3dpw.pth.tar',
+                'size_mb': 1200,
+            }],
             'dest_dir_rel': 'wham',
-            'instructions': '''WHAM checkpoints will be downloaded from HuggingFace.
+            'instructions': '''WHAM checkpoints are hosted on Google Drive.
 If automatic download fails, manually download from:
-  https://huggingface.co/yohanshin/WHAM'''
+  https://drive.google.com/file/d/1i7kt9RlCCCNEW2aYaDWVr-G778JkLNcB/view'''
         },
         'matanyone': {
             'name': 'MatAnyone Model',
