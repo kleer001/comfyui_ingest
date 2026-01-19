@@ -166,6 +166,52 @@ def check_colmap_available() -> bool:
         return False
 
 
+def diagnose_colmap_environment(verbose: bool = False) -> dict:
+    """Diagnose COLMAP installation and GPU support.
+
+    Returns:
+        Dict with diagnostic info: version, gpu_available, cuda_available, etc.
+    """
+    info = {
+        "colmap_available": False,
+        "gpu_sift_available": False,
+        "cuda_available": False,
+        "opengl_available": False,
+        "display_set": bool(os.environ.get("DISPLAY")),
+    }
+
+    try:
+        result = subprocess.run(
+            ["colmap", "feature_extractor", "--help"],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0:
+            info["colmap_available"] = True
+            output = result.stdout + result.stderr
+            info["gpu_sift_available"] = "SiftExtraction.use_gpu" in output
+
+        if verbose:
+            print(f"    DIAG: COLMAP available: {info['colmap_available']}")
+            print(f"    DIAG: GPU SIFT option available: {info['gpu_sift_available']}")
+            print(f"    DIAG: DISPLAY={os.environ.get('DISPLAY', 'not set')}")
+
+        result = subprocess.run(
+            ["nvidia-smi", "-L"],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            info["cuda_available"] = True
+            if verbose:
+                for line in result.stdout.strip().split('\n'):
+                    print(f"    DIAG: GPU: {line}")
+
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        if verbose:
+            print(f"    DIAG: Error during diagnosis: {e}")
+
+    return info
+
+
 def verify_database_has_features(database_path: Path, verbose: bool = False) -> tuple[int, int]:
     """Verify COLMAP database has extracted features.
 
@@ -385,29 +431,54 @@ def extract_features(
         except sqlite3.Error:
             return False
 
-    if use_gpu:
-        try:
-            args = _build_args(gpu=True)
-            run_colmap_command("feature_extractor", args, "Extracting features (GPU)")
-            if not _check_features_extracted():
-                print("    GPU extraction produced no features, retrying with CPU...")
-                if database_path.exists():
-                    database_path.unlink()
-                args = _build_args(gpu=False)
-                run_colmap_command("feature_extractor", args, "Extracting features (CPU)")
-        except subprocess.CalledProcessError as e:
-            error_output = str(e.stdout) if hasattr(e, 'stdout') and e.stdout else str(e)
-            if "context" in error_output.lower() or "opengl" in error_output.lower() or e.returncode < 0:
-                print("    GPU feature extraction failed (OpenGL context error), falling back to CPU...")
-                if database_path.exists():
-                    database_path.unlink()
-                args = _build_args(gpu=False)
-                run_colmap_command("feature_extractor", args, "Extracting features (CPU)")
-            else:
-                raise
-    else:
-        args = _build_args(gpu=False)
-        run_colmap_command("feature_extractor", args, "Extracting features (CPU)")
+    def _run_extraction_with_fallback() -> str:
+        """Run extraction with GPU->CPU fallback. Returns last COLMAP output."""
+        last_output = ""
+
+        if use_gpu:
+            try:
+                args = _build_args(gpu=True)
+                result = run_colmap_command("feature_extractor", args, "Extracting features (GPU)")
+                last_output = result.stdout
+                if not _check_features_extracted():
+                    print("    GPU extraction produced no features, retrying with CPU...")
+                    if database_path.exists():
+                        database_path.unlink()
+                    args = _build_args(gpu=False)
+                    result = run_colmap_command("feature_extractor", args, "Extracting features (CPU)")
+                    last_output = result.stdout
+            except subprocess.CalledProcessError as e:
+                error_output = str(e.stdout) if hasattr(e, 'stdout') and e.stdout else str(e)
+                last_output = error_output
+                is_gpu_error = (
+                    "context" in error_output.lower()
+                    or "opengl" in error_output.lower()
+                    or e.returncode < 0
+                )
+                if is_gpu_error:
+                    print("    GPU feature extraction failed (OpenGL context error), falling back to CPU...")
+                    if database_path.exists():
+                        database_path.unlink()
+                    args = _build_args(gpu=False)
+                    result = run_colmap_command("feature_extractor", args, "Extracting features (CPU)")
+                    last_output = result.stdout
+                else:
+                    raise
+        else:
+            args = _build_args(gpu=False)
+            result = run_colmap_command("feature_extractor", args, "Extracting features (CPU)")
+            last_output = result.stdout
+
+        return last_output
+
+    colmap_output = _run_extraction_with_fallback()
+
+    if not _check_features_extracted():
+        print("    WARNING: Feature extraction completed but database is empty!")
+        print("    Last 1500 chars of COLMAP output:")
+        print("-" * 60)
+        print(colmap_output[-1500:] if colmap_output else "(no output captured)")
+        print("-" * 60)
 
 
 def match_features(
@@ -1236,6 +1307,7 @@ def run_colmap_pipeline(
         print("  Conda: conda install -c conda-forge colmap", file=sys.stderr)
         return False
 
+    diag = diagnose_colmap_environment(verbose=True)
     preset = QUALITY_PRESETS.get(quality, QUALITY_PRESETS["medium"])
 
     frames_dir = project_dir / "source" / "frames"
