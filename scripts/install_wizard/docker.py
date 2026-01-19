@@ -28,6 +28,7 @@ from .downloader import CheckpointDownloader
 from .platform import PlatformManager
 from .utils import (
     Colors,
+    ask_yes_no,
     check_command_available,
     format_size_gb,
     get_disk_space,

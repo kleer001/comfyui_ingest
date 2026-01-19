@@ -45,8 +45,9 @@ FROM python-deps AS comfyui
 # Create .vfx_pipeline directory structure
 RUN mkdir -p /app/.vfx_pipeline
 
-# Clone ComfyUI
-RUN git clone https://github.com/comfyanonymous/ComfyUI.git /app/.vfx_pipeline/ComfyUI
+# Clone ComfyUI and install its requirements
+RUN git clone https://github.com/comfyanonymous/ComfyUI.git /app/.vfx_pipeline/ComfyUI && \
+    pip3 install --no-cache-dir -r /app/.vfx_pipeline/ComfyUI/requirements.txt
 
 # Clone custom nodes
 WORKDIR /app/.vfx_pipeline/ComfyUI/custom_nodes

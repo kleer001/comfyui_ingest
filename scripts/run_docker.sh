@@ -40,7 +40,7 @@ if [ ! -d "$MODELS_DIR" ]; then
     echo "Download them first:"
     echo "  ./scripts/download_models.sh"
     echo ""
-    read -p "Continue anyway? (y/N) " -n 1 -r
+    read -p "Continue anyway? (y/N) " -n 1 -r < /dev/tty
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         exit 1
