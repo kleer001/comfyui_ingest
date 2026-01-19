@@ -1,22 +1,50 @@
 # VFX Ingest Platform - Docker Image
 # Multi-stage build for optimized layer caching
 
-# Stage 1: Base image with system dependencies
+# Stage 1: Get COLMAP from official pre-built image (with CUDA + FreeImage support)
+# Using 20231029.4 tag which is compatible with Ubuntu 22.04 (before 24.04 release)
+# This image is built properly, so FreeImage_Initialise() works
+FROM colmap/colmap:20231029.4 AS colmap-source
+
+# Stage 2: Base image with system dependencies
 FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04 AS base
 
 # Prevent interactive prompts during build
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install system packages
+# Install system packages and COLMAP runtime dependencies
 RUN apt-get update && apt-get install -y \
-    colmap \
     ffmpeg \
     git \
     python3.10 \
     python3-pip \
     wget \
     curl \
+    xvfb \
+    libgl1-mesa-glx \
+    libglu1-mesa \
+    libglew2.2 \
+    libgomp1 \
+    libboost-filesystem1.74.0 \
+    libboost-program-options1.74.0 \
+    libboost-graph1.74.0 \
+    libgoogle-glog0v5 \
+    libceres2 \
+    libmetis5 \
+    libfreeimage3 \
+    libsqlite3-0 \
+    libflann1.9 \
+    libqt5core5a \
+    libqt5widgets5 \
     && rm -rf /var/lib/apt/lists/*
+
+# Copy COLMAP from official image
+# The official image has proper FreeImage initialization built in
+COPY --from=colmap-source /usr/local/bin/colmap /usr/local/bin/colmap
+# Copy COLMAP's shared libraries (official image uses dynamic linking)
+COPY --from=colmap-source /usr/local/lib/libcolmap* /usr/local/lib/
+# Update library cache
+RUN ldconfig || true
 
 # Create application directory
 WORKDIR /app
@@ -24,7 +52,7 @@ WORKDIR /app
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 
-# Stage 2: Python dependencies
+# Stage 3: Python dependencies
 FROM base AS python-deps
 
 # Copy requirements
@@ -39,7 +67,7 @@ RUN pip3 install --no-cache-dir torch torchvision torchaudio --index-url https:/
 # Install smplx (required for mocap)
 RUN pip3 install --no-cache-dir smplx
 
-# Stage 3: ComfyUI and custom nodes
+# Stage 4: ComfyUI and custom nodes
 FROM python-deps AS comfyui
 
 # Create .vfx_pipeline directory structure
@@ -76,7 +104,7 @@ RUN cd ComfyUI-SAM3 && \
 
 WORKDIR /app
 
-# Stage 4: Pipeline scripts
+# Stage 5: Pipeline scripts
 FROM comfyui AS pipeline
 
 # Copy pipeline scripts
