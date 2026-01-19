@@ -192,6 +192,31 @@ def test_write_failure_during_operation():
         print("✗ FAIL: Did not complete user code")
 
 
+def test_git_unavailable():
+    """Test 8: Git unavailable - should still log with 'unknown'."""
+    print("\n=== Test 8: Git Unavailable ===")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_log_dir = Path(tmpdir) / "logs"
+
+        with patch('subprocess.run', side_effect=FileNotFoundError("git not found")):
+            try:
+                with LogCapture(log_dir=test_log_dir):
+                    print("Running without git")
+            except FileNotFoundError:
+                print("✗ FAIL: FileNotFoundError not caught")
+
+        logs = list(test_log_dir.glob("*.log"))
+        if logs:
+            content = logs[0].read_text()
+            if "Git Commit:" in content and "unknown" in content:
+                print("✓ Log created with 'unknown' git commit")
+            else:
+                print("✗ FAIL: Git commit line not handled properly")
+        else:
+            print("✗ FAIL: No log file created")
+
+
 def main():
     """Run all tests."""
     print("="*80)
@@ -207,6 +232,7 @@ def main():
         test_log_rotation,
         test_nested_capture,
         test_write_failure_during_operation,
+        test_git_unavailable,
     ]
 
     for test_func in tests:

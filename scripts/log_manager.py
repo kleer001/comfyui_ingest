@@ -195,15 +195,19 @@ class LogCapture:
     def _write_log_header(self) -> None:
         """Write metadata header to log file."""
         import platform
+        import subprocess
         import sys as sys_module
 
         os_name, environment, pkg_mgr = PlatformManager.detect_platform()
         env_type = "docker" if is_in_container() else "conda"
 
+        git_commit = self._get_git_commit()
+
         header = f"""{'='*80}
 VFX Pipeline Log
 {'='*80}
 Timestamp:       {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+Git Commit:      {git_commit}
 OS:              {os_name} ({environment})
 Package Manager: {pkg_mgr}
 Environment:     {env_type}
@@ -215,6 +219,47 @@ Command:         {' '.join(sys_module.argv)}
 """
         self.log_handle.write(header)
         self.log_handle.flush()
+
+    def _get_git_commit(self) -> str:
+        """Get current git commit hash and branch.
+
+        Returns:
+            Git commit info or 'unknown' if not available.
+            Format: "abc1234 (branch-name)" or "abc1234 (detached HEAD)"
+        """
+        try:
+            import subprocess
+            repo_root = Path(__file__).parent.parent
+
+            commit_result = subprocess.run(
+                ["git", "rev-parse", "--short", "HEAD"],
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+
+            if commit_result.returncode != 0:
+                return "unknown (not a git repository)"
+
+            commit_hash = commit_result.stdout.strip()
+
+            branch_result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+
+            if branch_result.returncode == 0:
+                branch = branch_result.stdout.strip()
+                return f"{commit_hash} ({branch})"
+            else:
+                return commit_hash
+
+        except Exception:
+            return "unknown"
 
     def _rotate_logs(self) -> None:
         """Keep only the newest max_logs log files."""
