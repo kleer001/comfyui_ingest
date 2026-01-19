@@ -1,43 +1,68 @@
 # VFX Ingest Platform - Docker Image
 # Multi-stage build for optimized layer caching
 
-# Stage 1: Build COLMAP from source with CUDA support
+# Stage 1: Build COLMAP from source with CUDA support using vcpkg
 # Use devel image for nvcc compiler
 FROM nvidia/cuda:12.1.0-cudnn8-devel-ubuntu22.04 AS colmap-builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install COLMAP build dependencies
+# Install build dependencies and vcpkg prerequisites
 RUN apt-get update && apt-get install -y \
     git \
     cmake \
     ninja-build \
     build-essential \
-    libboost-program-options-dev \
-    libboost-filesystem-dev \
-    libboost-graph-dev \
-    libboost-system-dev \
-    libeigen3-dev \
-    libflann-dev \
-    libfreeimage-dev \
-    libmetis-dev \
-    libgoogle-glog-dev \
-    libgtest-dev \
-    libsqlite3-dev \
-    libglew-dev \
-    qtbase5-dev \
-    libqt5opengl5-dev \
-    libcgal-dev \
-    libceres-dev \
+    pkg-config \
+    curl \
+    zip \
+    unzip \
+    tar \
+    autoconf \
+    automake \
+    libtool \
+    python3 \
+    libgl1-mesa-dev \
+    libglu1-mesa-dev \
+    libxrandr-dev \
+    libxinerama-dev \
+    libxcursor-dev \
+    libxi-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Clone and build COLMAP
+# Clone vcpkg and bootstrap
+WORKDIR /opt
+RUN git clone https://github.com/Microsoft/vcpkg.git && \
+    cd vcpkg && \
+    ./bootstrap-vcpkg.sh
+
+# Install COLMAP dependencies via vcpkg (static linking)
+# This ensures FreeImage is statically linked, triggering FreeImage_Initialise()
+ENV VCPKG_ROOT=/opt/vcpkg
+RUN /opt/vcpkg/vcpkg install \
+    freeimage \
+    boost-program-options \
+    boost-filesystem \
+    boost-graph \
+    boost-system \
+    eigen3 \
+    flann \
+    sqlite3 \
+    ceres[suitesparse] \
+    glew \
+    cgal \
+    glog \
+    gtest \
+    --triplet x64-linux
+
+# Clone and build COLMAP with vcpkg dependencies
 WORKDIR /tmp
 RUN git clone https://github.com/colmap/colmap.git && \
     cd colmap && \
     git checkout 3.9.1 && \
     mkdir build && cd build && \
     cmake .. -GNinja \
+        -DCMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake \
         -DCMAKE_CUDA_ARCHITECTURES="60;70;75;80;86;89;90" \
         -DCMAKE_BUILD_TYPE=Release \
         -DCUDA_ENABLED=ON \
@@ -52,7 +77,9 @@ FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04 AS base
 # Prevent interactive prompts during build
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install system packages and COLMAP runtime dependencies
+# Install system packages
+# Note: Most COLMAP dependencies are statically linked via vcpkg
+# Only system libraries needed at runtime (OpenGL, X11, etc.)
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     git \
@@ -61,24 +88,14 @@ RUN apt-get update && apt-get install -y \
     wget \
     curl \
     xvfb \
-    libboost-program-options1.74.0 \
-    libboost-filesystem1.74.0 \
-    libboost-graph1.74.0 \
-    libboost-system1.74.0 \
-    libfreeimage3 \
-    libmetis5 \
-    libgoogle-glog0v5 \
-    libsqlite3-0 \
+    libgl1-mesa-glx \
+    libglu1-mesa \
     libglew2.2 \
-    libqt5core5a \
-    libqt5opengl5 \
-    libceres2 \
-    libflann1.9 \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy built COLMAP from builder stage
-# COLMAP builds static libraries that are linked into the binary,
-# so we only need to copy the executable
+# With vcpkg static linking, all dependencies (including FreeImage) are in the binary
 COPY --from=colmap-builder /usr/local/bin/colmap /usr/local/bin/colmap
 
 # Create application directory
