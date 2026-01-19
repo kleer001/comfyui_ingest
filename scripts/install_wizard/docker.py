@@ -678,7 +678,7 @@ class DockerWizard:
             subprocess.run(
                 [
                     "bash", str(run_script),
-                    "--input", "/workspace/projects/football_short.mp4",
+                    "/workspace/projects/football_short.mp4",
                     "--name", "FootballTest",
                     "--stages", "depth"
                 ],
@@ -708,7 +708,7 @@ class DockerWizard:
         print_info("Quick start:")
         print("  1. Copy your video to ~/VFX-Projects/")
         print("  2. Run:")
-        print("     ./scripts/run_docker.sh --input /workspace/projects/video.mp4 --name MyProject")
+        print("     ./scripts/run_docker.sh /workspace/projects/video.mp4 --name MyProject")
         print()
 
         print_info("Available stages:")
