@@ -11,7 +11,7 @@ Before running the pipeline, ensure you've completed installation:
 Verify your installation is working:
 ```bash
 # Docker
-./scripts/run_docker.sh --help
+bash scripts/run_docker.sh --help
 
 # Conda
 python scripts/run_pipeline.py --help
@@ -24,7 +24,7 @@ python scripts/run_pipeline.py --help
 Process a video file with all pipeline stages:
 
 ```bash
-./scripts/run_docker.sh /path/to/video.mp4 --name MyFirstProject --stages all
+bash scripts/run_docker.sh /path/to/video.mp4 --name MyFirstProject --stages all
 ```
 
 This will:
@@ -43,14 +43,14 @@ This will:
 Run only depth estimation and segmentation:
 
 ```bash
-./scripts/run_docker.sh /path/to/video.mp4 --name MyProject --stages depth,roto
+bash scripts/run_docker.sh /path/to/video.mp4 --name MyProject --stages depth,roto
 ```
 
 ### Common Workflows
 
 **Quick preview** (depth and segmentation only):
 ```bash
-./scripts/run_docker.sh \
+bash scripts/run_docker.sh \
   ~/Videos/test_shot.mp4 \
   --name TestShot \
   --stages ingest,depth,roto
@@ -58,7 +58,7 @@ Run only depth estimation and segmentation:
 
 **Full VFX prep** (everything except motion capture):
 ```bash
-./scripts/run_docker.sh \
+bash scripts/run_docker.sh \
   ~/Videos/shot001.mp4 \
   --name Shot001 \
   --stages ingest,depth,roto,matanyone,cleanplate,colmap,camera
@@ -66,7 +66,7 @@ Run only depth estimation and segmentation:
 
 **Camera tracking only** (for existing frame sequences):
 ```bash
-./scripts/run_docker.sh \
+bash scripts/run_docker.sh \
   ~/VFX-Projects/Shot001/source/frames/ \
   --name Shot001 \
   --stages colmap,camera
@@ -76,7 +76,7 @@ Run only depth estimation and segmentation:
 
 Custom segmentation prompt (specify objects to mask):
 ```bash
-./scripts/run_docker.sh \
+bash scripts/run_docker.sh \
   ~/Videos/shot001.mp4 \
   --name Shot001 \
   --stages roto \
@@ -85,7 +85,7 @@ Custom segmentation prompt (specify objects to mask):
 
 High-quality COLMAP reconstruction:
 ```bash
-./scripts/run_docker.sh \
+bash scripts/run_docker.sh \
   ~/Videos/shot001.mp4 \
   --name Shot001 \
   --stages colmap \
@@ -381,7 +381,7 @@ cp ~/Videos/my_shot.mp4 ~/Desktop/
 
 ```bash
 # Full pipeline
-./scripts/run_docker.sh \
+bash scripts/run_docker.sh \
   ~/Desktop/my_shot.mp4 \
   --name MyShot \
   --stages all
@@ -421,7 +421,7 @@ ReadGeo {
 
 ```bash
 # Re-run specific stage with different settings
-./scripts/run_docker.sh \
+bash scripts/run_docker.sh \
   ~/Desktop/my_shot.mp4 \
   --name MyShot \
   --stages roto \

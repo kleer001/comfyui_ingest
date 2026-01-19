@@ -56,15 +56,15 @@ docker-compose build
 
 Or use the wrapper script which builds automatically:
 ```bash
-./scripts/run_docker.sh --help
+bash scripts/run_docker.sh --help
 ```
 
 ### 3. Run Pipeline
 
 Using wrapper script (recommended):
 ```bash
-./scripts/run_docker.sh --help
-./scripts/run_docker.sh video.mp4 --name MyProject --stages depth,roto
+bash scripts/run_docker.sh --help
+bash scripts/run_docker.sh video.mp4 --name MyProject --stages depth,roto
 ```
 
 Or directly with docker-compose:
@@ -116,13 +116,13 @@ volumes:
 
 ```bash
 # Full pipeline (all stages)
-./scripts/run_docker.sh \
+bash scripts/run_docker.sh \
   ~/Videos/shot001.mp4 \
   --name Shot001 \
   --stages all
 
 # Specific stages
-./scripts/run_docker.sh \
+bash scripts/run_docker.sh \
   ~/Videos/shot001.mp4 \
   --name Shot001 \
   --stages ingest,depth,roto
@@ -132,14 +132,14 @@ volumes:
 
 ```bash
 # COLMAP camera tracking
-./scripts/run_docker.sh \
+bash scripts/run_docker.sh \
   ~/Videos/shot001.mp4 \
   --name Shot001 \
   --stages ingest,colmap \
   --colmap-quality high
 
 # Custom segmentation prompt
-./scripts/run_docker.sh \
+bash scripts/run_docker.sh \
   ~/Videos/shot001.mp4 \
   --name Shot001 \
   --stages roto \
@@ -216,7 +216,7 @@ ls -ld ~/VFX-Projects
 # Recommended: 16GB+ for full pipeline
 
 # Or process fewer frames
-./scripts/run_docker.sh \
+bash scripts/run_docker.sh \
   video.mp4 \
   --name Test \
   --stages depth \
@@ -266,7 +266,7 @@ ls -ld ~/VFX-Projects
 cp tests/fixtures/football_short.mp4 ~/VFX-Projects/
 
 # Test with Football CIF
-./scripts/run_docker.sh \
+bash scripts/run_docker.sh \
   /workspace/projects/football_short.mp4 \
   --name FootballTest \
   --stages ingest,depth
@@ -335,7 +335,7 @@ conda activate vfx-pipeline
 python scripts/run_pipeline.py video.mp4 --name Local
 
 # Docker (new)
-./scripts/run_docker.sh video.mp4 --name Docker
+bash scripts/run_docker.sh video.mp4 --name Docker
 ```
 
 Projects are compatible - you can process with Docker and view with local tools.

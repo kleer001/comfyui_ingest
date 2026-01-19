@@ -709,7 +709,7 @@ class DockerWizard:
         print_info("Quick start:")
         print(f"  1. Copy your video to {self.projects_dir}/")
         print("  2. Run:")
-        print("     ./scripts/run_docker.sh --name MyProject /workspace/projects/video.mp4")
+        print("     bash scripts/run_docker.sh --name MyProject /workspace/projects/video.mp4")
         print()
 
         print_info("Available stages:")
