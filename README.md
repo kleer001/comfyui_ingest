@@ -8,7 +8,8 @@ This pipeline automates first-pass VFX prep work that traditionally requires man
 
 **Target workflow:** Run the pipeline overnight, come back to usable first-pass outputs ready for VFX compositing and matchmove.
 
-## Capabilities
+<details>
+<summary><strong>Capabilities</strong></summary>
 
 - **Frame extraction** - Convert video files to PNG frame sequences
 - **Depth estimation** - Monocular depth maps with temporal consistency (Depth Anything V3)
@@ -28,7 +29,10 @@ This pipeline automates first-pass VFX prep work that traditionally requires man
 - **Batch processing** - Automated multi-stage pipeline orchestration
 - **Web interface** - Browser-based GUI for drag-and-drop operation
 
-## Tools & Dependencies
+</details>
+
+<details>
+<summary><strong>Tools & Dependencies</strong></summary>
 
 ### Core Pipeline
 - [ComfyUI](https://github.com/comfyanonymous/ComfyUI) - Node-based workflow engine for ML inference
@@ -53,6 +57,8 @@ This pipeline automates first-pass VFX prep work that traditionally requires man
 - PyTorch - Deep learning framework
 - NumPy, OpenCV, Pillow - Image processing
 - trimesh, smplx - 3D geometry (motion capture only)
+
+</details>
 
 ## Getting Started
 
@@ -108,16 +114,35 @@ python scripts/install_wizard.py --docker  # Docker
 python scripts/install_wizard.py           # Conda
 ```
 
+## Running Your First Project
+
+After installation, you're ready to process your first video. The pipeline supports both Docker and Conda environments with similar workflows.
+
+**Quick start examples:**
+
+```bash
+# Docker
+./scripts/run_docker.sh --input video.mp4 --name MyProject --stages all
+
+# Conda
+python scripts/run_pipeline.py video.mp4 -s ingest,depth,roto,cleanplate,colmap,camera
+```
+
+**See [Your First Project Guide](docs/your_first_project.md) for complete walkthrough, examples, and troubleshooting.**
+
 ## Documentation
 
 Complete documentation available in [docs/](docs/):
+- [Your First Project](docs/your_first_project.md) - Complete walkthrough for running your first pipeline
+- [Docker Guide](docs/README-DOCKER.md) - Complete Docker setup, usage, and troubleshooting
 - [Installation Guide](docs/install_wizard.md) - Detailed setup instructions
 - [Pipeline Reference](docs/run_pipeline.md) - Command-line usage and options
 - [Component Scripts](docs/component_scripts.md) - Individual tool documentation
 - [Maintenance](docs/janitor.md) - System health and updates
 - [Windows Compatibility](docs/windows-compatibility.md) - Roadmap for Windows support
 
-## Project Structure
+<details>
+<summary><strong>Project Structure</strong></summary>
 
 Output follows VFX production conventions:
 ```
@@ -132,6 +157,8 @@ Output follows VFX production conventions:
 ```
 
 **Note on frame numbering:** Frame sequences start at 0001 rather than the VFX industry standard of 1001. Unfortunately, ComfyUI's SaveImage node and WHAM's output constraints make custom start frame numbering infeasible. We apologize for this deviation from convention.
+
+</details>
 
 ## System Requirements
 
@@ -195,7 +222,8 @@ Output follows VFX production conventions:
 
 Note: NVIDIA GPU with CUDA support required for all ML models.
 
-## Tool Limitations by Shot Type
+<details>
+<summary><strong>Tool Limitations by Shot Type</strong></summary>
 
 Different components perform best under specific conditions:
 
@@ -219,6 +247,8 @@ Different components perform best under specific conditions:
 - ⚠ Limited/challenging
 - ✗ Not suitable/fails
 - N/A Not applicable
+
+</details>
 
 ## License
 
