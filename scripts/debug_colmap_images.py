@@ -9,6 +9,21 @@ import subprocess
 import sys
 import shutil
 from pathlib import Path
+from typing import Optional
+
+from install_wizard.platform import PlatformManager
+
+# Cache for COLMAP path
+_colmap_path: Optional[str] = None
+
+
+def _get_colmap() -> str:
+    """Get COLMAP executable path."""
+    global _colmap_path
+    if _colmap_path is None:
+        found = PlatformManager.find_tool("colmap")
+        _colmap_path = str(found) if found else "colmap"
+    return _colmap_path
 
 
 def debug_images_bin(project_dir: Path) -> None:
@@ -31,12 +46,14 @@ def debug_images_bin(project_dir: Path) -> None:
 
     try:
         print("Converting binary to text...")
+        colmap_exe = _get_colmap()
+        is_bat = colmap_exe.lower().endswith('.bat')
         result = subprocess.run([
-            "colmap", "model_converter",
+            colmap_exe, "model_converter",
             "--input_path", str(sparse_dir),
             "--output_path", str(temp_dir),
             "--output_type", "TXT"
-        ], capture_output=True, text=True)
+        ], capture_output=True, text=True, shell=is_bat)
 
         print(f"Return code: {result.returncode}")
         if result.stderr:

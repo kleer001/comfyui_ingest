@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
 from env_config import INSTALL_DIR
 
+from .platform import PlatformManager
 from .utils import (
     print_error,
     print_header,
@@ -80,20 +81,21 @@ class InstallationValidator:
         Returns:
             (success, message)
         """
-        import shutil
-
-        # First check if colmap binary exists
-        colmap_path = shutil.which("colmap")
+        colmap_path = PlatformManager.find_tool("colmap")
         if not colmap_path:
-            return False, "COLMAP not found in PATH"
+            return False, "COLMAP not found in PATH or standard locations"
 
-        # Try to get version
-        success, output = run_command(["colmap", "--version"], check=False, capture=True)
+        colmap_exe = str(colmap_path)
+        is_bat = colmap_exe.lower().endswith('.bat')
+
+        success, output = run_command(
+            [colmap_exe, "--version"],
+            check=False, capture=True, shell=is_bat
+        )
         if success and output:
             version = output.strip().split('\n')[0] if output else "unknown"
             return True, f"COLMAP {version}"
 
-        # Binary exists but version check failed - still report as available
         return True, f"COLMAP available at {colmap_path}"
 
     def validate_checkpoint_files(self, base_dir: Optional[Path] = None) -> Dict[str, bool]:
