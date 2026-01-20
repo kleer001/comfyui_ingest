@@ -35,6 +35,34 @@ from env_config import check_conda_env_or_warn, is_in_container
 # Log capture for debugging
 from log_manager import LogCapture
 
+# Cross-platform tool detection
+from install_wizard.platform import PlatformManager
+
+# Cache for COLMAP executable path
+_colmap_path: Optional[str] = None
+
+
+def get_colmap_executable() -> str:
+    """Get the path to COLMAP executable.
+
+    Uses PlatformManager.find_tool() to locate COLMAP on Windows
+    even when not in PATH. Falls back to 'colmap' for Unix systems
+    where it's typically in PATH.
+
+    Returns:
+        Path to COLMAP executable as string
+    """
+    global _colmap_path
+    if _colmap_path is not None:
+        return _colmap_path
+
+    found = PlatformManager.find_tool("colmap")
+    if found:
+        _colmap_path = str(found)
+    else:
+        _colmap_path = "colmap"
+    return _colmap_path
+
 
 # COLMAP quality presets
 QUALITY_PRESETS = {
@@ -158,11 +186,13 @@ class VirtualDisplay:
 def check_colmap_available() -> bool:
     """Check if COLMAP is installed and accessible."""
     try:
+        colmap_exe = get_colmap_executable()
         result = subprocess.run(
-            ["colmap", "--help"],
+            [colmap_exe, "--help"],
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=10,
+            shell=(colmap_exe.lower().endswith('.bat'))
         )
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -184,9 +214,12 @@ def diagnose_colmap_environment(verbose: bool = False) -> dict:
     }
 
     try:
+        colmap_exe = get_colmap_executable()
+        is_bat = colmap_exe.lower().endswith('.bat')
         result = subprocess.run(
-            ["colmap", "feature_extractor", "--help"],
-            capture_output=True, text=True, timeout=10
+            [colmap_exe, "feature_extractor", "--help"],
+            capture_output=True, text=True, timeout=10,
+            shell=is_bat
         )
         if result.returncode == 0:
             info["colmap_available"] = True
@@ -198,8 +231,10 @@ def diagnose_colmap_environment(verbose: bool = False) -> dict:
             print(f"    DIAG: GPU SIFT option available: {info['gpu_sift_available']}")
             print(f"    DIAG: DISPLAY={os.environ.get('DISPLAY', 'not set')}")
 
+        nvidia_smi = PlatformManager.find_tool("nvidia-smi")
+        nvidia_cmd = str(nvidia_smi) if nvidia_smi else "nvidia-smi"
         result = subprocess.run(
-            ["nvidia-smi", "-L"],
+            [nvidia_cmd, "-L"],
             capture_output=True, text=True, timeout=10
         )
         if result.returncode == 0 and result.stdout.strip():
@@ -282,7 +317,8 @@ def run_colmap_command(
     Returns:
         CompletedProcess result
     """
-    cmd = ["colmap", command]
+    colmap_exe = get_colmap_executable()
+    cmd = [colmap_exe, command]
     for key, value in args.items():
         if value is True:
             cmd.append(f"--{key}")
@@ -293,13 +329,14 @@ def run_colmap_command(
     print(f"    $ {' '.join(cmd)}")
     sys.stdout.flush()
 
-    # Always stream output for visibility
+    is_bat = colmap_exe.lower().endswith('.bat')
     process = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
         bufsize=1,
+        shell=is_bat,
     )
 
     stdout_lines = []
@@ -703,12 +740,14 @@ def read_colmap_cameras(cameras_path: Path) -> dict:
         temp_dir = cameras_path.parent / "_temp_txt"
         temp_dir.mkdir(exist_ok=True)
         try:
+            colmap_exe = get_colmap_executable()
+            is_bat = colmap_exe.lower().endswith('.bat')
             subprocess.run([
-                "colmap", "model_converter",
+                colmap_exe, "model_converter",
                 "--input_path", str(cameras_path.parent),
                 "--output_path", str(temp_dir),
                 "--output_type", "TXT"
-            ], capture_output=True, check=True)
+            ], capture_output=True, check=True, shell=is_bat)
 
             # Now read the text file
             with open(temp_dir / "cameras.txt") as f:
@@ -803,12 +842,14 @@ def read_colmap_images(images_path: Path, debug: bool = False) -> dict:
         temp_dir = images_path.parent / "_temp_txt"
         temp_dir.mkdir(exist_ok=True)
         try:
+            colmap_exe = get_colmap_executable()
+            is_bat = colmap_exe.lower().endswith('.bat')
             result = subprocess.run([
-                "colmap", "model_converter",
+                colmap_exe, "model_converter",
                 "--input_path", str(images_path.parent),
                 "--output_path", str(temp_dir),
                 "--output_type", "TXT"
-            ], capture_output=True, text=True)
+            ], capture_output=True, text=True, shell=is_bat)
 
             if debug:
                 print(f"    DEBUG: model_converter return code: {result.returncode}")
