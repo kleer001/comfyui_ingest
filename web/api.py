@@ -320,6 +320,28 @@ async def system_status():
     return status
 
 
+@router.post("/system/shutdown")
+async def shutdown_system():
+    """Shutdown the web server gracefully."""
+    import signal
+    import os
+
+    def delayed_shutdown():
+        """Shutdown after a brief delay to allow response to be sent."""
+        import time
+        time.sleep(1)
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    import threading
+    shutdown_thread = threading.Thread(target=delayed_shutdown)
+    shutdown_thread.start()
+
+    return {
+        "status": "shutdown_initiated",
+        "message": "Server is shutting down..."
+    }
+
+
 @router.get("/config")
 async def get_config():
     """Get pipeline configuration (stages, presets, settings)."""

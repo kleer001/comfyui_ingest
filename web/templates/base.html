@@ -21,9 +21,14 @@
 
         <header role="banner">
             <h1>{% block header_title %}VFX Pipeline Processor{% endblock %}</h1>
-            <div id="system-status" class="system-status" role="status" aria-live="polite" aria-label="System status">
-                <span class="status-dot" aria-hidden="true"></span>
-                <span class="status-text">Checking ComfyUI...</span>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <div id="system-status" class="system-status" role="status" aria-live="polite" aria-label="System status">
+                    <span class="status-dot" aria-hidden="true"></span>
+                    <span class="status-text">Checking ComfyUI...</span>
+                </div>
+                <button type="button" id="shutdown-btn" class="btn-shutdown" aria-label="Shutdown platform" title="Shutdown the VFX Pipeline platform">
+                    Shutdown
+                </button>
             </div>
         </header>
 
