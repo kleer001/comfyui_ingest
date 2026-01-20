@@ -18,12 +18,14 @@ This document outlines the plan for adding Windows support to the VFX Pipeline. 
 
 - `scripts/env_config.py`: Added `is_windows()`, `is_macos()`, `is_linux()`, `get_platform_name()` helpers
 - `scripts/install_wizard/utils.py`: Replaced `which` with `shutil.which()`, added Windows console input via `msvcrt`
-- `scripts/install_wizard/downloader.py`: Replaced `which` with `shutil.which()` for tool detection
+- `scripts/install_wizard/downloader.py`: Replaced `which` with `shutil.which()` for tool detection, added file locking retry logic
 - `scripts/install_wizard/conda.py`: Added Windows conda path detection (miniconda3, Anaconda3, scoop, etc.)
-- `scripts/install_wizard/platform.py`: Added `find_tool()` with Windows path search, winget/scoop package manager detection
-- `scripts/install_wizard/config.py`: Generates `activate.ps1` and `activate.bat` alongside `activate.sh`
+- `scripts/install_wizard/platform.py`: Added `find_tool()` with Windows path search, `run_tool()` for .bat handling, winget/scoop package manager detection
+- `scripts/install_wizard/config.py`: Generates `activate.ps1` and `activate.bat` alongside `activate.sh`, fixed PYTHONPATH handling, added conda init check
+- `web/api.py`: Uses `PlatformManager.find_tool()` for ffprobe detection
 - `docs/windows_for_it_dept_native.md`: Created IT admin guide for native Windows setup
 - `docs/windows_for_it_dept_docker.md`: Renamed from original (Docker/WSL2 setup)
+- `docs/windows-troubleshooting.md`: Created user troubleshooting guide
 
 ---
 

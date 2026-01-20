@@ -136,5 +136,6 @@ If this fails, verify:
 ## Support
 
 For issues specific to this pipeline, see:
+- Troubleshooting guide: [windows-troubleshooting.md](windows-troubleshooting.md)
 - Repository: https://github.com/kleer001/comfyui_ingest
 - Issues: https://github.com/kleer001/comfyui_ingest/issues
