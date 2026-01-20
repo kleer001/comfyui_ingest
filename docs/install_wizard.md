@@ -36,14 +36,9 @@ This clones the repository and runs the wizard automatically.
 
 Before running the wizard, you should set up credentials for downloading licensed models.
 
-### HuggingFace Token (SAM3 Model)
+### SAM3 Model (No Credentials Required)
 
-Required for: Video segmentation (SAM3)
-
-1. Create account: https://huggingface.co/join
-2. Accept license: https://huggingface.co/facebook/sam3
-3. Create token: https://huggingface.co/settings/tokens (Read access)
-4. Save to `HF_TOKEN.dat` in repository root
+SAM3 downloads automatically from the public `1038lab/sam3` HuggingFace repository. No token or registration needed.
 
 ### SMPL-X and ICON/ECON Credentials
 
