@@ -2,19 +2,27 @@
 
 Automated end-to-end VFX processing pipeline.
 
+**Quick links**: [Stages](stages.md) | [Troubleshooting](troubleshooting.md) | [Installation](install_wizard.md)
+
+---
+
 ## Overview
 
-`run_pipeline.py` orchestrates the entire VFX pipeline from a single command. It processes footage through multiple stages:
+`run_pipeline.py` orchestrates the entire VFX pipeline from a single command:
 
-1. **Ingest** - Extract frames from video
-2. **Depth** - Depth map generation (ComfyUI + Depth-Anything-V3)
-3. **Roto** - Segmentation masks (ComfyUI + SAM3)
-4. **MatAnyone** - Video matting for person mask refinement
-5. **Cleanplate** - Clean plate generation (ComfyUI + ProPainter)
-6. **COLMAP** - Camera tracking and 3D reconstruction
-7. **Mocap** - Human motion capture (WHAM + ECON)
-8. **GS-IR** - Material decomposition (Gaussian splatting)
-9. **Camera** - Export camera to Alembic format
+| Stage | Purpose | Details |
+|-------|---------|---------|
+| **ingest** | Extract frames from video | [docs](stages.md#ingest---frame-extraction) |
+| **depth** | Depth maps (Depth-Anything-V3) | [docs](stages.md#depth---depth-analysis) |
+| **roto** | Segmentation masks (SAM3) | [docs](stages.md#roto---segmentation) |
+| **matanyone** | Matte refinement for people | [docs](stages.md#matanyone---video-matting) |
+| **cleanplate** | Object removal (ProPainter) | [docs](stages.md#cleanplate---clean-plate-generation) |
+| **colmap** | Camera tracking & 3D reconstruction | [docs](stages.md#colmap---camera-tracking) |
+| **mocap** | Human motion capture (WHAM + ECON) | [docs](stages.md#mocap---motion-capture) |
+| **gsir** | PBR material decomposition | [docs](stages.md#gsir---material-decomposition) |
+| **camera** | Export camera to Alembic | [docs](stages.md#camera---camera-export) |
+
+---
 
 ## Quick Start
 
@@ -27,14 +35,16 @@ python scripts/run_pipeline.py /path/to/footage.mp4 -n "MyShot"
 ### Process Specific Stages
 
 ```bash
-python scripts/run_pipeline.py footage.mp4 -s depth,camera
+python scripts/run_pipeline.py footage.mp4 -s depth,roto,cleanplate
 ```
 
 ### List Available Stages
 
 ```bash
-python scripts/run_pipeline.py -l
+python scripts/run_pipeline.py footage.mp4 -l
 ```
+
+---
 
 ## Command Line Options
 
@@ -94,637 +104,136 @@ python scripts/run_pipeline.py -l
 --no-overwrite             # Keep existing output files instead of clearing them
 ```
 
+---
+
 ## Usage Examples
 
-### Example 1: Quick Depth + Camera
-
-Extract frames, generate depth maps, and export camera:
+### Basic: Depth + Camera Export
 
 ```bash
 python scripts/run_pipeline.py footage.mp4 -n "Shot01" -s depth,camera
 ```
 
-This is the fastest workflow for basic VFX work.
+Fastest workflow for basic VFX matchmoving.
 
-### Example 2: Full Segmentation Pipeline
-
-Complete pipeline with segmentation for clean plates:
+### Full Segmentation Pipeline
 
 ```bash
-python scripts/run_pipeline.py footage.mp4 -n "Shot02" -s ingest,depth,roto,cleanplate,colmap,camera
+python scripts/run_pipeline.py footage.mp4 -s ingest,depth,roto,matanyone,cleanplate
 ```
 
-### Example 3: Motion Capture
+Complete pipeline with person matte refinement for clean plates.
 
-Process footage with human motion capture:
+### Multi-Object Segmentation
 
 ```bash
-python scripts/run_pipeline.py footage.mp4 -n "Actor01" -s all
+python scripts/run_pipeline.py footage.mp4 -s roto --prompt "person,bag,ball"
 ```
 
-Requires:
-- WHAM, ECON installed
-- Camera data (from COLMAP or Depth-Anything-V3)
+Creates separate mask directories: `roto/person/`, `roto/bag/`, `roto/ball/`
 
-### Example 4: High-Quality COLMAP
+### Multi-Person Instance Separation
 
-Run COLMAP with dense reconstruction and mesh generation:
+```bash
+python scripts/run_pipeline.py footage.mp4 -s roto --prompt "person" --separate-instances
+```
+
+Splits multiple people into `roto/person_0/`, `roto/person_1/`, etc.
+
+### High-Quality COLMAP with Dense Reconstruction
 
 ```bash
 python scripts/run_pipeline.py footage.mp4 -s colmap,camera -q high -d -m
 ```
 
-Parameters:
-- `-q high` - High quality settings (slower, more accurate)
-- `-d` - Dense reconstruction (point cloud)
-- `-m` - Mesh generation (requires dense)
-
-### Example 5: Resume After Interruption
-
-Skip already-processed stages:
+### Resume After Interruption
 
 ```bash
 python scripts/run_pipeline.py footage.mp4 -s all -e
 ```
 
-The `-e` flag checks for existing output before running each stage.
+The `-e` flag skips stages that already have output.
 
-### Example 6: Custom FPS
-
-Override automatic frame rate detection:
-
-```bash
-python scripts/run_pipeline.py footage.mp4 -f 30
-```
-
-Useful for:
-- Image sequences without metadata
-- Forcing specific frame rates
-
-### Example 7: Custom Project Location
-
-Specify output directory:
-
-```bash
-python scripts/run_pipeline.py footage.mp4 -p /mnt/storage/vfx_shots
-```
-
-### Example 8: Material Decomposition
-
-Run GS-IR for PBR material extraction:
-
-```bash
-python scripts/run_pipeline.py footage.mp4 -s colmap,gsir -i 50000
-```
-
-Higher iterations (`-i`) produce better quality but take longer.
-
-### Example 9: Multi-Person Instance Separation
-
-Separate multiple people into individual mask sequences:
-
-```bash
-python scripts/run_pipeline.py footage.mp4 -s roto --prompt "person" --separate-instances
-```
-
-Creates `roto/person_0/`, `roto/person_1/`, etc. for each tracked individual.
-
-### Example 10: Generate Preview Movies
-
-Automatically create MP4 previews of each stage's output:
+### Generate Preview Movies
 
 ```bash
 python scripts/run_pipeline.py footage.mp4 -s depth,roto,cleanplate --auto-movie
 ```
 
-Creates preview movies in `preview/depth.mp4`, `preview/roto.mp4`, `preview/cleanplate.mp4`.
+Creates `preview/depth.mp4`, `preview/roto.mp4`, `preview/cleanplate.mp4`.
 
-### Example 11: Keep Existing Output
-
-Run stages without clearing previous output (useful for incremental updates):
-
-```bash
-python scripts/run_pipeline.py footage.mp4 -s roto --no-overwrite
-```
-
-## Stages
-
-### ingest - Frame Extraction
-
-Extracts frames from video file using ffmpeg.
-
-**Input**: Movie file (mp4, mov, avi, mkv, webm, mxf)
-**Output**: `source/frames/frame_0001.png, frame_0002.png, ...`
-
-**Options**:
-- `--fps` - Override frame rate (default: auto-detect from video metadata)
-
-**Example**:
-```bash
-python scripts/run_pipeline.py footage.mp4 -s ingest -f 24
-```
-
-**Frame Numbering**:
-- Starts at 0001 (due to ComfyUI and WHAM constraints)
-- Zero-padded 4 digits (0001, 0002, ..., 9999)
-
-### depth - Depth Analysis
-
-Generates depth maps using Depth-Anything-V3.
-
-**Input**: `source/frames/*.png`
-**Output**: `depth/*.png`, `camera/extrinsics.json`, `camera/intrinsics.json`
-
-**Requirements**:
-- ComfyUI server running
-- DepthAnythingV3 custom node installed
-
-**Workflow**: `01_analysis.json`
-
-**Example**:
-```bash
-# Start ComfyUI first
-cd .vfx_pipeline/ComfyUI
-python main.py --listen &
-
-# Run depth stage
-python scripts/run_pipeline.py footage.mp4 -s depth
-```
-
-### roto - Segmentation
-
-Creates segmentation masks using SAM3.
-
-**Input**: `source/frames/*.png`
-**Output**: `roto/<prompt>/*.png` (binary masks in per-prompt subdirectories)
-
-**Requirements**:
-- ComfyUI server running
-- SAM3 custom node installed
-
-**Workflow**: `02_segmentation.json`
-
-**Multi-prompt support**:
-```bash
-# Segment multiple objects
-python scripts/run_pipeline.py footage.mp4 -s roto --prompt "person,bag,backpack"
-```
-
-Each prompt creates its own subdirectory under `roto/`:
-```
-roto/
-├── person/     # Person masks
-├── bag/        # Bag masks
-└── backpack/   # Backpack masks
-```
-
-**Use Cases**:
-- Object removal (clean plates)
-- Selective color grading
-- COLMAP masking (improves camera tracking)
-
-**Instance Separation** (`--separate-instances`):
-
-When multiple people are in frame, SAM3 may combine them into a single mask. Use `--separate-instances` to split them into individual tracked instances:
-
-```bash
-python scripts/run_pipeline.py footage.mp4 -s roto --prompt "person" --separate-instances
-```
-
-This creates separate directories for each detected person:
-```
-roto/
-├── person_0/     # First person's masks
-├── person_1/     # Second person's masks
-└── person_2/     # Third person's masks (etc.)
-```
-
-Useful for:
-- Individual actor extraction
-- Per-person motion capture
-- Selective compositing
-
-### matanyone - Video Matting
-
-Refines person segmentation masks into clean alpha mattes using MatAnyone.
-
-**Input**: `roto/person/*.png` (or any subdirectory containing "person" in its name)
-**Output**: `matte/*.png` (refined alpha mattes)
-
-**Requirements**:
-- ComfyUI server running
-- ComfyUI-MatAnyone custom node installed
-- MatAnyone model checkpoint (~450MB)
-- **9GB+ VRAM** (NVIDIA GPU required)
-
-**Workflow**: `04_matanyone.json`
-
-**What it does**:
-- Takes rough SAM3 person masks as input
-- Produces clean alpha mattes with proper edge detail (hair, clothing edges)
-- Uses temporal consistency for stable results across frames
-
-**Limitations**:
-- **Human-focused only**: MatAnyone is trained specifically on people. Non-human objects (cars, bags, etc.) will not benefit from this refinement.
-- Automatically skipped if no person-related masks are found in `roto/`
-- Automatically skipped if workflow file is not present
-
-**Example**:
-```bash
-# Full pipeline with MatAnyone refinement
-python scripts/run_pipeline.py footage.mp4 -s ingest,roto,matanyone,cleanplate
-```
-
-### cleanplate - Clean Plate Generation
-
-Generates clean plates by removing objects from segmented areas.
-
-**Input**: `source/frames/*.png`, `roto/*/*.png` (mask subdirectories), optionally `matte/*.png`
-**Output**: `cleanplate/*.png`, `roto/combined_*.png` (consolidated masks)
-
-**Requirements**:
-- ComfyUI server running
-- Segmentation masks from `roto` stage
-
-**Workflow**: `03_cleanplate.json`
-
-**Preprocessing - Mask Consolidation**:
-Before running inpainting, cleanplate consolidates all masks:
-1. Collects masks from all `roto/` subdirectories
-2. If MatAnyone refined mattes exist in `matte/`, substitutes them for person masks
-3. OR-combines all mask sources into `roto/combined_*.png`
-
-This ensures the inpainting receives a single unified mask covering all dynamic regions.
-
-### colmap - Camera Tracking
-
-COLMAP Structure-from-Motion reconstruction.
-
-**Input**: `source/frames/*.png`, optional: `roto/*.png` (masks)
-**Output**:
-- `colmap/sparse/0/` - Sparse 3D model
-- `colmap/dense/` - Dense point cloud (if `--colmap-dense`)
-- `colmap/meshed/` - Mesh (if `--colmap-mesh`)
-
-**Options**:
-- `-q low|medium|high` - Quality preset (default: medium)
-- `-d` - Run dense reconstruction
-- `-m` - Generate mesh (requires `-d`)
-- `-M` - Disable automatic mask usage
-
-**Quality Presets**:
-
-| Preset | Feature Extraction | Matching | Speed | Accuracy |
-|--------|-------------------|----------|-------|----------|
-| Low | Fast | Vocab tree | Fast | Lower |
-| Medium | Normal | Vocab tree | Medium | Good |
-| High | Detailed | Exhaustive | Slow | Best |
-| Slow | Detailed | Exhaustive | Slowest | Best (minimal motion) |
-
-**Example**:
-```bash
-# High quality with dense reconstruction
-python scripts/run_pipeline.py footage.mp4 -s colmap -q high -d
-```
-
-**Mask Integration**:
-If `roto/*.png` exists, COLMAP automatically uses masks to ignore moving objects and improve camera tracking.
-
-### mocap - Motion Capture
-
-Human motion capture using WHAM + ECON.
-
-**Input**:
-- `source/frames/*.png`
-- `camera/extrinsics.json` (from COLMAP or depth stage)
-
-**Output**:
-- `mocap/wham/` - WHAM pose estimates
-- `mocap/econ/` - ECON 3D reconstructions
-- `mocap/mesh_sequence/` - Exported mesh sequence
-
-**Requirements**:
-- WHAM, ECON installed
-- Camera data (run `colmap` or `depth` stage first)
-
-**Example**:
-```bash
-python scripts/run_pipeline.py actor_footage.mp4 -s colmap,mocap
-```
-
-**Pipeline**:
-1. WHAM extracts pose from video (world-grounded motion)
-2. ECON reconstructs detailed 3D clothed human with SMPL-X compatibility
-3. Texture projection (optional, use `--skip-texture` to disable)
-
-### gsir - Material Decomposition
-
-GS-IR (Gaussian Splatting Inverse Rendering) for PBR material extraction.
-
-**Input**: `colmap/sparse/0/` (COLMAP sparse model)
-**Output**:
-- `gsir/model/chkpnt{N}.pth` - Trained model checkpoints
-- `gsir/materials/` - Extracted PBR textures (albedo, roughness, metallic)
-
-**Options**:
-- `-i ITERATIONS` - Total training iterations (default: 35000)
-- `-g PATH` - Path to GS-IR installation
-
-**Example**:
-```bash
-python scripts/run_pipeline.py footage.mp4 -s colmap,gsir -i 50000
-```
-
-**Training Time**:
-- 30k iterations: ~30 minutes (quick preview)
-- 35k iterations: ~40 minutes (default quality)
-- 50k iterations: ~60 minutes (high quality)
-
-### camera - Camera Export
-
-Export camera data to Alembic format for use in DCCs (Maya, Houdini, Blender).
-
-**Input**: `camera/extrinsics.json`, `camera/intrinsics.json`
-**Output**:
-- `camera/camera.abc` - Alembic camera export
-- `camera/camera.fbx` - FBX camera export (if available)
-
-**Example**:
-```bash
-python scripts/run_pipeline.py footage.mp4 -s depth,camera
-```
-
-**Format**:
-- Alembic (.abc) - Industry standard, works in all major DCCs
-- FBX (.fbx) - Optional, if fbx SDK available
+---
 
 ## Project Structure
 
-Pipeline creates this directory structure in a **sibling folder** to the repo (keeps project data separate from code):
+Pipeline creates this directory structure:
 
 ```
-../vfx_projects/MyShot/          # Default location (sibling to repo)
+../vfx_projects/MyShot/
 ├── source/
-│   └── frames/                  # Extracted frames
-│       ├── frame_0001.png
-│       ├── frame_0002.png
-│       └── ...
-├── workflows/                   # ComfyUI workflow copies
-│   ├── 01_analysis.json
-│   ├── 02_segmentation.json
-│   ├── 03_cleanplate.json
-│   └── 04_matanyone.json
-├── depth/                       # Depth maps
-│   ├── depth_0001.png
-│   ├── depth_0002.png
-│   └── ...
-├── roto/                        # Segmentation masks (per-prompt subdirs)
-│   ├── person/                  # SAM3 person masks
-│   │   ├── mask_00001.png
-│   │   └── ...
-│   ├── bag/                     # SAM3 bag masks (if multi-prompt)
-│   │   └── ...
-│   └── combined_*.png           # Consolidated masks (created by cleanplate)
-├── matte/                       # MatAnyone refined person mattes
-│   ├── matte_00001.png
-│   └── ...
-├── cleanplate/                  # Clean plates
-│   ├── clean_0001.png
-│   ├── clean_0002.png
-│   └── ...
-├── colmap/                      # COLMAP reconstruction
-│   ├── sparse/
-│   │   └── 0/                   # Sparse 3D model
-│   │       ├── cameras.bin
-│   │       ├── images.bin
-│   │       └── points3D.bin
-│   ├── dense/                   # Dense point cloud (optional)
-│   │   ├── fused.ply
-│   │   └── stereo/
-│   └── meshed/                  # Mesh (optional)
-│       └── meshed-poisson.ply
-├── mocap/                       # Motion capture
-│   ├── wham/
-│   │   └── poses.pkl
-│   ├── econ/
-│   │   └── mesh_*.obj
-│   └── mesh_sequence/
-│       └── textured_meshes/
-├── gsir/                        # GS-IR materials
-│   ├── model/
-│   │   ├── chkpnt30000.pth
-│   │   └── chkpnt35000.pth
-│   └── materials/
-│       ├── albedo.png
-│       ├── roughness.png
-│       └── metallic.png
-└── camera/                      # Camera export
-    ├── extrinsics.json          # Camera transforms per frame
-    ├── intrinsics.json          # Camera parameters
-    ├── camera.abc               # Alembic export
-    └── camera.fbx               # FBX export (optional)
+│   └── frames/              # Extracted frames (frame_0001.png, ...)
+├── workflows/               # ComfyUI workflow copies
+├── depth/                   # Depth maps
+├── roto/                    # Segmentation masks (per-prompt subdirs)
+│   ├── person/
+│   ├── bag/
+│   └── combined/            # Consolidated masks (for cleanplate)
+├── matte/                   # MatAnyone refined mattes
+├── cleanplate/              # Clean plates
+├── colmap/
+│   ├── sparse/0/            # Sparse 3D model
+│   ├── dense/               # Dense point cloud (optional)
+│   └── meshed/              # Mesh (optional)
+├── mocap/
+│   ├── wham/                # Pose estimates
+│   └── econ/                # 3D reconstructions
+├── gsir/
+│   ├── model/               # Checkpoints
+│   └── materials/           # PBR textures (albedo, roughness, metallic)
+├── camera/
+│   ├── extrinsics.json      # Camera transforms
+│   ├── intrinsics.json      # Camera parameters
+│   └── camera.abc           # Alembic export
+└── preview/                 # Preview movies (if --auto-movie)
 ```
+
+---
 
 ## ComfyUI Integration
 
-### Starting ComfyUI
+Pipeline auto-starts ComfyUI for stages that need it (depth, roto, matanyone, cleanplate).
 
-Pipeline requires ComfyUI server for depth, roto, and cleanplate stages:
-
-```bash
-# Terminal 1: Start ComfyUI
-cd .vfx_pipeline/ComfyUI
-python main.py --listen
-
-# Terminal 2: Run pipeline
-python scripts/run_pipeline.py footage.mp4 -s depth,roto
-```
-
-### Custom ComfyUI URL
-
-If ComfyUI runs on different host/port:
+### Manual ComfyUI Control
 
 ```bash
+# Disable auto-start
+python scripts/run_pipeline.py footage.mp4 -s depth --no-auto-comfyui
+
+# Custom URL (remote server)
 python scripts/run_pipeline.py footage.mp4 -c http://192.168.1.100:8188
 ```
 
-### Workflow Files
+### Workflow Customization
 
-Pipeline copies workflow templates to project directory:
+Workflows are copied to `MyShot/workflows/` on first run. Edit these per-shot:
 
 ```
 workflow_templates/01_analysis.json → MyShot/workflows/01_analysis.json
 ```
 
-Edit workflows in project directory to customize per-shot.
-
-### API Format
-
-Workflows must be in API format (not UI format). Save workflows using:
-
-```
-ComfyUI → Save API Format
-```
-
-## Performance Tips
-
-### Parallel Processing
-
-Some stages can run in parallel:
-
-```bash
-# Terminal 1: Depth analysis
-python scripts/run_pipeline.py footage.mp4 -s depth
-
-# Terminal 2: Segmentation (runs simultaneously)
-python scripts/run_pipeline.py footage.mp4 -s roto
-```
-
-### Skip Existing Output
-
-Use `-e` to avoid re-processing:
-
-```bash
-python scripts/run_pipeline.py footage.mp4 -s all -e
-```
-
-Checks for:
-- Frame files in `source/frames/`
-- Depth maps in `depth/`
-- Masks in `roto/`
-- COLMAP model in `colmap/sparse/0/`
-- Camera file in `camera/camera.abc`
-
-### Quality vs Speed
-
-**Fast preview** (low quality):
-```bash
-python scripts/run_pipeline.py footage.mp4 -s depth,colmap,camera -q low
-```
-
-**Production quality** (slow):
-```bash
-python scripts/run_pipeline.py footage.mp4 -s all -q high -d -m
-```
-
-### Disk Space Management
-
-Pipeline generates large amounts of data:
-
-| Stage | Approximate Size (per 1000 frames) |
-|-------|-----------------------------------|
-| Frames | 2-5 GB (PNG) |
-| Depth | 1-2 GB |
-| Roto | 500 MB (binary masks) |
-| Cleanplate | 2-5 GB |
-| COLMAP sparse | 50-200 MB |
-| COLMAP dense | 5-20 GB |
-| Mocap | 500 MB - 2 GB |
-| GS-IR | 2-5 GB |
-
-**Total for full pipeline**: 15-40 GB per shot
-
-Clean up intermediate data after export:
-
-```bash
-# Keep only final outputs
-rm -rf MyShot/depth MyShot/roto
-```
-
-## Troubleshooting
-
-### "ComfyUI not running"
-
-Start ComfyUI server:
-
-```bash
-cd .vfx_pipeline/ComfyUI
-python main.py --listen
-```
-
-Verify server is accessible:
-
-```bash
-curl http://127.0.0.1:8188/system_stats
-```
-
-### "Workflow not found"
-
-Pipeline copies workflows from `workflow_templates/` to project directory.
-
-If missing:
-1. Check `workflow_templates/` in repository root
-2. Manually copy workflows to `MyShot/workflows/`
-
-### "COLMAP reconstruction failed"
-
-Common causes:
-
-1. **Insufficient features**:
-   - Use `-q high` for better feature detection
-   - Ensure footage has trackable features (not pure white/black)
-
-2. **Moving objects**:
-   - Use segmentation masks: run `roto` stage first
-   - Pipeline automatically uses masks if available
-
-3. **Motion blur**:
-   - No easy fix - requires sharp frames
-   - Try lower resolution input
-
-### "Motion capture requires camera data"
-
-Mocap stage needs camera transforms:
-
-```bash
-# Run COLMAP or depth stage first
-python scripts/run_pipeline.py footage.mp4 -s colmap,mocap
-```
-
-Or:
-
-```bash
-# Use Depth-Anything-V3 camera (faster, less accurate)
-python scripts/run_pipeline.py footage.mp4 -s depth,mocap
-```
-
-### "Out of memory" (GPU)
-
-Reduce batch size or resolution:
-
-1. Edit ComfyUI workflows to use smaller batch sizes
-2. Process fewer frames at once
-3. Use CPU mode (much slower)
-
-### "Stage failed" (general)
-
-Check logs in project directory:
-
-```bash
-ls -lh MyShot/*.log
-cat MyShot/colmap.log  # Example
-```
+---
 
 ## Advanced Usage
 
-### Custom Stages
-
-Run individual component scripts:
+### Run Individual Scripts
 
 ```bash
-# COLMAP only
 python scripts/run_colmap.py MyShot -q high
-
-# Motion capture only
 python scripts/run_mocap.py MyShot
-
-# Camera export only
 python scripts/export_camera.py MyShot --fps 24
 ```
 
 ### Batch Processing
-
-Process multiple shots:
 
 ```bash
 for video in footage/*.mp4; do
@@ -733,23 +242,43 @@ for video in footage/*.mp4; do
 done
 ```
 
-### Integration with Other Tools
+### DCC Integration
 
-Pipeline outputs are compatible with:
+Pipeline outputs work with:
 
-- **Maya**: Import `.abc` camera
-- **Houdini**: Import `.abc` camera, load `.ply` point clouds
-- **Blender**: Import `.abc` or `.fbx` camera, load `.ply`
-- **Nuke**: Import frame sequences, camera data (convert from ABC)
-- **After Effects**: Import frame sequences
+| Application | Camera | Point Cloud | Mesh |
+|-------------|--------|-------------|------|
+| Maya | .abc | - | .ply |
+| Houdini | .abc | .ply | .ply |
+| Blender | .abc/.fbx | .ply | .ply |
+| Nuke | convert from .abc | - | - |
 
-## Related Tools
+---
 
-- **[Installation Wizard](install_wizard.md)** - Set up components before running pipeline
+## Related Documentation
+
+- **[Stages](stages.md)** - Detailed documentation for each pipeline stage
+- **[Troubleshooting](troubleshooting.md)** - Common issues, solutions, and performance tips
+- **[Installation](install_wizard.md)** - Set up components before running pipeline
 - **[Janitor](janitor.md)** - Maintain and update installed components
+- **[Component Scripts](component_scripts.md)** - Individual script documentation
 
-## See Also
+---
 
-- Main documentation: [README.md](README.md)
-- Testing guide: `TESTING.md` (repository root)
-- Component scripts: `scripts/run_*.py`
+## Quick Reference
+
+```bash
+# Full pipeline
+python scripts/run_pipeline.py footage.mp4 -n "Shot" -s all
+
+# Common workflows
+python scripts/run_pipeline.py footage.mp4 -s depth,camera              # Matchmove only
+python scripts/run_pipeline.py footage.mp4 -s roto,cleanplate           # Object removal
+python scripts/run_pipeline.py footage.mp4 -s colmap,mocap              # Motion capture
+
+# Resume/skip existing
+python scripts/run_pipeline.py footage.mp4 -s all -e
+
+# List stages
+python scripts/run_pipeline.py footage.mp4 -l
+```
