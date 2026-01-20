@@ -1,315 +1,309 @@
-# Pipeline Stages Reference
+# Pipeline Stages
 
-Detailed documentation for each stage in the VFX pipeline.
+Detailed documentation for each processing stage.
 
-**Quick links**: [run_pipeline.py](run_pipeline.md) | [Troubleshooting](troubleshooting.md) | [Installation](install_wizard.md)
+**Quick links**: [Pipeline Usage](run_pipeline.md) | [Troubleshooting](troubleshooting.md) | [Installation](install_wizard.md)
 
 ---
 
 ## Stage Overview
 
-| Stage | Purpose | Input | Output |
-|-------|---------|-------|--------|
-| [ingest](#ingest---frame-extraction) | Extract frames | Video file | PNG sequence |
-| [depth](#depth---depth-analysis) | Depth maps | Frames | Depth PNGs + camera JSON |
-| [roto](#roto---segmentation) | Segmentation | Frames | Binary masks |
-| [matanyone](#matanyone---video-matting) | Matte refinement | Person masks | Alpha mattes |
-| [cleanplate](#cleanplate---clean-plate-generation) | Object removal | Frames + masks | Clean plates |
-| [colmap](#colmap---camera-tracking) | Camera tracking | Frames | 3D reconstruction |
-| [mocap](#mocap---motion-capture) | Motion capture | Frames + camera | Pose + mesh |
-| [gsir](#gsir---material-decomposition) | PBR materials | COLMAP model | Albedo, roughness, metallic |
-| [camera](#camera---camera-export) | Export camera | Camera JSON | Alembic/FBX |
+| Stage | Purpose | VRAM | Input → Output |
+|-------|---------|------|----------------|
+| [ingest](#ingest) | Extract frames | CPU | Video → PNGs |
+| [depth](#depth) | Depth maps | 7 GB | Frames → Depth + camera |
+| [roto](#roto) | Segmentation | 4 GB | Frames → Masks |
+| [matanyone](#matanyone) | Matte refinement | 9 GB | Person masks → Alpha mattes |
+| [cleanplate](#cleanplate) | Object removal | 6 GB | Frames + masks → Clean plates |
+| [colmap](#colmap) | Camera tracking | 2-4 GB | Frames → 3D reconstruction |
+| [mocap](#mocap) | Motion capture | 12 GB | Frames + camera → Pose + mesh |
+| [gsir](#gsir) | PBR materials | 8 GB | COLMAP → Albedo, roughness, metallic |
+| [camera](#camera) | Export camera | CPU | Camera JSON → Alembic/FBX |
 
 ---
 
-## ingest - Frame Extraction
+## ingest
 
-Extracts frames from video file using ffmpeg.
+Extracts frames from video using ffmpeg.
 
-**Input**: Movie file (mp4, mov, avi, mkv, webm, mxf)
-**Output**: `source/frames/frame_0001.png, frame_0002.png, ...`
+| | |
+|---|---|
+| **VRAM** | CPU only |
+| **Input** | Video file (mp4, mov, avi, mkv, webm, mxf) |
+| **Output** | `source/frames/frame_0001.png`, `frame_0002.png`, ... |
+| **Workflow** | None (ffmpeg) |
 
-**Options**:
-- `--fps` - Override frame rate (default: auto-detect from video metadata)
+**Options:**
+- `--fps` — Override frame rate (default: auto-detect)
 
-**Example**:
 ```bash
 python scripts/run_pipeline.py footage.mp4 -s ingest -f 24
 ```
 
-**Frame Numbering**:
-- Starts at 0001 (due to ComfyUI and WHAM constraints)
-- Zero-padded 4 digits (0001, 0002, ..., 9999)
+**Notes:**
+- Frame numbering starts at 0001 (ComfyUI/WHAM requirement)
+- Zero-padded to 4 digits (supports up to 9999 frames)
 
 ---
 
-## depth - Depth Analysis
+## depth
 
 Generates depth maps using Depth-Anything-V3.
 
-**Input**: `source/frames/*.png`
-**Output**: `depth/*.png`, `camera/extrinsics.json`, `camera/intrinsics.json`
+| | |
+|---|---|
+| **VRAM** | ~7 GB |
+| **Input** | `source/frames/*.png` |
+| **Output** | `depth/*.png`, `camera/extrinsics.json`, `camera/intrinsics.json` |
+| **Workflow** | `01_analysis.json` |
 
-**Requirements**:
-- ComfyUI server running (see [ComfyUI docs](comfyui.md))
-- DepthAnythingV3 custom node installed
+**Requirements:**
+- ComfyUI server running
+- DepthAnythingV3 custom node
 
-**Workflow**: `01_analysis.json`
-
-**Example**:
 ```bash
 python scripts/run_pipeline.py footage.mp4 -s depth
 ```
 
-**Notes**:
+**Notes:**
 - Also generates camera data from depth (useful when COLMAP fails)
-- ~7GB VRAM required
+- Camera data enables mocap stage without running COLMAP
 
 ---
 
-## roto - Segmentation
+## roto
 
 Creates segmentation masks using SAM3 (Segment Anything Model 3).
 
-**Input**: `source/frames/*.png`
-**Output**: `roto/<prompt>/*.png` (binary masks in per-prompt subdirectories)
+| | |
+|---|---|
+| **VRAM** | ~4 GB |
+| **Input** | `source/frames/*.png` |
+| **Output** | `roto/<prompt>/*.png` (per-prompt subdirectories) |
+| **Workflow** | `02_segmentation.json` |
 
-**Requirements**:
+**Requirements:**
 - ComfyUI server running
-- SAM3 custom node installed (~3.2GB model, auto-downloads)
+- SAM3 custom node (~3.2 GB model, auto-downloads from public repo)
 
-**Workflow**: `02_segmentation.json`
-
-### Multi-Prompt Support
-
-Segment multiple objects in a single run:
+### Basic Usage
 
 ```bash
-python scripts/run_pipeline.py footage.mp4 -s roto --prompt "person,bag,backpack"
+python scripts/run_pipeline.py footage.mp4 -s roto --prompt "person"
 ```
 
-Each prompt creates its own subdirectory:
+### Multi-Object Segmentation
+
+Segment multiple objects in one run:
+
+```bash
+python scripts/run_pipeline.py footage.mp4 -s roto --prompt "person,bag,ball"
+```
+
+Creates separate directories:
 ```
 roto/
-├── person/     # Person masks
-├── bag/        # Bag masks
-└── backpack/   # Backpack masks
+├── person/
+├── bag/
+└── ball/
 ```
 
 ### Instance Separation
 
-When multiple people are in frame, SAM3 may combine them into a single mask. Use `--separate-instances` to split them:
+Split multiple people into individual masks:
 
 ```bash
 python scripts/run_pipeline.py footage.mp4 -s roto --prompt "person" --separate-instances
 ```
 
-Creates separate directories for each detected person:
+Creates:
 ```
 roto/
-├── person_0/     # First person's masks
-├── person_1/     # Second person's masks
-└── person_2/     # Third person's masks
+├── person_0/     # First person
+├── person_1/     # Second person
+└── person_2/     # Third person
 ```
 
-**Use Cases**:
-- Object removal (clean plates)
-- Selective color grading
-- COLMAP masking (improves camera tracking)
-- Individual actor extraction
-- Per-person motion capture
+**Use cases:** Object removal, selective grading, COLMAP masking, per-person mocap
 
 ---
 
-## matanyone - Video Matting
+## matanyone
 
-Refines person segmentation masks into clean alpha mattes using MatAnyone.
+Refines person masks into production-quality alpha mattes.
 
-**Input**: `roto/person/*.png` (or any subdirectory containing "person" in its name)
-**Output**: `matte/<person_dir>/*.png` (refined alpha mattes)
+| | |
+|---|---|
+| **VRAM** | ~9 GB |
+| **Input** | `roto/person/*.png` (any directory with "person" in name) |
+| **Output** | `matte/<person_dir>/*.png` |
+| **Workflow** | `04_matanyone.json` |
 
-**Requirements**:
+**Requirements:**
 - ComfyUI server running
-- ComfyUI-MatAnyone custom node installed
-- MatAnyone model checkpoint (~450MB)
-- **9GB+ VRAM** (NVIDIA GPU required)
+- ComfyUI-MatAnyone custom node
+- MatAnyone checkpoint (~450 MB)
 
-**Workflow**: `04_matanyone.json`
-
-### What It Does
-
-- Takes rough SAM3 person masks as input
-- Produces clean alpha mattes with proper edge detail (hair, clothing edges)
-- Uses temporal consistency for stable results across frames
-- Combines multiple person mattes into `roto/combined/` for cleanplate
-
-### Limitations
-
-- **Human-focused only**: MatAnyone is trained specifically on people. Non-human objects (cars, bags, etc.) will not benefit from this refinement.
-- Automatically skipped if no person-related masks are found in `roto/`
-- Automatically skipped if workflow file is not present
-
-**Example**:
 ```bash
-python scripts/run_pipeline.py footage.mp4 -s ingest,roto,matanyone,cleanplate
+python scripts/run_pipeline.py footage.mp4 -s roto,matanyone
 ```
 
+**What it does:**
+- Refines rough SAM3 masks into clean edges (hair, clothing detail)
+- Applies temporal consistency across frames
+- Combines multiple mattes into `roto/combined/` for cleanplate
+
+**Limitations:**
+- **People only** — trained on humans, won't improve car/object masks
+- Skipped automatically if no person masks exist
+
 ---
 
-## cleanplate - Clean Plate Generation
+## cleanplate
 
-Generates clean plates by removing objects from segmented areas using ProPainter.
+Removes masked objects using ProPainter video inpainting.
 
-**Input**: `source/frames/*.png`, `roto/*/*.png` (mask subdirectories), optionally `matte/*.png`
-**Output**: `cleanplate/*.png`, `roto/combined_*.png` (consolidated masks)
+| | |
+|---|---|
+| **VRAM** | ~6 GB |
+| **Input** | `source/frames/*.png`, `roto/*/*.png`, optionally `matte/*.png` |
+| **Output** | `cleanplate/*.png` |
+| **Workflow** | `03_cleanplate.json` |
 
-**Requirements**:
+**Requirements:**
 - ComfyUI server running
-- Segmentation masks from `roto` stage
-- ~6GB VRAM
+- Segmentation masks from roto stage
 
-**Workflow**: `03_cleanplate.json`
+```bash
+python scripts/run_pipeline.py footage.mp4 -s roto,cleanplate
+```
 
-### Mask Consolidation
-
-Before running inpainting, cleanplate consolidates all masks:
-
-1. Collects masks from all `roto/` subdirectories
-2. If MatAnyone refined mattes exist in `matte/`, substitutes them for person masks
-3. OR-combines all mask sources into `roto/combined_*.png`
-
-This ensures the inpainting receives a single unified mask covering all dynamic regions.
+**Mask handling:**
+1. Collects all masks from `roto/` subdirectories
+2. Substitutes MatAnyone mattes for person masks (if available)
+3. Combines into single mask for inpainting
 
 ---
 
-## colmap - Camera Tracking
+## colmap
 
-COLMAP Structure-from-Motion reconstruction.
+Structure-from-Motion camera tracking and 3D reconstruction.
 
-**Input**: `source/frames/*.png`, optional: `roto/*.png` (masks)
-**Output**:
-- `colmap/sparse/0/` - Sparse 3D model
-- `colmap/dense/` - Dense point cloud (if `--colmap-dense`)
-- `colmap/meshed/` - Mesh (if `--colmap-mesh`)
+| | |
+|---|---|
+| **VRAM** | ~2-4 GB |
+| **Input** | `source/frames/*.png`, optionally `roto/*.png` |
+| **Output** | `colmap/sparse/0/`, optionally `colmap/dense/`, `colmap/meshed/` |
+| **Workflow** | None (COLMAP binary) |
 
-**Options**:
-- `-q low|medium|high|slow` - Quality preset (default: medium)
-- `-d` - Run dense reconstruction
-- `-m` - Generate mesh (requires `-d`)
-- `-M` - Disable automatic mask usage
+**Options:**
 
-### Quality Presets
+| Flag | Description |
+|------|-------------|
+| `-q low` | Fast preview |
+| `-q medium` | Default quality |
+| `-q high` | Production quality |
+| `-q slow` | Minimal camera motion |
+| `-d` | Dense reconstruction |
+| `-m` | Generate mesh (requires `-d`) |
+| `-M` | Disable mask usage |
 
-| Preset | Feature Extraction | Matching | Speed | Use Case |
-|--------|-------------------|----------|-------|----------|
-| Low | Fast | Vocab tree | Fast | Quick preview |
-| Medium | Normal | Vocab tree | Medium | Default |
-| High | Detailed | Exhaustive | Slow | Production |
-| Slow | Detailed | Exhaustive | Slowest | Minimal camera motion |
-
-**Example**:
 ```bash
 # High quality with dense reconstruction
 python scripts/run_pipeline.py footage.mp4 -s colmap -q high -d
 ```
 
-### Mask Integration
+**Mask integration:** If `roto/` masks exist, COLMAP uses them to ignore moving objects. Disable with `-M` if masks cause issues.
 
-If `roto/*.png` exists, COLMAP automatically uses masks to ignore moving objects and improve camera tracking. Disable with `-M` if masks are causing issues.
-
-**See also**: [Troubleshooting COLMAP](troubleshooting.md#colmap-reconstruction-failed)
+**Troubleshooting:** See [COLMAP issues](troubleshooting.md#colmap-reconstruction-failed)
 
 ---
 
-## mocap - Motion Capture
+## mocap
 
 Human motion capture using WHAM + ECON.
 
-**Input**:
-- `source/frames/*.png`
-- `camera/extrinsics.json` (from COLMAP or depth stage)
+| | |
+|---|---|
+| **VRAM** | ~12 GB |
+| **Input** | `source/frames/*.png`, `camera/extrinsics.json` |
+| **Output** | `mocap/wham/`, `mocap/econ/`, `mocap/mesh_sequence/` |
+| **Workflow** | None (WHAM/ECON binaries) |
 
-**Output**:
-- `mocap/wham/` - WHAM pose estimates
-- `mocap/econ/` - ECON 3D reconstructions
-- `mocap/mesh_sequence/` - Exported mesh sequence
+**Requirements:**
+- WHAM and ECON installed ([Installation guide](install_wizard.md))
+- Camera data from `colmap` or `depth` stage
 
-**Requirements**:
-- WHAM, ECON installed (see [Installation](install_wizard.md))
-- Camera data (run `colmap` or `depth` stage first)
-- 12GB+ VRAM recommended
-
-**Example**:
 ```bash
-python scripts/run_pipeline.py actor_footage.mp4 -s colmap,mocap
+python scripts/run_pipeline.py footage.mp4 -s colmap,mocap
 ```
 
-### Pipeline
+**Pipeline:**
+1. **WHAM** — Extracts world-grounded pose from video
+2. **ECON** — Reconstructs clothed 3D human (SMPL-X compatible)
+3. **Texture** — Projects video frames onto mesh
 
-1. **WHAM** extracts pose from video (world-grounded motion)
-2. **ECON** reconstructs detailed 3D clothed human with SMPL-X compatibility
-3. **Texture projection** (optional, use `--skip-texture` to disable)
-
-**See also**: [Troubleshooting Mocap](troubleshooting.md#motion-capture-requires-camera-data)
+**Troubleshooting:** See [Mocap issues](troubleshooting.md#motion-capture-requires-camera-data)
 
 ---
 
-## gsir - Material Decomposition
+## gsir
 
-GS-IR (Gaussian Splatting Inverse Rendering) for PBR material extraction.
+PBR material extraction using Gaussian Splatting Inverse Rendering.
 
-**Input**: `colmap/sparse/0/` (COLMAP sparse model)
-**Output**:
-- `gsir/model/chkpnt{N}.pth` - Trained model checkpoints
-- `gsir/materials/` - Extracted PBR textures (albedo, roughness, metallic)
+| | |
+|---|---|
+| **VRAM** | ~8 GB |
+| **Input** | `colmap/sparse/0/` |
+| **Output** | `gsir/model/`, `gsir/materials/` (albedo, roughness, metallic) |
+| **Workflow** | None (GS-IR training) |
 
-**Options**:
-- `-i ITERATIONS` - Total training iterations (default: 35000)
-- `-g PATH` - Path to GS-IR installation
+**Options:**
+- `-i N` — Training iterations (default: 35000)
+- `-g PATH` — GS-IR installation path
 
-**Example**:
 ```bash
 python scripts/run_pipeline.py footage.mp4 -s colmap,gsir -i 50000
 ```
 
-### Training Time
+**Training time:**
 
 | Iterations | Time | Quality |
 |------------|------|---------|
-| 30k | ~30 min | Quick preview |
+| 30k | ~30 min | Preview |
 | 35k | ~40 min | Default |
-| 50k | ~60 min | High quality |
+| 50k | ~60 min | High |
 
 ---
 
-## camera - Camera Export
+## camera
 
-Export camera data to Alembic format for use in DCCs (Maya, Houdini, Blender).
+Exports camera data to DCC-compatible formats.
 
-**Input**: `camera/extrinsics.json`, `camera/intrinsics.json`
-**Output**:
-- `camera/camera.abc` - Alembic camera export
-- `camera/camera.fbx` - FBX camera export (if available)
+| | |
+|---|---|
+| **VRAM** | CPU only |
+| **Input** | `camera/extrinsics.json`, `camera/intrinsics.json` |
+| **Output** | `camera/camera.abc`, optionally `camera/camera.fbx` |
+| **Workflow** | None (Python export) |
 
-**Example**:
 ```bash
 python scripts/run_pipeline.py footage.mp4 -s depth,camera
 ```
 
-### DCC Compatibility
+**DCC import:**
 
-| Application | Import Method |
-|-------------|---------------|
+| Application | Method |
+|-------------|--------|
 | Maya | File → Import → Alembic |
 | Houdini | Alembic SOP |
 | Blender | File → Import → Alembic |
-| Nuke | ReadGeo (convert from ABC) |
+| Nuke | ReadGeo node |
 
 ---
 
 ## Related Documentation
 
-- **[run_pipeline.py](run_pipeline.md)** - Main pipeline orchestrator
-- **[Troubleshooting](troubleshooting.md)** - Common issues and solutions
-- **[Installation](install_wizard.md)** - Component installation
-- **[Project Structure](run_pipeline.md#project-structure)** - Output directory layout
+- [Pipeline Usage](run_pipeline.md) — Command reference and examples
+- [Troubleshooting](troubleshooting.md) — Common issues and solutions
+- [Installation](install_wizard.md) — Component setup
