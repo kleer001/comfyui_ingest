@@ -74,11 +74,6 @@ RUN pip3 install --no-cache-dir kornia
 # Stage 4: GS-IR (Gaussian Splatting Inverse Rendering)
 FROM python-deps AS gsir
 
-# CUDA architecture for building extensions (GPU not visible during build)
-# Override with: docker build --build-arg CUDA_ARCH="8.6" .
-# Common values: 7.5 (RTX 20xx/T4), 8.6 (RTX 30xx), 8.9 (RTX 40xx)
-ARG CUDA_ARCH="7.5;8.6;8.9"
-
 WORKDIR /app/.vfx_pipeline
 
 # Clone GS-IR with submodules
@@ -86,14 +81,15 @@ RUN git clone --recursive https://github.com/lzhnb/GS-IR.git GS-IR
 
 # Install nvdiffrast (required for GS-IR rendering)
 # --no-build-isolation required so it can find PyTorch during build
-# Export TORCH_CUDA_ARCH_LIST explicitly in shell for pip subprocess
-RUN export TORCH_CUDA_ARCH_LIST="${CUDA_ARCH}" && \
+# Hardcode CUDA architectures: 7.5 (RTX 20xx/T4), 8.6 (RTX 30xx), 8.9 (RTX 40xx)
+RUN TORCH_CUDA_ARCH_LIST="7.5 8.6 8.9" \
     pip3 install --no-cache-dir --no-build-isolation git+https://github.com/NVlabs/nvdiffrast.git
 
 # Build and install GS-IR submodules (CUDA extensions)
 WORKDIR /app/.vfx_pipeline/GS-IR
-RUN export TORCH_CUDA_ARCH_LIST="${CUDA_ARCH}" && \
+RUN TORCH_CUDA_ARCH_LIST="7.5 8.6 8.9" \
     pip3 install --no-cache-dir --no-build-isolation ./submodules/diff-gaussian-rasterization && \
+    TORCH_CUDA_ARCH_LIST="7.5 8.6 8.9" \
     pip3 install --no-cache-dir --no-build-isolation ./submodules/simple-knn
 
 # Install gs-ir module
