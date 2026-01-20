@@ -52,7 +52,7 @@
         {"name": "negative_points", "type": "SAM3_POINTS_PROMPT", "links": [13], "slot_index": 1}
       ],
       "properties": {"Node name for S&R": "SAM3PointCollector"},
-      "widgets_values": ["", "", ""],
+      "widgets_values": ["{}", "[]", "[]"],
       "title": "🎯 Interactive Selector (click points here)"
     },
     {
@@ -88,12 +88,12 @@
         {"name": "video_state", "type": "SAM3_VIDEO_STATE", "link": 3}
       ],
       "outputs": [
-        {"name": "SAM3_VIDEO_MASKS", "type": "SAM3_VIDEO_MASKS", "links": [4], "slot_index": 0},
-        {"name": "SAM3_VIDEO_SCORES", "type": "SAM3_VIDEO_SCORES", "links": null, "slot_index": 1},
-        {"name": "SAM3_VIDEO_STATE", "type": "SAM3_VIDEO_STATE", "links": null, "slot_index": 2}
+        {"name": "masks", "type": "SAM3_VIDEO_MASKS", "links": [4], "slot_index": 0},
+        {"name": "scores", "type": "SAM3_VIDEO_SCORES", "links": null, "slot_index": 1},
+        {"name": "video_state", "type": "SAM3_VIDEO_STATE", "links": null, "slot_index": 2}
       ],
       "properties": {"Node name for S&R": "SAM3Propagate"},
-      "widgets_values": [0],
+      "widgets_values": [0, -1, "forward", false],
       "title": "🔄 Propagate Through Video"
     },
     {
@@ -109,13 +109,13 @@
         {"name": "video_state", "type": "SAM3_VIDEO_STATE", "link": 5}
       ],
       "outputs": [
-        {"name": "MASK", "type": "MASK", "links": [6], "slot_index": 0},
-        {"name": "IMAGE", "type": "IMAGE", "links": [8], "slot_index": 1},
-        {"name": "IMAGE", "type": "IMAGE", "links": null, "slot_index": 2}
+        {"name": "masks", "type": "MASK", "links": [6], "slot_index": 0},
+        {"name": "frames", "type": "IMAGE", "links": null, "slot_index": 1},
+        {"name": "visualization", "type": "IMAGE", "links": [8], "slot_index": 2}
       ],
       "properties": {"Node name for S&R": "SAM3VideoOutput"},
-      "widgets_values": [0],
-      "title": "📤 Extract Masks (per object ID)"
+      "widgets_values": [-1, true],
+      "title": "📤 Extract Masks (all objects)"
     },
     {
       "id": 6,
@@ -161,7 +161,7 @@
         {"name": "images", "type": "IMAGE", "link": 8}
       ],
       "properties": {},
-      "title": "👁️ Preview Overlay"
+      "title": "👁️ Preview Visualization"
     },
     {
       "id": 9,
@@ -186,7 +186,7 @@
       "order": 10,
       "mode": 0,
       "properties": {"text": ""},
-      "widgets_values": ["📋 INTERACTIVE SEGMENTATION\n\nFor complex shots requiring manual selection:\n\n1. Click points in the 'Interactive Selector' node\n   - Left click = positive (include)\n   - Right click = negative (exclude)\n   - Each object needs a unique ID\n\n2. Click 'Queue Prompt' to run\n\n3. Masks save to roto/custom/\n\nRequires: ComfyUI-SAM3 extension"],
+      "widgets_values": ["📋 INTERACTIVE SEGMENTATION\n\nFor complex shots requiring manual selection:\n\n1. Click points in the 'Interactive Selector' node\n   - Left click = positive (include)\n   - Shift+Left or Right click = negative (exclude)\n\n2. Click 'Queue Prompt' to run\n\n3. Masks save to roto/custom/\n\nRequires: ComfyUI-SAM3 extension"],
       "title": "📋 Instructions",
       "color": "#332",
       "bgcolor": "#553"
@@ -200,7 +200,7 @@
       "order": 11,
       "mode": 0,
       "properties": {"text": ""},
-      "widgets_values": ["💡 TIPS FOR LEG SEGMENTATION\n\n• Click once on each leg (different IDs)\n• Use negative points to exclude shorts\n• If legs merge, add negative point between\n• Each ID becomes separate mask sequence"],
+      "widgets_values": ["💡 TIPS FOR LEG SEGMENTATION\n\n• Click once on each leg you want\n• Use negative points to exclude shorts\n• If legs merge, add negative point between\n• Change obj_id in Output node for specific object"],
       "title": "💡 Tips",
       "color": "#234",
       "bgcolor": "#456"
@@ -214,7 +214,7 @@
     [5, 3, 0, 5, 1, "SAM3_VIDEO_STATE"],
     [6, 5, 0, 6, 0, "MASK"],
     [7, 6, 0, 7, 0, "IMAGE"],
-    [8, 5, 1, 8, 0, "IMAGE"],
+    [8, 5, 2, 8, 0, "IMAGE"],
     [9, 6, 0, 9, 0, "IMAGE"],
     [10, 1, 0, 10, 0, "IMAGE"],
     [12, 10, 0, 3, 1, "SAM3_POINTS_PROMPT"],
@@ -233,7 +233,7 @@
     },
     {
       "title": "🔄 PROPAGATE",
-      "bounding": [900, 480, 380, 200],
+      "bounding": [900, 280, 380, 400],
       "color": "#8f3e9e"
     },
     {
