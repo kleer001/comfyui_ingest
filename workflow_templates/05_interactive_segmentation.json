@@ -48,11 +48,11 @@
         {"name": "image", "type": "IMAGE", "link": 10}
       ],
       "outputs": [
-        {"name": "POINTS", "type": "SAM3_POINTS", "links": [12], "slot_index": 0},
-        {"name": "PREVIEW", "type": "IMAGE", "links": [14], "slot_index": 1}
+        {"name": "positive_points", "type": "SAM3_POINTS_PROMPT", "links": [12], "slot_index": 0},
+        {"name": "negative_points", "type": "SAM3_POINTS_PROMPT", "links": [13], "slot_index": 1}
       ],
       "properties": {"Node name for S&R": "SAM3PointCollector"},
-      "widgets_values": [],
+      "widgets_values": ["", "", ""],
       "title": "🎯 Interactive Selector (click points here)"
     },
     {
@@ -65,13 +65,14 @@
       "mode": 0,
       "inputs": [
         {"name": "video_frames", "type": "IMAGE", "link": 1},
-        {"name": "points", "type": "SAM3_POINTS", "link": 12}
+        {"name": "positive_points", "type": "SAM3_POINTS_PROMPT", "link": 12},
+        {"name": "negative_points", "type": "SAM3_POINTS_PROMPT", "link": 13}
       ],
       "outputs": [
-        {"name": "SAM3_VIDEO_STATE", "type": "SAM3_VIDEO_STATE", "links": [3, 5], "slot_index": 0}
+        {"name": "video_state", "type": "SAM3_VIDEO_STATE", "links": [3, 5], "slot_index": 0}
       ],
       "properties": {"Node name for S&R": "SAM3VideoSegmentation"},
-      "widgets_values": ["points", "", 0, 0.1],
+      "widgets_values": ["point", "", 0, 0.3],
       "title": "🎬 Video Segmentation (from points)"
     },
     {
@@ -177,26 +178,12 @@
       "title": "👁️ Preview Masks"
     },
     {
-      "id": 11,
-      "type": "PreviewImage",
-      "pos": [500, 100],
-      "size": [400, 150],
-      "flags": {},
-      "order": 10,
-      "mode": 0,
-      "inputs": [
-        {"name": "images", "type": "IMAGE", "link": 14}
-      ],
-      "properties": {},
-      "title": "👁️ Selection Preview"
-    },
-    {
       "id": 12,
       "type": "Note",
       "pos": [100, 50],
       "size": [380, 200],
       "flags": {},
-      "order": 11,
+      "order": 10,
       "mode": 0,
       "properties": {"text": ""},
       "widgets_values": ["📋 INTERACTIVE SEGMENTATION\n\nFor complex shots requiring manual selection:\n\n1. Click points in the 'Interactive Selector' node\n   - Left click = positive (include)\n   - Right click = negative (exclude)\n   - Each object needs a unique ID\n\n2. Click 'Queue Prompt' to run\n\n3. Masks save to roto/custom/\n\nRequires: ComfyUI-SAM3 extension"],
@@ -210,7 +197,7 @@
       "pos": [920, 300],
       "size": [320, 150],
       "flags": {},
-      "order": 12,
+      "order": 11,
       "mode": 0,
       "properties": {"text": ""},
       "widgets_values": ["💡 TIPS FOR LEG SEGMENTATION\n\n• Click once on each leg (different IDs)\n• Use negative points to exclude shorts\n• If legs merge, add negative point between\n• Each ID becomes separate mask sequence"],
@@ -230,8 +217,8 @@
     [8, 5, 1, 8, 0, "IMAGE"],
     [9, 6, 0, 9, 0, "IMAGE"],
     [10, 1, 0, 10, 0, "IMAGE"],
-    [12, 10, 0, 3, 1, "SAM3_POINTS"],
-    [14, 10, 1, 11, 0, "IMAGE"]
+    [12, 10, 0, 3, 1, "SAM3_POINTS_PROMPT"],
+    [13, 10, 1, 3, 2, "SAM3_POINTS_PROMPT"]
   ],
   "groups": [
     {
@@ -241,7 +228,7 @@
     },
     {
       "title": "🎯 SELECT (Interactive)",
-      "bounding": [480, 80, 440, 640],
+      "bounding": [480, 280, 440, 500],
       "color": "#9e8f3e"
     },
     {
