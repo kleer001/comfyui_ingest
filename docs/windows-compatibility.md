@@ -22,6 +22,7 @@ This document outlines the plan for adding Windows support to the VFX Pipeline. 
 - `scripts/install_wizard/conda.py`: Added Windows conda path detection (miniconda3, Anaconda3, scoop, etc.)
 - `scripts/install_wizard/platform.py`: Added `find_tool()` with Windows path search, `run_tool()` for .bat handling, winget/scoop package manager detection
 - `scripts/install_wizard/config.py`: Generates `activate.ps1` and `activate.bat` alongside `activate.sh`, fixed PYTHONPATH handling, added conda init check
+- `scripts/comfyui_manager.py`: Cross-platform process management (wmic/taskkill on Windows, pgrep/kill on Unix)
 - `web/api.py`: Uses `PlatformManager.find_tool()` for ffprobe detection
 - `docs/windows_for_it_dept_native.md`: Created IT admin guide for native Windows setup
 - `docs/windows_for_it_dept_docker.md`: Renamed from original (Docker/WSL2 setup)
