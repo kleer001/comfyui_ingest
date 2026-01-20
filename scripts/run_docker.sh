@@ -42,7 +42,7 @@ fi
 if [ ! -f "${REPO_ROOT}/.env" ]; then
     echo -e "${YELLOW}No .env file found - running GPU detection...${NC}"
     echo ""
-    "${REPO_ROOT}/scripts/setup_build.sh"
+    bash "${REPO_ROOT}/scripts/setup_build.sh"
     echo ""
 fi
 
