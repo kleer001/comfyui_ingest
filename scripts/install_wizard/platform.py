@@ -161,6 +161,13 @@ class PlatformManager:
                 programfiles / "NVIDIA Corporation" / "NVSMI" / "nvidia-smi.exe",
                 Path("C:/Windows/System32/nvidia-smi.exe"),
             ],
+            "nvcc": [
+                programfiles / "NVIDIA GPU Computing Toolkit" / "CUDA" / "v12.1" / "bin" / "nvcc.exe",
+                programfiles / "NVIDIA GPU Computing Toolkit" / "CUDA" / "v12.0" / "bin" / "nvcc.exe",
+                programfiles / "NVIDIA GPU Computing Toolkit" / "CUDA" / "v11.8" / "bin" / "nvcc.exe",
+                programfiles / "NVIDIA GPU Computing Toolkit" / "CUDA" / "v11.7" / "bin" / "nvcc.exe",
+                Path("C:/CUDA/bin/nvcc.exe"),
+            ],
             "aria2c": [
                 programdata / "chocolatey" / "bin" / "aria2c.exe",
                 home / "scoop" / "apps" / "aria2" / "current" / "aria2c.exe",
@@ -198,6 +205,31 @@ class PlatformManager:
         }
 
         return tool_paths.get(tool_name, [])
+
+    @staticmethod
+    def run_tool(
+        tool_path: Path,
+        args: List[str],
+        **subprocess_kwargs
+    ) -> subprocess.CompletedProcess:
+        """Run an external tool with proper handling for Windows .bat files.
+
+        On Windows, .bat files need shell=True or explicit cmd /c invocation.
+
+        Args:
+            tool_path: Path to the tool executable
+            args: Arguments to pass to the tool
+            **subprocess_kwargs: Additional args for subprocess.run
+
+        Returns:
+            CompletedProcess result
+        """
+        cmd = [str(tool_path)] + args
+
+        if _is_windows() and str(tool_path).lower().endswith('.bat'):
+            subprocess_kwargs['shell'] = True
+
+        return subprocess.run(cmd, **subprocess_kwargs)
 
     @staticmethod
     def get_system_package_install_cmd(

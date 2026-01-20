@@ -170,11 +170,32 @@ For faster parallel downloads of large model files.
 winget install aria2.aria2
 ```
 
-## System Configuration
+## Critical System Configuration
 
-### 1. Enable Long Paths (Recommended)
+**These settings are REQUIRED for the pipeline to function correctly. Without them, users will encounter errors that cannot be resolved without administrator access.**
 
-Windows has a 260-character path limit by default. Enable long paths to avoid issues:
+### 1. PowerShell Execution Policy (REQUIRED)
+
+**Impact if not configured:** Users will see "cannot be loaded because running scripts is disabled on this system" when running the activation script.
+
+Allow running local PowerShell scripts:
+
+```powershell
+# Run as Administrator (one-time setup)
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine
+```
+
+**Verification:**
+```powershell
+Get-ExecutionPolicy -List
+# LocalMachine should show "RemoteSigned"
+```
+
+### 2. Enable Long Paths (REQUIRED)
+
+**Impact if not configured:** Installation fails with "path too long" errors when installing deep nested dependencies like ComfyUI custom nodes.
+
+Windows has a 260-character path limit by default. This pipeline requires long path support due to nested node_modules and model directories.
 
 **Option A: Group Policy (Domain environments)**
 1. Open Group Policy Editor (`gpedit.msc`)
@@ -187,19 +208,13 @@ Windows has a 260-character path limit by default. Enable long paths to avoid is
 Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1
 ```
 
-### 2. PowerShell Execution Policy
-
-Allow running local PowerShell scripts:
-
+**Verification:**
 ```powershell
-# Run as Administrator (one-time setup)
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine
+Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled"
+# Should return 1
 ```
 
-Or per-user (no admin required):
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
+## Optional System Configuration
 
 ### 3. Enable Developer Mode (Optional)
 
