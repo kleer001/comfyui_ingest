@@ -78,7 +78,6 @@ FROM python-deps AS gsir
 # Override with: docker build --build-arg CUDA_ARCH="8.6" .
 # Common values: 7.5 (RTX 20xx/T4), 8.6 (RTX 30xx), 8.9 (RTX 40xx)
 ARG CUDA_ARCH="7.5;8.6;8.9"
-ENV TORCH_CUDA_ARCH_LIST=${CUDA_ARCH}
 
 WORKDIR /app/.vfx_pipeline
 
@@ -87,11 +86,15 @@ RUN git clone --recursive https://github.com/lzhnb/GS-IR.git GS-IR
 
 # Install nvdiffrast (required for GS-IR rendering)
 # --no-build-isolation required so it can find PyTorch during build
-RUN pip3 install --no-cache-dir --no-build-isolation git+https://github.com/NVlabs/nvdiffrast.git
+# TORCH_CUDA_ARCH_LIST must be set inline for subprocess to see it
+RUN TORCH_CUDA_ARCH_LIST="${CUDA_ARCH}" \
+    pip3 install --no-cache-dir --no-build-isolation git+https://github.com/NVlabs/nvdiffrast.git
 
 # Build and install GS-IR submodules (CUDA extensions)
 WORKDIR /app/.vfx_pipeline/GS-IR
-RUN pip3 install --no-cache-dir --no-build-isolation ./submodules/diff-gaussian-rasterization && \
+RUN TORCH_CUDA_ARCH_LIST="${CUDA_ARCH}" \
+    pip3 install --no-cache-dir --no-build-isolation ./submodules/diff-gaussian-rasterization && \
+    TORCH_CUDA_ARCH_LIST="${CUDA_ARCH}" \
     pip3 install --no-cache-dir --no-build-isolation ./submodules/simple-knn
 
 # Install gs-ir module
