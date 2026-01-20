@@ -11,20 +11,9 @@ For complex shots where automatic text-prompt segmentation doesn't work well (e.
 
 ## Prerequisites
 
-1. **ComfyUI running** with the TBG-SAM3 extension installed
-2. **Project already set up** with source frames (run `setup_project.py` first)
-
-### Installing TBG-SAM3
-
-If not already installed, add the extension to ComfyUI:
-
-```bash
-cd /path/to/ComfyUI/custom_nodes
-git clone https://github.com/Ltamann/ComfyUI-TBG-SAM3
-pip install -r ComfyUI-TBG-SAM3/requirements.txt
-```
-
-Then restart ComfyUI.
+- VFX Pipeline installed (via `install_wizard.py` or Docker)
+- Project set up with source frames (`setup_project.py` or ingest stage complete)
+- ComfyUI running
 
 ## Quick Start
 
@@ -104,7 +93,7 @@ Each object ID you clicked will generate a separate mask sequence.
 
 ### "Node not found" error in ComfyUI
 
-The TBG-SAM3 extension isn't installed. See [Installing TBG-SAM3](#installing-tbg-sam3) above.
+The TBG-SAM3 extension isn't installed or ComfyUI needs a restart. If you installed via `install_wizard.py`, re-run the wizard to ensure all custom nodes are installed. Then restart ComfyUI.
 
 ### Masks are merging together
 

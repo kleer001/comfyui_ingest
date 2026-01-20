@@ -39,7 +39,6 @@ TEMPLATE_NAME = "05_interactive_segmentation.json"
 DEFAULT_COMFYUI_URL = "http://localhost:8188"
 COMFYUI_DIR = INSTALL_DIR / "ComfyUI"
 CUSTOM_NODES_DIR = COMFYUI_DIR / "custom_nodes"
-TBG_SAM3_REPO = "https://github.com/Ltamann/ComfyUI-TBG-SAM3"
 
 
 def populate_workflow(workflow_data: dict, project_dir: Path) -> dict:
@@ -248,14 +247,10 @@ def main():
     if tbg_installed:
         print(f"ComfyUI-TBG-SAM3: INSTALLED at {tbg_path}")
     else:
-        print("ComfyUI-TBG-SAM3: NOT INSTALLED")
-        print(f"""
-This workflow requires ComfyUI-TBG-SAM3 for interactive point selection.
-
-Install via ComfyUI Manager, or manually:
-  cd {CUSTOM_NODES_DIR}
-  git clone {TBG_SAM3_REPO}
-  pip install -r ComfyUI-TBG-SAM3/requirements.txt
+        print("ComfyUI-TBG-SAM3: NOT FOUND")
+        print("""
+Re-run the install wizard to ensure all custom nodes are installed:
+  python scripts/install_wizard.py
 
 Then restart ComfyUI.
 """)
