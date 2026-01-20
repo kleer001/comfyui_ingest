@@ -30,7 +30,7 @@
       "order": 1,
       "mode": 0,
       "outputs": [
-        {"name": "SAM3_MODEL", "type": "SAM3_MODEL", "links": [2, 11], "slot_index": 0}
+        {"name": "SAM3_MODEL", "type": "SAM3_MODEL", "links": [2], "slot_index": 0}
       ],
       "properties": {"Node name for S&R": "LoadSAM3Model"},
       "widgets_values": ["sam3.pt"],
@@ -38,23 +38,21 @@
     },
     {
       "id": 10,
-      "type": "TBG_SAM3_Selector",
+      "type": "SAM3PointCollector",
       "pos": [500, 300],
       "size": [400, 350],
       "flags": {},
       "order": 2,
       "mode": 0,
       "inputs": [
-        {"name": "image", "type": "IMAGE", "link": 10},
-        {"name": "sam3_model", "type": "SAM3_MODEL", "link": 11}
+        {"name": "image", "type": "IMAGE", "link": 10}
       ],
       "outputs": [
         {"name": "POINTS", "type": "SAM3_POINTS", "links": [12], "slot_index": 0},
-        {"name": "BOXES", "type": "SAM3_BOXES", "links": null, "slot_index": 1},
-        {"name": "PREVIEW", "type": "IMAGE", "links": [14], "slot_index": 2}
+        {"name": "PREVIEW", "type": "IMAGE", "links": [14], "slot_index": 1}
       ],
-      "properties": {"Node name for S&R": "TBG_SAM3_Selector"},
-      "widgets_values": [0, true, true],
+      "properties": {"Node name for S&R": "SAM3PointCollector"},
+      "widgets_values": [],
       "title": "🎯 Interactive Selector (click points here)"
     },
     {
@@ -201,7 +199,7 @@
       "order": 11,
       "mode": 0,
       "properties": {"text": ""},
-      "widgets_values": ["📋 INTERACTIVE SEGMENTATION\n\nFor complex shots requiring manual selection:\n\n1. Click points in the 'Interactive Selector' node\n   - Left click = positive (include)\n   - Right click = negative (exclude)\n   - Each object needs a unique ID\n\n2. Click 'Queue Prompt' to run\n\n3. Masks save to roto/custom/\n\nRequires: ComfyUI-TBG-SAM3 extension"],
+      "widgets_values": ["📋 INTERACTIVE SEGMENTATION\n\nFor complex shots requiring manual selection:\n\n1. Click points in the 'Interactive Selector' node\n   - Left click = positive (include)\n   - Right click = negative (exclude)\n   - Each object needs a unique ID\n\n2. Click 'Queue Prompt' to run\n\n3. Masks save to roto/custom/\n\nRequires: ComfyUI-SAM3 extension"],
       "title": "📋 Instructions",
       "color": "#332",
       "bgcolor": "#553"
@@ -232,9 +230,8 @@
     [8, 5, 1, 8, 0, "IMAGE"],
     [9, 6, 0, 9, 0, "IMAGE"],
     [10, 1, 0, 10, 0, "IMAGE"],
-    [11, 2, 0, 10, 1, "SAM3_MODEL"],
     [12, 10, 0, 3, 1, "SAM3_POINTS"],
-    [14, 10, 2, 11, 0, "IMAGE"]
+    [14, 10, 1, 11, 0, "IMAGE"]
   ],
   "groups": [
     {
@@ -265,7 +262,7 @@
       "name": "VFX Pipeline - Interactive Segmentation",
       "author": "VFX Pipeline",
       "description": "SAM3 point-prompt video segmentation for manual selection",
-      "requires": ["ComfyUI-TBG-SAM3"]
+      "requires": ["ComfyUI-SAM3"]
     }
   },
   "version": 0.4

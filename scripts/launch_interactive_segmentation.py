@@ -21,7 +21,7 @@ Example:
     python launch_interactive_segmentation.py /path/to/projects/My_Shot --open --url http://localhost:8188
 
 Requirements:
-    - ComfyUI-TBG-SAM3 extension installed in ComfyUI
+    - ComfyUI-SAM3 extension installed in ComfyUI (included in standard install)
     - ComfyUI running (for --open flag)
 """
 
@@ -127,8 +127,8 @@ def check_comfyui_running(url: str) -> bool:
         return False
 
 
-def check_tbg_sam3_installed() -> tuple[bool, Path | None]:
-    """Check if ComfyUI-TBG-SAM3 extension is installed.
+def check_sam3_installed() -> tuple[bool, Path | None]:
+    """Check if ComfyUI-SAM3 extension is installed.
 
     Returns:
         Tuple of (is_installed, extension_path)
@@ -136,7 +136,7 @@ def check_tbg_sam3_installed() -> tuple[bool, Path | None]:
     if not CUSTOM_NODES_DIR.exists():
         return False, None
 
-    possible_names = ["ComfyUI-TBG-SAM3", "comfyui-tbg-sam3", "TBG-SAM3"]
+    possible_names = ["ComfyUI-SAM3", "comfyui-sam3"]
     for name in possible_names:
         ext_path = CUSTOM_NODES_DIR / name
         if ext_path.exists() and ext_path.is_dir():
@@ -238,16 +238,16 @@ def main():
         output=project_dir / "roto" / "custom"
     ))
 
-    tbg_installed, tbg_path = check_tbg_sam3_installed()
+    sam3_installed, sam3_path = check_sam3_installed()
 
     print(f"\n{'='*60}")
     print("Extension Status")
     print(f"{'='*60}")
 
-    if tbg_installed:
-        print(f"ComfyUI-TBG-SAM3: INSTALLED at {tbg_path}")
+    if sam3_installed:
+        print(f"ComfyUI-SAM3: INSTALLED at {sam3_path}")
     else:
-        print("ComfyUI-TBG-SAM3: NOT FOUND")
+        print("ComfyUI-SAM3: NOT FOUND")
         print("""
 Re-run the install wizard to ensure all custom nodes are installed:
   python scripts/install_wizard.py

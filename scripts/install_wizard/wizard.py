@@ -165,12 +165,6 @@ class InstallationWizard:
                     size_gb=3.5,  # ~3.2GB model + code
                 ),
                 GitRepoInstaller(
-                    'ComfyUI-TBG-SAM3',
-                    'https://github.com/Ltamann/ComfyUI-TBG-SAM3.git',
-                    comfyui_dir / "custom_nodes" / "ComfyUI-TBG-SAM3",
-                    size_gb=0.1,  # Code only, uses SAM3 model from above
-                ),
-                GitRepoInstaller(
                     'ComfyUI-ProPainter-Nodes',
                     'https://github.com/daniabib/ComfyUI_ProPainter_Nodes.git',
                     comfyui_dir / "custom_nodes" / "ComfyUI_ProPainter_Nodes",

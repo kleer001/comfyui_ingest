@@ -93,7 +93,7 @@ Each object ID you clicked will generate a separate mask sequence.
 
 ### "Node not found" error in ComfyUI
 
-The TBG-SAM3 extension isn't installed or ComfyUI needs a restart. If you installed via `install_wizard.py`, re-run the wizard to ensure all custom nodes are installed. Then restart ComfyUI.
+The ComfyUI-SAM3 extension isn't installed or ComfyUI needs a restart. If you installed via `install_wizard.py`, re-run the wizard to ensure all custom nodes are installed. Then restart ComfyUI.
 
 ### Masks are merging together
 
