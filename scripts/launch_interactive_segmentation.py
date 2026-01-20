@@ -1,29 +1,27 @@
 #!/usr/bin/env python3
 """Launch interactive segmentation workflow in ComfyUI.
 
-Prepares the project with the interactive segmentation workflow and optionally
-opens ComfyUI in the browser for manual point selection.
+One command to run interactive segmentation - handles everything automatically:
+starts ComfyUI (local or Docker), opens browser, waits for you, cleans up.
 
 This workflow is for complex shots where automated text prompts don't provide
 sufficient control (e.g., segmenting individual legs, specific body parts).
 
 The script auto-detects your environment:
-- If local ComfyUI + SAM3 is installed → uses local mode
-- If Docker image exists → uses Docker mode (starts container, opens browser, cleanup)
+- If local ComfyUI is installed → starts ComfyUI, opens browser, cleanup when done
+- If Docker image exists → starts container, opens browser, cleanup when done
 
 Usage:
-    # Auto-detect mode (recommended)
+    # Just run it - auto-detects your setup
     python launch_interactive_segmentation.py /path/to/projects/My_Shot
 
-    # Force Docker mode
+    # Force a specific mode
     python launch_interactive_segmentation.py /path/to/projects/My_Shot --docker
-
-    # Force local mode
-    python launch_interactive_segmentation.py /path/to/projects/My_Shot --local --open
+    python launch_interactive_segmentation.py /path/to/projects/My_Shot --local
 
 Requirements:
     - Docker mode: Docker with nvidia-container-toolkit, image built
-    - Local mode: ComfyUI-SAM3 extension installed, ComfyUI running
+    - Local mode: ComfyUI installed (SAM3 can be installed via ComfyUI Manager)
 """
 
 import argparse
@@ -39,6 +37,7 @@ from pathlib import Path
 
 from env_config import check_conda_env_or_warn, is_in_container, INSTALL_DIR
 from workflow_utils import WORKFLOW_TEMPLATES_DIR
+from comfyui_manager import ensure_comfyui, stop_comfyui, get_comfyui_path
 
 
 TEMPLATE_NAME = "05_interactive_segmentation.json"
@@ -431,23 +430,20 @@ def check_sam3_installed() -> tuple[bool, Path | None]:
     return False, None
 
 
-def check_local_installation() -> bool:
-    """Check if local ComfyUI installation with SAM3 is available."""
-    if not COMFYUI_DIR.exists():
-        return False
-    sam3_installed, _ = check_sam3_installed()
-    return sam3_installed
+def check_local_comfyui_installed() -> bool:
+    """Check if local ComfyUI installation exists."""
+    return get_comfyui_path() is not None
 
 
 def detect_execution_mode() -> str:
     """Auto-detect the best execution mode based on available installations.
 
     Returns:
-        'local' if local ComfyUI+SAM3 is installed
+        'local' if local ComfyUI is installed
         'docker' if Docker is available with the vfx-ingest image
         'none' if neither is available
     """
-    if check_local_installation():
+    if check_local_comfyui_installed():
         return "local"
 
     if check_docker_available() and check_docker_image_exists():
@@ -472,85 +468,90 @@ def run_local_mode(args) -> int:
         return 1
 
     print(f"\n{'='*60}")
-    print("Interactive Segmentation Setup")
+    print("Interactive Segmentation (Local Mode)")
     print(f"{'='*60}")
     print(f"Project: {project_dir}")
 
     frames_exist, frame_count = check_source_frames(project_dir)
     if not frames_exist:
         print(f"\nWarning: No source frames found in {project_dir / 'source' / 'frames'}")
-        print("  Run ingest step first or copy frames manually.")
-        print()
+        print("Run the ingest stage first to extract frames from your video.")
+        response = input("\nContinue anyway? [y/N]: ")
+        if response.lower() != 'y':
+            return 1
     else:
         print(f"Frames: {frame_count} found")
 
     try:
         workflow_path = prepare_workflow(project_dir)
-        print(f"\nWorkflow prepared: {workflow_path}")
+        print(f"Workflow prepared: {workflow_path}")
     except FileNotFoundError as e:
         print(f"\nError: {e}", file=sys.stderr)
         return 1
 
     create_output_dirs(project_dir)
-    print(f"Output directory: {project_dir / 'roto' / 'custom'}")
-
-    print(f"\n{'='*60}")
-    print("Instructions")
-    print(f"{'='*60}")
-    print("""
-1. Open ComfyUI and load the workflow:
-   {workflow}
-
-2. In the 'Interactive Selector' node:
-   - Left-click to add POSITIVE points (include in mask)
-   - Right-click to add NEGATIVE points (exclude from mask)
-   - Each unique object needs a different object ID
-
-3. For leg segmentation:
-   - Click once on each leg with different IDs
-   - Add negative points between legs if they merge
-   - Add negative points on shorts/clothing to exclude
-
-4. Click 'Queue Prompt' to run segmentation
-
-5. Masks will be saved to:
-   {output}
-""".format(
-        workflow=workflow_path,
-        output=project_dir / "roto" / "custom"
-    ))
 
     sam3_installed, sam3_path = check_sam3_installed()
-
-    print(f"\n{'='*60}")
-    print("Extension Status")
-    print(f"{'='*60}")
-
-    if sam3_installed:
-        print(f"ComfyUI-SAM3: INSTALLED at {sam3_path}")
-    else:
-        print("ComfyUI-SAM3: NOT FOUND")
+    if not sam3_installed:
+        print(f"\n{'='*60}")
+        print("WARNING: ComfyUI-SAM3 Extension Not Found")
+        print(f"{'='*60}")
         print("""
-Re-run the install wizard to ensure all custom nodes are installed:
+The SAM3 extension is required for interactive segmentation.
+You can install it via ComfyUI Manager in the browser, or run:
   python scripts/install_wizard.py
-
-Then restart ComfyUI.
 """)
 
-    if args.open:
-        if not check_comfyui_running(args.url):
-            print(f"\nWarning: ComfyUI not running at {args.url}")
-            print("  Start ComfyUI first: python main.py --listen")
-            print()
-        else:
-            print(f"\nOpening ComfyUI: {args.url}")
-            webbrowser.open(args.url)
-            print("\nLoad the workflow manually via: Menu > Load")
-            print(f"  {workflow_path}")
-    else:
-        print(f"\nTo open ComfyUI automatically, run with --open flag")
-        print(f"Or manually navigate to: {args.url}")
+    def signal_handler(sig, frame):
+        print("\n\nInterrupted! Cleaning up...")
+        stop_comfyui()
+        sys.exit(130)
 
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    comfyui_was_started = False
+    try:
+        if not check_comfyui_running(args.url):
+            print(f"\nStarting ComfyUI...")
+            if not ensure_comfyui(url=args.url, timeout=120):
+                print("Error: Failed to start ComfyUI", file=sys.stderr)
+                return 1
+            comfyui_was_started = True
+        else:
+            print(f"ComfyUI already running at {args.url}")
+
+        print(f"\n{'='*60}")
+        print("Ready for Interactive Segmentation")
+        print(f"{'='*60}")
+        print(f"""
+ComfyUI is running at: {args.url}
+
+Opening browser...
+
+Instructions:
+1. In ComfyUI, click Menu > Load
+2. Navigate to: {workflow_path}
+3. Click points on the image in the 'Interactive Selector' node
+   - Left-click = include in mask
+   - Right-click = exclude from mask
+4. Click 'Queue Prompt' to run segmentation
+5. Masks will be saved to: {project_dir}/roto/custom/
+""")
+
+        webbrowser.open(args.url)
+
+        print("="*60)
+        print("Press ENTER when you're done...")
+        print("="*60)
+        input()
+
+    finally:
+        if comfyui_was_started:
+            print("\nStopping ComfyUI...")
+            stop_comfyui()
+
+    print(f"\nDone! Check your masks at: {project_dir / 'roto' / 'custom'}")
     return 0
 
 
@@ -602,11 +603,6 @@ def main():
         type=Path,
         default=None,
         help="Path to models directory (Docker mode, auto-detected if not specified)"
-    )
-    parser.add_argument(
-        "--open", "-o",
-        action="store_true",
-        help="Open ComfyUI in browser (local mode only, Docker always opens browser)"
     )
     parser.add_argument(
         "--url", "-u",

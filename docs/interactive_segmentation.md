@@ -11,73 +11,40 @@ For complex shots where automatic text-prompt segmentation doesn't work well (e.
 
 ## Prerequisites
 
-- VFX Pipeline installed (via `install_wizard.py` or Docker)
+- VFX Pipeline installed (via `install_wizard.py` or Docker image built)
 - Project set up with source frames (`setup_project.py` or ingest stage complete)
-- ComfyUI running
 
 ## Quick Start
 
-The script auto-detects your environment. Just run:
+Just run:
 
 ```bash
 python scripts/launch_interactive_segmentation.py /path/to/your/project
 ```
 
-It will automatically:
-- Use **local mode** if ComfyUI + SAM3 is installed locally
-- Use **Docker mode** if the Docker image exists (recommended for most users)
+The script auto-detects your environment and handles everything:
+1. Starts ComfyUI (local installation or Docker container)
+2. Prepares the workflow with correct paths
+3. Opens your browser to ComfyUI
+4. Waits for you to finish (press Enter when done)
+5. Cleans up automatically
 
-### Docker Mode (Auto-detected)
+### Requirements
 
-If you have Docker set up, the script will:
-1. Start a Docker container with ComfyUI and SAM3
-2. Wait for ComfyUI to be ready
-3. Prepare the workflow with correct paths
-4. Open your browser to ComfyUI
-5. Wait for you to finish (press Enter when done)
-6. Clean up the container automatically
+**Local mode** (auto-detected if ComfyUI is installed):
+- ComfyUI installed via `install_wizard.py`
+- SAM3 extension (can install via ComfyUI Manager in browser if missing)
 
-**Requirements for Docker mode:**
-- Docker with nvidia-container-toolkit installed
-- Docker image built: `docker compose build`
-- Models downloaded to `.vfx_pipeline/models/` (or specify `--models-dir`)
+**Docker mode** (auto-detected if no local install, Docker image exists):
+- Docker with nvidia-container-toolkit
+- Image built: `docker compose build`
+- Models in `.vfx_pipeline/models/` (or specify `--models-dir`)
 
-### Specify Models Directory
+### Using the Workflow
 
-```bash
-# If models are in a different location
-python scripts/launch_interactive_segmentation.py /path/to/projects/MyShot \
-  --models-dir /path/to/models
-```
-
-## Local Installation Quick Start
-
-If you have ComfyUI installed locally (not using Docker), follow these steps:
-
-### 1. Prepare the Workflow
-
-```bash
-python scripts/launch_interactive_segmentation.py /path/to/your/project
-```
-
-This copies the interactive workflow template to your project and populates it with the correct paths.
-
-### 2. Open ComfyUI
-
-Either add `--open` to automatically open your browser:
-
-```bash
-python scripts/launch_interactive_segmentation.py /path/to/your/project --open
-```
-
-Or manually navigate to `http://localhost:8188`
-
-### 3. Load the Workflow
-
-In ComfyUI:
-1. Click **Menu** (top-left hamburger icon)
-2. Click **Load**
-3. Navigate to: `your_project/workflows/05_interactive_segmentation.json`
+Once ComfyUI opens in your browser:
+1. Click **Menu** > **Load**
+2. Navigate to: `your_project/workflows/05_interactive_segmentation.json`
 
 ### 4. Select Objects
 
@@ -184,15 +151,12 @@ python scripts/launch_interactive_segmentation.py <project_dir>
 # Force Docker mode
 python scripts/launch_interactive_segmentation.py <project_dir> --docker
 
-# Force local mode with browser
-python scripts/launch_interactive_segmentation.py <project_dir> --local --open
+# Force local mode
+python scripts/launch_interactive_segmentation.py <project_dir> --local
 
 # Specify models directory (Docker mode)
 python scripts/launch_interactive_segmentation.py <project_dir> --models-dir /path/to/models
 
 # Custom ComfyUI URL
 python scripts/launch_interactive_segmentation.py <project_dir> --url http://localhost:9999
-
-# Force overwrite existing workflow
-python scripts/launch_interactive_segmentation.py <project_dir> --force
 ```
