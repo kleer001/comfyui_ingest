@@ -5,6 +5,7 @@ including Google Drive, HuggingFace, and authenticated download servers.
 """
 
 import hashlib
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -389,9 +390,7 @@ Place in ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint/matanyone.pth'''
         Returns:
             True if successful
         """
-        # Check if wget is available
-        wget_check = subprocess.run(['which', 'wget'], capture_output=True)
-        if wget_check.returncode != 0:
+        if shutil.which('wget') is None:
             return False
 
         print_info("Trying wget fallback for Google Drive...")
@@ -440,9 +439,7 @@ Place in ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint/matanyone.pth'''
         Returns:
             True if successful
         """
-        # Check if curl is available
-        curl_check = subprocess.run(['which', 'curl'], capture_output=True)
-        if curl_check.returncode != 0:
+        if shutil.which('curl') is None:
             return False
 
         print_info("Trying curl fallback for Google Drive...")
@@ -490,8 +487,7 @@ Place in ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint/matanyone.pth'''
         Returns:
             True if successful
         """
-        wget_check = subprocess.run(['which', 'wget'], capture_output=True)
-        if wget_check.returncode != 0:
+        if shutil.which('wget') is None:
             return False
 
         print_info("Trying wget fallback with authentication...")
@@ -537,8 +533,7 @@ Place in ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint/matanyone.pth'''
         Returns:
             True if successful
         """
-        curl_check = subprocess.run(['which', 'curl'], capture_output=True)
-        if curl_check.returncode != 0:
+        if shutil.which('curl') is None:
             return False
 
         print_info("Trying curl fallback with authentication...")

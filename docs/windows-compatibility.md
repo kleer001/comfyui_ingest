@@ -1,8 +1,29 @@
 # Windows Compatibility Roadmap
 
-This document outlines the plan for adding Windows support to the VFX Pipeline. Currently, the pipeline is Linux-only (tested on Ubuntu 20.04+). This roadmap describes the changes needed for Windows compatibility.
+This document outlines the plan for adding Windows support to the VFX Pipeline. The pipeline is primarily developed on Linux (Ubuntu 20.04+) with Windows compatibility added as a layer.
 
-**Status:** Planning phase - not yet implemented
+**Status:** Phase 1-3 implemented, Phase 4-5 pending
+
+## Implementation Status
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| Phase 1 | Python Cross-Platform Fixes | **DONE** |
+| Phase 2 | Parallel Shell Scripts | **DONE** |
+| Phase 3 | External Tool Handling | **DONE** |
+| Phase 4 | Prerequisites Documentation | **DONE** |
+| Phase 5 | Testing | Pending |
+
+### Completed Changes
+
+- `scripts/env_config.py`: Added `is_windows()`, `is_macos()`, `is_linux()`, `get_platform_name()` helpers
+- `scripts/install_wizard/utils.py`: Replaced `which` with `shutil.which()`, added Windows console input via `msvcrt`
+- `scripts/install_wizard/downloader.py`: Replaced `which` with `shutil.which()` for tool detection
+- `scripts/install_wizard/conda.py`: Added Windows conda path detection (miniconda3, Anaconda3, scoop, etc.)
+- `scripts/install_wizard/platform.py`: Added `find_tool()` with Windows path search, winget/scoop package manager detection
+- `scripts/install_wizard/config.py`: Generates `activate.ps1` and `activate.bat` alongside `activate.sh`
+- `docs/windows_for_it_dept_native.md`: Created IT admin guide for native Windows setup
+- `docs/windows_for_it_dept_docker.md`: Renamed from original (Docker/WSL2 setup)
 
 ---
 
@@ -514,18 +535,18 @@ Even with Windows support, some limitations may remain:
 
 ## Implementation Priority
 
-| Priority | Task | Effort | Impact |
-|----------|------|--------|--------|
-| 1 | Replace `which` with `shutil.which()` | Low | High |
-| 2 | Fix `/dev/tty` console input | Low | High |
-| 3 | Add Windows conda detection paths | Low | High |
-| 4 | Create `activate.bat` and `activate.ps1` | Medium | High |
-| 5 | Update script generator for multi-platform | Medium | High |
-| 6 | Exhaustive tool path detection | Medium | Medium |
-| 7 | Automatic tool installation (winget/choco/scoop) | Medium | High |
-| 8 | Update documentation | Low | Medium |
-| 9 | Standardize pathlib usage | Low | Low |
-| 10 | CI testing on Windows | Medium | Medium |
+| Priority | Task | Effort | Impact | Status |
+|----------|------|--------|--------|--------|
+| 1 | Replace `which` with `shutil.which()` | Low | High | **DONE** |
+| 2 | Fix `/dev/tty` console input | Low | High | **DONE** |
+| 3 | Add Windows conda detection paths | Low | High | **DONE** |
+| 4 | Create `activate.bat` and `activate.ps1` | Medium | High | **DONE** |
+| 5 | Update script generator for multi-platform | Medium | High | **DONE** |
+| 6 | Exhaustive tool path detection | Medium | Medium | **DONE** |
+| 7 | Automatic tool installation (winget/choco/scoop) | Medium | High | Partial |
+| 8 | Update documentation | Low | Medium | **DONE** |
+| 9 | Standardize pathlib usage | Low | Low | Ongoing |
+| 10 | CI testing on Windows | Medium | Medium | Pending |
 
 ---
 

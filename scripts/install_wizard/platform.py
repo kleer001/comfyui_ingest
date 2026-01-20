@@ -4,10 +4,18 @@ Provides platform detection and OS-specific installation instructions
 for system dependencies across Linux, macOS, Windows, and WSL2.
 """
 
+import os
 import platform
+import shutil
 import subprocess
+import sys
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
+
+
+def _is_windows() -> bool:
+    """Check if running on Windows."""
+    return sys.platform == "win32"
 
 
 class PlatformManager:
@@ -36,19 +44,12 @@ class PlatformManager:
             return "linux", "native", PlatformManager._detect_linux_package_manager()
 
         elif system == "darwin":
-            has_brew = subprocess.run(
-                ["which", "brew"],
-                capture_output=True
-            ).returncode == 0
+            has_brew = shutil.which("brew") is not None
             return "macos", "native", "brew" if has_brew else "unknown"
 
         elif system == "windows":
-            has_choco = subprocess.run(
-                ["choco", "--version"],
-                capture_output=True,
-                shell=True
-            ).returncode == 0
-            return "windows", "native", "choco" if has_choco else "unknown"
+            pkg_manager = PlatformManager._detect_windows_package_manager()
+            return "windows", "native", pkg_manager
 
         return system, "unknown", "unknown"
 
@@ -77,6 +78,128 @@ class PlatformManager:
         return "unknown"
 
     @staticmethod
+    def _detect_windows_package_manager() -> str:
+        """Detect Windows package manager in priority order."""
+        if shutil.which("winget"):
+            return "winget"
+        if shutil.which("choco"):
+            return "choco"
+        if shutil.which("scoop"):
+            return "scoop"
+        return "unknown"
+
+    @staticmethod
+    def find_tool(tool_name: str) -> Optional[Path]:
+        """Find a tool executable with cross-platform path search.
+
+        Searches PATH first, then platform-specific common locations.
+
+        Args:
+            tool_name: Name of the tool (e.g., 'colmap', 'ffmpeg', '7z')
+
+        Returns:
+            Path to the executable if found, None otherwise.
+        """
+        path_result = shutil.which(tool_name)
+        if path_result:
+            return Path(path_result)
+
+        home = Path.home()
+
+        if _is_windows():
+            search_paths = PlatformManager._get_windows_tool_paths(tool_name, home)
+        else:
+            search_paths = PlatformManager._get_unix_tool_paths(tool_name, home)
+
+        for path in search_paths:
+            if path.exists():
+                return path
+
+        return None
+
+    @staticmethod
+    def _get_windows_tool_paths(tool_name: str, home: Path) -> List[Path]:
+        """Get Windows-specific search paths for a tool."""
+        localappdata = Path(os.environ.get("LOCALAPPDATA", home / "AppData" / "Local"))
+        programfiles = Path(os.environ.get("PROGRAMFILES", "C:/Program Files"))
+        programfiles_x86 = Path(os.environ.get("PROGRAMFILES(X86)", "C:/Program Files (x86)"))
+        programdata = Path(os.environ.get("PROGRAMDATA", "C:/ProgramData"))
+
+        tool_paths: Dict[str, List[Path]] = {
+            "colmap": [
+                programfiles / "COLMAP" / "COLMAP.bat",
+                programfiles_x86 / "COLMAP" / "COLMAP.bat",
+                Path("C:/COLMAP/COLMAP.bat"),
+                localappdata / "COLMAP" / "COLMAP.bat",
+                home / "COLMAP" / "COLMAP.bat",
+                programdata / "chocolatey" / "bin" / "colmap.exe",
+                home / "scoop" / "apps" / "colmap" / "current" / "COLMAP.bat",
+            ],
+            "ffmpeg": [
+                programfiles / "FFmpeg" / "bin" / "ffmpeg.exe",
+                programfiles_x86 / "FFmpeg" / "bin" / "ffmpeg.exe",
+                Path("C:/ffmpeg/bin/ffmpeg.exe"),
+                home / "ffmpeg" / "bin" / "ffmpeg.exe",
+                programdata / "chocolatey" / "bin" / "ffmpeg.exe",
+                home / "scoop" / "apps" / "ffmpeg" / "current" / "bin" / "ffmpeg.exe",
+            ],
+            "ffprobe": [
+                programfiles / "FFmpeg" / "bin" / "ffprobe.exe",
+                programfiles_x86 / "FFmpeg" / "bin" / "ffprobe.exe",
+                Path("C:/ffmpeg/bin/ffprobe.exe"),
+                home / "ffmpeg" / "bin" / "ffprobe.exe",
+                programdata / "chocolatey" / "bin" / "ffprobe.exe",
+                home / "scoop" / "apps" / "ffmpeg" / "current" / "bin" / "ffprobe.exe",
+            ],
+            "7z": [
+                programfiles / "7-Zip" / "7z.exe",
+                programfiles_x86 / "7-Zip" / "7z.exe",
+                programdata / "chocolatey" / "bin" / "7z.exe",
+                home / "scoop" / "apps" / "7zip" / "current" / "7z.exe",
+            ],
+            "nvidia-smi": [
+                programfiles / "NVIDIA Corporation" / "NVSMI" / "nvidia-smi.exe",
+                Path("C:/Windows/System32/nvidia-smi.exe"),
+            ],
+            "aria2c": [
+                programdata / "chocolatey" / "bin" / "aria2c.exe",
+                home / "scoop" / "apps" / "aria2" / "current" / "aria2c.exe",
+            ],
+        }
+
+        return tool_paths.get(tool_name, [])
+
+    @staticmethod
+    def _get_unix_tool_paths(tool_name: str, home: Path) -> List[Path]:
+        """Get Unix-specific search paths for a tool."""
+        tool_paths: Dict[str, List[Path]] = {
+            "colmap": [
+                Path("/usr/local/bin/colmap"),
+                Path("/usr/bin/colmap"),
+                home / ".local" / "bin" / "colmap",
+            ],
+            "ffmpeg": [
+                Path("/usr/local/bin/ffmpeg"),
+                Path("/usr/bin/ffmpeg"),
+            ],
+            "ffprobe": [
+                Path("/usr/local/bin/ffprobe"),
+                Path("/usr/bin/ffprobe"),
+            ],
+            "7z": [
+                Path("/usr/bin/7z"),
+                Path("/usr/bin/7za"),
+                Path("/usr/bin/7zr"),
+            ],
+            "aria2c": [
+                Path("/usr/bin/aria2c"),
+                Path("/usr/local/bin/aria2c"),
+            ],
+        }
+
+        return tool_paths.get(tool_name, [])
+
+    @staticmethod
     def get_system_package_install_cmd(
         package: str,
         os_name: str,
@@ -99,7 +222,9 @@ class PlatformManager:
             ("linux", "pacman"): f"sudo pacman -S {package}",
             ("linux", "zypper"): f"sudo zypper install {package}",
             ("macos", "brew"): f"brew install {package}",
+            ("windows", "winget"): f"winget install {package}",
             ("windows", "choco"): f"choco install {package} -y",
+            ("windows", "scoop"): f"scoop install {package}",
         }
 
         return commands.get((os_name, pkg_manager))

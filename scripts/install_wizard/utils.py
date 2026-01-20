@@ -4,37 +4,66 @@ This module provides terminal output formatting, user input helpers,
 and system check utilities used throughout the wizard.
 """
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-# Global TTY file handle for reading input when piped
+# Global TTY file handle for reading input when piped (Unix only)
 _tty_handle = None
+
+
+def _is_windows() -> bool:
+    """Check if running on Windows."""
+    return sys.platform == "win32"
 
 
 def tty_input(prompt: str = "") -> str:
     """Read input from TTY, even when stdin is piped.
 
-    This allows the script to work when run via: curl ... | bash
+    This allows the script to work when run via: curl ... | bash (Unix)
+    or when stdin is redirected on Windows.
+
+    On Windows, uses msvcrt for direct console input when stdin is piped.
+    On Unix, uses /dev/tty for direct terminal access.
     """
     global _tty_handle
 
     if sys.stdin.isatty():
-        # Normal interactive mode
         return input(prompt)
 
-    # stdin is a pipe, read from /dev/tty instead
-    if _tty_handle is None:
+    if _is_windows():
         try:
-            _tty_handle = open('/dev/tty', 'r')
-        except OSError:
-            # No TTY available (non-interactive), raise EOFError
-            raise EOFError("No TTY available for input")
+            import msvcrt
+            if prompt:
+                print(prompt, end='', flush=True)
+            chars = []
+            while True:
+                char = msvcrt.getwch()
+                if char in ('\r', '\n'):
+                    print()
+                    break
+                if char == '\x08':
+                    if chars:
+                        chars.pop()
+                        print('\b \b', end='', flush=True)
+                else:
+                    chars.append(char)
+                    print(char, end='', flush=True)
+            return ''.join(chars)
+        except ImportError:
+            raise EOFError("No TTY available for input on Windows")
+    else:
+        if _tty_handle is None:
+            try:
+                _tty_handle = open('/dev/tty', 'r')
+            except OSError:
+                raise EOFError("No TTY available for input")
 
-    if prompt:
-        print(prompt, end='', flush=True)
-    return _tty_handle.readline().rstrip('\n')
+        if prompt:
+            print(prompt, end='', flush=True)
+        return _tty_handle.readline().rstrip('\n')
 
 
 class Colors:
@@ -144,9 +173,11 @@ def check_python_package(package: str, import_name: Optional[str] = None) -> boo
 
 
 def check_command_available(command: str) -> bool:
-    """Check if command-line tool is available."""
-    success, _ = run_command(["which", command], check=False, capture=True)
-    return success
+    """Check if command-line tool is available.
+
+    Uses shutil.which() for cross-platform compatibility (Windows/Linux/macOS).
+    """
+    return shutil.which(command) is not None
 
 
 def check_gpu_available() -> Tuple[bool, str]:
