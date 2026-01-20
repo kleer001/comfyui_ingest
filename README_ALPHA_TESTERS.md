@@ -61,27 +61,11 @@ The `run_mocap.py` script makes assumptions about WHAM and ECON CLI interfaces.
 3. Update `scripts/run_mocap.py` with correct commands
 4. Report findings so we can fix it
 
-### 3. SAM2 Model Access (HuggingFace)
-**Now automated with HuggingFace token:**
+### 3. SAM3 Model (Automatic Download)
 
-SAM2 (Segment Anything Model 2) requires accepting the license on HuggingFace:
+SAM3 (Segment Anything Model 3) downloads automatically from the public `1038lab/sam3` HuggingFace repository. **No token or registration required.**
 
-1. Create a HuggingFace account at https://huggingface.co/join
-2. Visit https://huggingface.co/facebook/sam2.1-hiera-large
-3. Click "Agree and access repository" to accept the license
-4. Go to https://huggingface.co/settings/tokens
-5. Create a new token with "Read" access
-6. Create `HF_TOKEN.dat` in repository root with your token:
-   ```
-   hf_yourTokenHere1234567890abcdefghijklmnop
-   ```
-7. Run wizard - model downloads automatically to `.vfx_pipeline/ComfyUI/models/sam/`
-
-**Template file**: Copy `HF_TOKEN.dat.template` and fill in your token.
-
-**Without SAM2 access**: Segmentation workflows (roto, cleanplate stages) will fail.
-
-**Testing priority**: Please report if SAM2 access approval and automated download work in your region.
+The model (~3.2GB) is downloaded on first use by the ComfyUI-SAM3 node to `.vfx_pipeline/ComfyUI/models/sam3/sam3.pt`.
 
 ### 4. SMPL-X and ECON Models (MPG)
 **Now automated with credentials file:**
@@ -315,7 +299,7 @@ Please test and report results for:
 
 ### ComfyUI (if testing)
 - [ ] ComfyUI cloned successfully
-- [ ] Custom nodes installed (VideoHelperSuite, DepthAnythingV3, SAM2)
+- [ ] Custom nodes installed (VideoHelperSuite, DepthAnythingV3, SAM3)
 - [ ] Server starts: `python main.py --listen`
 - [ ] Can load workflow from `workflows/` directory
 
