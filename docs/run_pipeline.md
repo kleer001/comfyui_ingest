@@ -50,7 +50,7 @@ python scripts/run_pipeline.py -l
 -l                 # List available stages
 
 # COLMAP options
--q QUALITY         # Quality (low/medium/high)
+-q QUALITY         # Quality (low/medium/high/slow)
 -d                 # Dense reconstruction
 -m                 # Generate mesh
 -M                 # Disable masks
@@ -71,8 +71,15 @@ python scripts/run_pipeline.py -l
 --skip-existing             # Skip stages with existing output
 --list-stages               # List available stages and exit
 
+# Roto/Segmentation options
+--prompt TEXT               # Segmentation prompt (default: 'person')
+                            # Comma-separated for multiple: 'person,bag,ball'
+--separate-instances        # Separate multi-person masks into individual
+                            # instance directories (person_0/, person_1/, etc.)
+
 # COLMAP options
---colmap-quality QUALITY    # Quality preset: low, medium, high
+--colmap-quality QUALITY    # Quality preset: low, medium, high, slow
+                            # 'slow' is for minimal camera motion footage
 --colmap-dense             # Run dense reconstruction (slower)
 --colmap-mesh              # Generate mesh from dense reconstruction
 --colmap-no-masks          # Disable automatic use of segmentation masks
@@ -80,6 +87,11 @@ python scripts/run_pipeline.py -l
 # GS-IR options
 --gsir-iterations N        # Total training iterations (default: 35000)
 --gsir-path PATH           # Path to GS-IR installation (default: auto-detect)
+
+# Automation options
+--no-auto-comfyui          # Don't auto-start ComfyUI (assume already running)
+--auto-movie               # Generate preview MP4s from completed image sequences
+--no-overwrite             # Keep existing output files instead of clearing them
 ```
 
 ## Usage Examples
@@ -167,6 +179,34 @@ python scripts/run_pipeline.py footage.mp4 -s colmap,gsir -i 50000
 
 Higher iterations (`-i`) produce better quality but take longer.
 
+### Example 9: Multi-Person Instance Separation
+
+Separate multiple people into individual mask sequences:
+
+```bash
+python scripts/run_pipeline.py footage.mp4 -s roto --prompt "person" --separate-instances
+```
+
+Creates `roto/person_0/`, `roto/person_1/`, etc. for each tracked individual.
+
+### Example 10: Generate Preview Movies
+
+Automatically create MP4 previews of each stage's output:
+
+```bash
+python scripts/run_pipeline.py footage.mp4 -s depth,roto,cleanplate --auto-movie
+```
+
+Creates preview movies in `preview/depth.mp4`, `preview/roto.mp4`, `preview/cleanplate.mp4`.
+
+### Example 11: Keep Existing Output
+
+Run stages without clearing previous output (useful for incremental updates):
+
+```bash
+python scripts/run_pipeline.py footage.mp4 -s roto --no-overwrite
+```
+
 ## Stages
 
 ### ingest - Frame Extraction
@@ -227,7 +267,7 @@ Creates segmentation masks using SAM3.
 **Multi-prompt support**:
 ```bash
 # Segment multiple objects
-python scripts/run_pipeline.py footage.mp4 -s roto --roto-prompt "person,bag,backpack"
+python scripts/run_pipeline.py footage.mp4 -s roto --prompt "person,bag,backpack"
 ```
 
 Each prompt creates its own subdirectory under `roto/`:
@@ -242,6 +282,27 @@ roto/
 - Object removal (clean plates)
 - Selective color grading
 - COLMAP masking (improves camera tracking)
+
+**Instance Separation** (`--separate-instances`):
+
+When multiple people are in frame, SAM3 may combine them into a single mask. Use `--separate-instances` to split them into individual tracked instances:
+
+```bash
+python scripts/run_pipeline.py footage.mp4 -s roto --prompt "person" --separate-instances
+```
+
+This creates separate directories for each detected person:
+```
+roto/
+├── person_0/     # First person's masks
+├── person_1/     # Second person's masks
+└── person_2/     # Third person's masks (etc.)
+```
+
+Useful for:
+- Individual actor extraction
+- Per-person motion capture
+- Selective compositing
 
 ### matanyone - Video Matting
 
@@ -318,6 +379,7 @@ COLMAP Structure-from-Motion reconstruction.
 | Low | Fast | Vocab tree | Fast | Lower |
 | Medium | Normal | Vocab tree | Medium | Good |
 | High | Detailed | Exhaustive | Slow | Best |
+| Slow | Detailed | Exhaustive | Slowest | Best (minimal motion) |
 
 **Example**:
 ```bash
