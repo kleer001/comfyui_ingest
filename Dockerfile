@@ -2,9 +2,9 @@
 # Multi-stage build for optimized layer caching
 
 # Stage 1: Get COLMAP from official pre-built image (with CUDA + FreeImage support)
-# Using 20231029.4 tag which is compatible with Ubuntu 22.04 (before 24.04 release)
-# This image is built properly, so FreeImage_Initialise() works
-FROM colmap/colmap:20231029.4 AS colmap-source
+# Using latest tag which has FreeImage initialization fixes (PR #1549, #2332)
+# See: https://github.com/colmap/colmap/issues/1548
+FROM colmap/colmap:latest AS colmap-source
 
 # Stage 2: Base image with system dependencies
 # Using devel image for nvcc (CUDA compiler) needed by SAM3 GPU NMS
@@ -45,6 +45,9 @@ RUN apt-get update && apt-get install -y \
 COPY --from=colmap-source /usr/local/bin/colmap /usr/local/bin/colmap
 # Copy COLMAP's shared libraries (official image uses dynamic linking)
 COPY --from=colmap-source /usr/local/lib/libcolmap* /usr/local/lib/
+# Copy FreeImage library from official image to ensure compatibility
+# The apt version (libfreeimage3) may not have proper initialization
+COPY --from=colmap-source /usr/lib/x86_64-linux-gnu/libfreeimage* /usr/lib/x86_64-linux-gnu/
 # Update library cache
 RUN ldconfig || true
 
