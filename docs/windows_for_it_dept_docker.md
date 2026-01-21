@@ -94,7 +94,7 @@ Both commands should complete successfully without requiring sudo.
 Once IT has completed the above setup, users can bootstrap the pipeline by running in WSL2 Ubuntu:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_docker.sh | bash
+curl -fsSL https://raw.githubusercontent.com/kleer001/shot-gopher/main/scripts/bootstrap_docker.sh | bash
 ```
 
 ## Post-Setup User Capabilities
@@ -137,5 +137,5 @@ If this fails, verify:
 
 For issues specific to this pipeline, see:
 - Troubleshooting guide: [windows-troubleshooting.md](windows-troubleshooting.md)
-- Repository: https://github.com/kleer001/comfyui_ingest
-- Issues: https://github.com/kleer001/comfyui_ingest/issues
+- Repository: https://github.com/kleer001/shot-gopher
+- Issues: https://github.com/kleer001/shot-gopher/issues

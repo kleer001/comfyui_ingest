@@ -361,8 +361,8 @@ After running your first project:
 ### Getting Help
 
 - **Documentation:** Check [docs/](../) for detailed guides
-- **Issues:** https://github.com/kleer001/comfyui_ingest/issues
-- **Discussions:** https://github.com/kleer001/comfyui_ingest/discussions
+- **Issues:** https://github.com/kleer001/shot-gopher/issues
+- **Discussions:** https://github.com/kleer001/shot-gopher/discussions
 
 ---
 

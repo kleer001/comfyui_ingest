@@ -134,17 +134,17 @@ These are **separate registrations** - you need accounts on both sites.
 
 **Just run this:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/kleer001/shot-gopher/main/bootstrap.sh | bash
 ```
 
 This will:
-1. Clone the repository to `./comfyui_ingest` (current directory)
+1. Clone the repository to `./shot-gopher` (current directory)
 2. Launch the installation wizard automatically
 3. Handle everything for you
 
 **Or if you prefer wget:**
 ```bash
-wget -qO- https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap.sh | bash
+wget -qO- https://raw.githubusercontent.com/kleer001/shot-gopher/main/bootstrap.sh | bash
 ```
 
 ---
@@ -164,8 +164,8 @@ sudo apt install git ffmpeg colmap
 
 #### 2. Clone Repository
 ```bash
-git clone https://github.com/kleer001/comfyui_ingest.git
-cd comfyui_ingest
+git clone https://github.com/kleer001/shot-gopher.git
+cd shot-gopher
 ```
 
 #### 3. Run Installation Wizard

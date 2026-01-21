@@ -147,7 +147,7 @@ def start_comfyui(
         output_base = Path(os.environ.get("COMFYUI_OUTPUT_DIR", "/workspace"))
         listen_addr = "0.0.0.0"  # Must listen on all interfaces in container
     else:
-        output_base = COMFYUI_DIR.parent.parent.parent  # .vfx_pipeline -> comfyui_ingest -> parent
+        output_base = COMFYUI_DIR.parent.parent.parent  # .vfx_pipeline -> shot-gopher -> parent
         listen_addr = "127.0.0.1"  # Local only for security
 
     cmd = [

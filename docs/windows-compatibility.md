@@ -495,15 +495,15 @@ Once Windows support is implemented, installation will be:
 
 **Option A: PowerShell (recommended)**
 ```powershell
-git clone https://github.com/kleer001/comfyui_ingest.git
-cd comfyui_ingest
+git clone https://github.com/kleer001/shot-gopher.git
+cd shot-gopher
 python scripts/install_wizard.py
 ```
 
 **Option B: Command Prompt**
 ```batch
-git clone https://github.com/kleer001/comfyui_ingest.git
-cd comfyui_ingest
+git clone https://github.com/kleer001/shot-gopher.git
+cd shot-gopher
 python scripts/install_wizard.py
 ```
 
@@ -579,4 +579,4 @@ If you'd like to help with Windows compatibility:
 2. Submit PRs for specific fixes outlined above
 3. Help test on various Windows configurations (10, 11, different GPU setups)
 
-File issues at: https://github.com/kleer001/comfyui_ingest/issues
+File issues at: https://github.com/kleer001/shot-gopher/issues

@@ -411,7 +411,7 @@ Refs: #123
 
 ### Project Structure
 ```
-comfyui_ingest/
+shot-gopher/
 ├── scripts/           # Core pipeline scripts (Python)
 ├── tests/             # Test suite (pytest)
 │   ├── fixtures/      # Test data (synthetic + real)
