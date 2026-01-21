@@ -11,6 +11,30 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from install_wizard.platform import PlatformManager
+
+# Cache for tool paths
+_ffmpeg_path: Optional[str] = None
+_ffprobe_path: Optional[str] = None
+
+
+def _get_ffmpeg() -> str:
+    """Get FFmpeg executable path, using PlatformManager for Windows."""
+    global _ffmpeg_path
+    if _ffmpeg_path is None:
+        found = PlatformManager.find_tool("ffmpeg")
+        _ffmpeg_path = str(found) if found else "ffmpeg"
+    return _ffmpeg_path
+
+
+def _get_ffprobe() -> str:
+    """Get FFprobe executable path, using PlatformManager for Windows."""
+    global _ffprobe_path
+    if _ffprobe_path is None:
+        found = PlatformManager.find_tool("ffprobe")
+        _ffprobe_path = str(found) if found else "ffprobe"
+    return _ffprobe_path
+
 __all__ = [
     "run_command",
     "get_frame_count",
@@ -154,7 +178,7 @@ def get_frame_count(input_path: Path) -> int:
         Number of frames, or 0 if count could not be determined
     """
     cmd = [
-        "ffprobe", "-v", "error",
+        _get_ffprobe(), "-v", "error",
         "-select_streams", "v:0",
         "-count_frames",
         "-show_entries", "stream=nb_read_frames",
@@ -195,7 +219,7 @@ def extract_frames(
     else:
         print(f"    Frame count unknown, progress will be estimated")
 
-    cmd = ["ffmpeg", "-i", str(input_path)]
+    cmd = [_get_ffmpeg(), "-i", str(input_path)]
 
     if fps:
         cmd.extend(["-vf", f"fps={fps}"])
@@ -259,7 +283,7 @@ def get_video_info(input_path: Path) -> dict:
         Dict with 'streams' and 'format' keys, or empty dict on error
     """
     cmd = [
-        "ffprobe", "-v", "quiet",
+        _get_ffprobe(), "-v", "quiet",
         "-print_format", "json",
         "-show_streams", "-show_format",
         str(input_path)
@@ -296,7 +320,7 @@ def generate_preview_movie(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     cmd = [
-        "ffmpeg", "-y",
+        _get_ffmpeg(), "-y",
         "-framerate", str(fps),
         "-pattern_type", "glob",
         "-i", str(image_dir / pattern),
@@ -323,7 +347,7 @@ def generate_preview_movie(
                 start_num = int(match.group(1))
 
                 cmd = [
-                    "ffmpeg", "-y",
+                    _get_ffmpeg(), "-y",
                     "-framerate", str(fps),
                     "-start_number", str(start_num),
                     "-i", input_pattern,
@@ -352,7 +376,7 @@ def get_image_dimensions(image_path: Path) -> tuple[int, int]:
         Tuple of (width, height), defaults to (1920, 1080) on error
     """
     cmd = [
-        "ffprobe", "-v", "error",
+        _get_ffprobe(), "-v", "error",
         "-select_streams", "v:0",
         "-show_entries", "stream=width,height",
         "-of", "csv=p=0:s=x",

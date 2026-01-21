@@ -1,6 +1,8 @@
-# Windows Setup for IT Department
+# Windows Setup for IT Department (Docker/WSL2)
 
-This document provides IT administrators with the minimal setup requirements to enable users to run the ComfyUI Ingest pipeline on Windows workstations without requiring ongoing administrator privileges.
+This document provides IT administrators with the minimal setup requirements to enable users to run the ComfyUI Ingest pipeline on Windows workstations **using Docker and WSL2**. This approach runs the pipeline in a Linux container.
+
+For native Windows installation (no Docker/WSL2), see [windows_for_it_dept_native.md](windows_for_it_dept_native.md).
 
 ## Prerequisites
 
@@ -134,5 +136,6 @@ If this fails, verify:
 ## Support
 
 For issues specific to this pipeline, see:
+- Troubleshooting guide: [windows-troubleshooting.md](windows-troubleshooting.md)
 - Repository: https://github.com/kleer001/comfyui_ingest
 - Issues: https://github.com/kleer001/comfyui_ingest/issues

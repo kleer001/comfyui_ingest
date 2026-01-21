@@ -4,37 +4,66 @@ This module provides terminal output formatting, user input helpers,
 and system check utilities used throughout the wizard.
 """
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-# Global TTY file handle for reading input when piped
+# Global TTY file handle for reading input when piped (Unix only)
 _tty_handle = None
+
+
+def _is_windows() -> bool:
+    """Check if running on Windows."""
+    return sys.platform == "win32"
 
 
 def tty_input(prompt: str = "") -> str:
     """Read input from TTY, even when stdin is piped.
 
-    This allows the script to work when run via: curl ... | bash
+    This allows the script to work when run via: curl ... | bash (Unix)
+    or when stdin is redirected on Windows.
+
+    On Windows, uses msvcrt for direct console input when stdin is piped.
+    On Unix, uses /dev/tty for direct terminal access.
     """
     global _tty_handle
 
     if sys.stdin.isatty():
-        # Normal interactive mode
         return input(prompt)
 
-    # stdin is a pipe, read from /dev/tty instead
-    if _tty_handle is None:
+    if _is_windows():
         try:
-            _tty_handle = open('/dev/tty', 'r')
-        except OSError:
-            # No TTY available (non-interactive), raise EOFError
-            raise EOFError("No TTY available for input")
+            import msvcrt
+            if prompt:
+                print(prompt, end='', flush=True)
+            chars = []
+            while True:
+                char = msvcrt.getwch()
+                if char in ('\r', '\n'):
+                    print()
+                    break
+                if char == '\x08':
+                    if chars:
+                        chars.pop()
+                        print('\b \b', end='', flush=True)
+                else:
+                    chars.append(char)
+                    print(char, end='', flush=True)
+            return ''.join(chars)
+        except ImportError:
+            raise EOFError("No TTY available for input on Windows")
+    else:
+        if _tty_handle is None:
+            try:
+                _tty_handle = open('/dev/tty', 'r')
+            except OSError:
+                raise EOFError("No TTY available for input")
 
-    if prompt:
-        print(prompt, end='', flush=True)
-    return _tty_handle.readline().rstrip('\n')
+        if prompt:
+            print(prompt, end='', flush=True)
+        return _tty_handle.readline().rstrip('\n')
 
 
 class Colors:
@@ -91,7 +120,14 @@ def ask_yes_no(question: str, default: bool = True) -> bool:
         print("Please answer yes or no.")
 
 
-def run_command(cmd: List[str], check: bool = True, capture: bool = False, timeout: int = 600, stream: bool = False) -> Tuple[bool, str]:
+def run_command(
+    cmd: List[str],
+    check: bool = True,
+    capture: bool = False,
+    timeout: int = 600,
+    stream: bool = False,
+    shell: bool = False
+) -> Tuple[bool, str]:
     """Run shell command and return success status and output.
 
     Args:
@@ -100,20 +136,21 @@ def run_command(cmd: List[str], check: bool = True, capture: bool = False, timeo
         capture: Capture output instead of showing it
         timeout: Timeout in seconds (default 600 = 10 minutes for conda installs)
         stream: Stream output line by line (for long-running commands)
+        shell: Use shell execution (required for Windows .bat files)
     """
     try:
         if capture:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, shell=shell)
             return result.returncode == 0, result.stdout + result.stderr
         elif stream:
-            # Stream output line by line for visibility during long operations
             import sys
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                bufsize=1
+                bufsize=1,
+                shell=shell
             )
             output_lines = []
             for line in iter(process.stdout.readline, ''):
@@ -123,8 +160,7 @@ def run_command(cmd: List[str], check: bool = True, capture: bool = False, timeo
             process.wait()
             return process.returncode == 0, ''.join(output_lines)
         else:
-            # Show output in real-time for long-running commands
-            result = subprocess.run(cmd, check=check, timeout=timeout)
+            result = subprocess.run(cmd, check=check, timeout=timeout, shell=shell)
             return result.returncode == 0, ""
     except subprocess.TimeoutExpired:
         print_warning(f"Command timed out after {timeout}s")
@@ -144,9 +180,11 @@ def check_python_package(package: str, import_name: Optional[str] = None) -> boo
 
 
 def check_command_available(command: str) -> bool:
-    """Check if command-line tool is available."""
-    success, _ = run_command(["which", command], check=False, capture=True)
-    return success
+    """Check if command-line tool is available.
+
+    Uses shutil.which() for cross-platform compatibility (Windows/Linux/macOS).
+    """
+    return shutil.which(command) is not None
 
 
 def check_gpu_available() -> Tuple[bool, str]:

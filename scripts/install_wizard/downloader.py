@@ -5,14 +5,80 @@ including Google Drive, HuggingFace, and authenticated download servers.
 """
 
 import hashlib
+import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from env_config import INSTALL_DIR
 
 from .utils import Colors, print_error, print_header, print_info, print_success, print_warning
+
+
+def _is_windows() -> bool:
+    """Check if running on Windows."""
+    return sys.platform == "win32"
+
+
+def _is_file_locked(filepath: Path) -> bool:
+    """Check if a file is locked by another process (Windows-specific).
+
+    Args:
+        filepath: Path to check
+
+    Returns:
+        True if file is locked, False otherwise
+    """
+    if not filepath.exists():
+        return False
+
+    try:
+        with open(filepath, 'a'):
+            pass
+        return False
+    except (IOError, PermissionError):
+        return True
+
+
+def _retry_on_lock(
+    func,
+    max_retries: int = 3,
+    delay: float = 2.0,
+    backoff: float = 2.0
+):
+    """Retry a function if it fails due to file locking.
+
+    Args:
+        func: Function to call (should raise IOError/PermissionError on lock)
+        max_retries: Maximum number of retry attempts
+        delay: Initial delay between retries in seconds
+        backoff: Multiplier for delay after each retry
+
+    Returns:
+        Result of func() if successful
+
+    Raises:
+        Last exception if all retries fail
+    """
+    last_exception = None
+    current_delay = delay
+
+    for attempt in range(max_retries + 1):
+        try:
+            return func()
+        except (IOError, PermissionError) as e:
+            last_exception = e
+            if attempt < max_retries:
+                if _is_windows():
+                    print_warning(f"File locked, retrying in {current_delay:.1f}s... (attempt {attempt + 1}/{max_retries})")
+                time.sleep(current_delay)
+                current_delay *= backoff
+            else:
+                raise
+
+    raise last_exception
 
 if TYPE_CHECKING:
     from .state import InstallationStateManager
@@ -389,9 +455,7 @@ Place in ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint/matanyone.pth'''
         Returns:
             True if successful
         """
-        # Check if wget is available
-        wget_check = subprocess.run(['which', 'wget'], capture_output=True)
-        if wget_check.returncode != 0:
+        if shutil.which('wget') is None:
             return False
 
         print_info("Trying wget fallback for Google Drive...")
@@ -440,9 +504,7 @@ Place in ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint/matanyone.pth'''
         Returns:
             True if successful
         """
-        # Check if curl is available
-        curl_check = subprocess.run(['which', 'curl'], capture_output=True)
-        if curl_check.returncode != 0:
+        if shutil.which('curl') is None:
             return False
 
         print_info("Trying curl fallback for Google Drive...")
@@ -490,8 +552,7 @@ Place in ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint/matanyone.pth'''
         Returns:
             True if successful
         """
-        wget_check = subprocess.run(['which', 'wget'], capture_output=True)
-        if wget_check.returncode != 0:
+        if shutil.which('wget') is None:
             return False
 
         print_info("Trying wget fallback with authentication...")
@@ -537,8 +598,7 @@ Place in ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint/matanyone.pth'''
         Returns:
             True if successful
         """
-        curl_check = subprocess.run(['which', 'curl'], capture_output=True)
-        if curl_check.returncode != 0:
+        if shutil.which('curl') is None:
             return False
 
         print_info("Trying curl fallback with authentication...")

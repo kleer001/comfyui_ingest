@@ -5,6 +5,8 @@ installation within conda environments.
 """
 
 import os
+import shutil
+import sys
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -12,6 +14,11 @@ from typing import List, Optional, Tuple
 from env_config import CONDA_ENV_NAME, PYTHON_VERSION
 
 from .utils import print_error, print_success, print_warning, run_command
+
+
+def _is_windows() -> bool:
+    """Check if running on Windows."""
+    return sys.platform == "win32"
 
 
 class CondaEnvironmentManager:
@@ -44,19 +51,39 @@ class CondaEnvironmentManager:
                 self.conda_exe = conda_exe_env
                 return True
 
-        # Search common conda installation paths
         home = Path.home()
-        common_paths = [
-            home / "miniconda3" / "bin" / "conda",
-            home / "miniconda" / "bin" / "conda",
-            home / "anaconda3" / "bin" / "conda",
-            home / "anaconda" / "bin" / "conda",
-            home / "mambaforge" / "bin" / "conda",
-            home / ".conda" / "bin" / "conda",
-            Path("/opt/conda/bin/conda"),
-            Path("/opt/miniconda3/bin/conda"),
-            Path("/opt/anaconda3/bin/conda"),
-        ]
+
+        if _is_windows():
+            localappdata = Path(os.environ.get("LOCALAPPDATA", home / "AppData" / "Local"))
+            programdata = Path(os.environ.get("PROGRAMDATA", "C:/ProgramData"))
+            common_paths = [
+                home / "miniconda3" / "Scripts" / "conda.exe",
+                home / "Miniconda3" / "Scripts" / "conda.exe",
+                home / "anaconda3" / "Scripts" / "conda.exe",
+                home / "Anaconda3" / "Scripts" / "conda.exe",
+                home / "mambaforge" / "Scripts" / "conda.exe",
+                home / ".conda" / "Scripts" / "conda.exe",
+                localappdata / "miniconda3" / "Scripts" / "conda.exe",
+                localappdata / "Continuum" / "miniconda3" / "Scripts" / "conda.exe",
+                localappdata / "Continuum" / "anaconda3" / "Scripts" / "conda.exe",
+                programdata / "miniconda3" / "Scripts" / "conda.exe",
+                programdata / "Anaconda3" / "Scripts" / "conda.exe",
+                Path("C:/tools/miniconda3/Scripts/conda.exe"),
+                Path("C:/tools/Anaconda3/Scripts/conda.exe"),
+                home / "scoop" / "apps" / "miniconda3" / "current" / "Scripts" / "conda.exe",
+            ]
+        else:
+            common_paths = [
+                home / "miniconda3" / "bin" / "conda",
+                home / "miniconda" / "bin" / "conda",
+                home / "anaconda3" / "bin" / "conda",
+                home / "anaconda" / "bin" / "conda",
+                home / "mambaforge" / "bin" / "conda",
+                home / ".conda" / "bin" / "conda",
+                Path("/opt/conda/bin/conda"),
+                Path("/opt/miniconda3/bin/conda"),
+                Path("/opt/anaconda3/bin/conda"),
+            ]
 
         for conda_path in common_paths:
             if conda_path.exists():
@@ -147,14 +174,19 @@ class CondaEnvironmentManager:
         if not self.conda_exe:
             return None
 
+        if _is_windows():
+            where_cmd = ["where", "python"]
+        else:
+            where_cmd = ["which", "python"]
+
         success, output = run_command(
-            [self.conda_exe, "run", "-n", self.env_name, "which", "python"],
+            [self.conda_exe, "run", "-n", self.env_name] + where_cmd,
             check=False,
             capture=True
         )
 
         if success and output.strip():
-            return Path(output.strip())
+            return Path(output.strip().split('\n')[0])
         return None
 
     def install_package_conda(self, package: str, channel: Optional[str] = None) -> bool:

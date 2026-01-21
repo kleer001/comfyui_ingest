@@ -50,8 +50,61 @@ DEFAULT_PROJECTS_DIR = Path(os.environ.get(
     str(_REPO_ROOT.parent / "vfx_projects")
 ))
 
-# Path to the generated activation script
-ACTIVATION_SCRIPT = INSTALL_DIR / "activate.sh"
+# Path to the generated activation script (platform-specific)
+def _get_activation_script_name() -> str:
+    """Get platform-appropriate activation script name."""
+    if sys.platform == "win32":
+        return "activate.ps1"
+    return "activate.sh"
+
+
+ACTIVATION_SCRIPT = INSTALL_DIR / _get_activation_script_name()
+
+
+# =============================================================================
+# PLATFORM DETECTION
+# =============================================================================
+
+def is_windows() -> bool:
+    """Detect if running on Windows.
+
+    Returns:
+        True if on Windows, False otherwise.
+    """
+    return sys.platform == "win32"
+
+
+def is_macos() -> bool:
+    """Detect if running on macOS.
+
+    Returns:
+        True if on macOS, False otherwise.
+    """
+    return sys.platform == "darwin"
+
+
+def is_linux() -> bool:
+    """Detect if running on Linux.
+
+    Returns:
+        True if on Linux, False otherwise.
+    """
+    return sys.platform.startswith("linux")
+
+
+def get_platform_name() -> str:
+    """Get a human-readable platform name.
+
+    Returns:
+        'windows', 'macos', 'linux', or 'unknown'.
+    """
+    if is_windows():
+        return "windows"
+    elif is_macos():
+        return "macos"
+    elif is_linux():
+        return "linux"
+    return "unknown"
 
 
 # =============================================================================
@@ -186,11 +239,18 @@ def get_activation_instructions() -> str:
     lines.append(f"    {get_activation_command()}")
     lines.append("")
 
-    # Check for the generated activation script
     if ACTIVATION_SCRIPT.exists():
         lines.append("Or use the generated activation script:")
         lines.append("")
-        lines.append(f"    source {ACTIVATION_SCRIPT}")
+        if is_windows():
+            ps1_script = INSTALL_DIR / "activate.ps1"
+            bat_script = INSTALL_DIR / "activate.bat"
+            if ps1_script.exists():
+                lines.append(f"    PowerShell: . {ps1_script}")
+            if bat_script.exists():
+                lines.append(f"    CMD:        {bat_script}")
+        else:
+            lines.append(f"    source {ACTIVATION_SCRIPT}")
         lines.append("")
 
     lines.append("Then re-run this script.")
@@ -285,20 +345,27 @@ def get_env_python() -> Path | None:
     Returns:
         Path to Python if environment exists, None otherwise.
     """
-    # Check if we're in the right environment
+    import shutil
+
     prefix = get_conda_prefix()
     if prefix and is_conda_env_active():
+        if is_windows():
+            return prefix / "python.exe"
         return prefix / "bin" / "python"
 
-    # Try to find it in the expected location
     import subprocess
     try:
+        if is_windows():
+            where_cmd = ["where", "python"]
+        else:
+            where_cmd = ["which", "python"]
+
         result = subprocess.run(
-            ["conda", "run", "-n", CONDA_ENV_NAME, "which", "python"],
+            ["conda", "run", "-n", CONDA_ENV_NAME] + where_cmd,
             capture_output=True, text=True, timeout=10
         )
         if result.returncode == 0:
-            return Path(result.stdout.strip())
+            return Path(result.stdout.strip().split('\n')[0])
     except (subprocess.TimeoutExpired, FileNotFoundError):
         pass
 

@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from env_config import INSTALL_DIR, is_in_container
+from env_config import INSTALL_DIR, is_in_container, is_windows
 from comfyui_utils import DEFAULT_COMFYUI_URL, check_comfyui_running
 
 # ComfyUI installation path
@@ -247,34 +247,13 @@ def ensure_comfyui(url: str = DEFAULT_COMFYUI_URL, timeout: int = 60) -> bool:
     return start_comfyui(url=url, timeout=timeout)
 
 
-def kill_all_comfyui_processes() -> int:
-    """Kill ALL ComfyUI processes system-wide to free GPU memory.
-
-    This is useful before starting a fresh pipeline run to ensure
-    no stale ComfyUI processes are hogging VRAM.
-
-    Returns:
-        Number of processes killed
-    """
-    global _comfyui_process
-
-    # ANSI escape codes for bold red text
-    BOLD_RED = "\033[1;91m"
-    RESET = "\033[0m"
-
-    killed = 0
-    pids_to_kill = []
-
-    # Check for managed process
-    if _comfyui_process is not None:
-        pids_to_kill.append(str(_comfyui_process.pid))
-
-    # Find any other ComfyUI processes
-    # Try multiple patterns since ComfyUI can be started different ways
+def _find_comfyui_pids_unix() -> list:
+    """Find ComfyUI process PIDs on Unix systems using pgrep."""
+    pids = []
     patterns = [
-        "ComfyUI.*main.py",           # If ComfyUI is in the path
-        "main.py.*--port.*8188",      # ComfyUI's default port
-        "python.*main.py.*--listen",  # ComfyUI uses --listen flag
+        "ComfyUI.*main.py",
+        "main.py.*--port.*8188",
+        "python.*main.py.*--listen",
     ]
 
     for pattern in patterns:
@@ -287,60 +266,163 @@ def kill_all_comfyui_processes() -> int:
             if result.returncode == 0 and result.stdout.strip():
                 for pid in result.stdout.strip().split('\n'):
                     pid = pid.strip()
-                    if pid and pid not in pids_to_kill:
-                        pids_to_kill.append(pid)
+                    if pid and pid not in pids:
+                        pids.append(pid)
         except FileNotFoundError:
-            break  # pgrep not available, no point trying other patterns
+            break
         except Exception:
             pass
 
-    # If nothing to kill, we're good
+    return pids
+
+
+def _find_comfyui_pids_windows() -> list:
+    """Find ComfyUI process PIDs on Windows using PowerShell (preferred) or wmic (fallback)."""
+    pids = []
+    creation_flags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+
+    ps_cmd = (
+        "Get-CimInstance Win32_Process | "
+        "Where-Object { $_.CommandLine -like '*main.py*' -and $_.CommandLine -like '*--listen*' } | "
+        "Select-Object -ExpandProperty ProcessId"
+    )
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_cmd],
+            capture_output=True,
+            text=True,
+            creationflags=creation_flags
+        )
+        if result.returncode == 0:
+            for line in result.stdout.strip().split('\n'):
+                line = line.strip()
+                if line and line.isdigit():
+                    pids.append(line)
+    except Exception:
+        pass
+
+    if pids:
+        return pids
+
+    try:
+        result = subprocess.run(
+            ["wmic", "process", "where",
+             "CommandLine like '%main.py%' and CommandLine like '%--listen%'",
+             "get", "ProcessId"],
+            capture_output=True,
+            text=True,
+            creationflags=creation_flags
+        )
+        if result.returncode == 0:
+            for line in result.stdout.strip().split('\n'):
+                line = line.strip()
+                if line and line.isdigit():
+                    pids.append(line)
+    except Exception:
+        pass
+
+    if not pids:
+        try:
+            result = subprocess.run(
+                ["wmic", "process", "where",
+                 "CommandLine like '%ComfyUI%main.py%'",
+                 "get", "ProcessId"],
+                capture_output=True,
+                text=True,
+                creationflags=creation_flags
+            )
+            if result.returncode == 0:
+                for line in result.stdout.strip().split('\n'):
+                    line = line.strip()
+                    if line and line.isdigit():
+                        pids.append(line)
+        except Exception:
+            pass
+
+    return pids
+
+
+def _kill_pid_unix(pid: str, force: bool = False) -> bool:
+    """Kill a process by PID on Unix systems."""
+    try:
+        cmd = ["kill", "-9", pid] if force else ["kill", pid]
+        subprocess.run(cmd, capture_output=True)
+        return True
+    except Exception:
+        return False
+
+
+def _kill_pid_windows(pid: str, force: bool = False) -> bool:
+    """Kill a process by PID on Windows systems."""
+    try:
+        cmd = ["taskkill", "/F", "/PID", pid] if force else ["taskkill", "/PID", pid]
+        subprocess.run(
+            cmd,
+            capture_output=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+        )
+        return True
+    except Exception:
+        return False
+
+
+def kill_all_comfyui_processes() -> int:
+    """Kill ALL ComfyUI processes system-wide to free GPU memory.
+
+    This is useful before starting a fresh pipeline run to ensure
+    no stale ComfyUI processes are hogging VRAM.
+
+    Cross-platform: Uses pgrep/kill on Unix, wmic/taskkill on Windows.
+
+    Returns:
+        Number of processes killed
+    """
+    global _comfyui_process
+
+    BOLD_RED = "\033[1;91m"
+    RESET = "\033[0m"
+
+    killed = 0
+    pids_to_kill = []
+
+    if _comfyui_process is not None:
+        pids_to_kill.append(str(_comfyui_process.pid))
+
+    if is_windows():
+        pids_to_kill.extend(_find_comfyui_pids_windows())
+        kill_fn = _kill_pid_windows
+        find_fn = _find_comfyui_pids_windows
+    else:
+        pids_to_kill.extend(_find_comfyui_pids_unix())
+        kill_fn = _kill_pid_unix
+        find_fn = _find_comfyui_pids_unix
+
+    pids_to_kill = list(dict.fromkeys(pids_to_kill))
+
     if not pids_to_kill:
         print("  → No stale ComfyUI processes found")
         return 0
 
-    # Found stale processes - print warning and kill them
     print(f"{BOLD_RED}  ⚠ FOUND STALE COMFYUI PROCESS(ES). KILLING THEM. SORRY!{RESET}")
 
-    # Stop managed process first
     if _comfyui_process is not None:
         stop_comfyui()
         killed += 1
 
-    # Kill the rest
     for pid in pids_to_kill:
         if _comfyui_process and pid == str(_comfyui_process.pid):
-            continue  # Already handled above
-        try:
-            subprocess.run(["kill", pid], capture_output=True)
+            continue
+        if kill_fn(pid, force=False):
             killed += 1
             print(f"  → Killed ComfyUI process (PID: {pid})")
-        except Exception:
-            pass
 
-    # Give processes time to die gracefully
     if killed > 0:
         time.sleep(2)
 
-        # Force kill any survivors
-        for pattern in patterns:
-            try:
-                result = subprocess.run(
-                    ["pgrep", "-f", pattern],
-                    capture_output=True,
-                    text=True
-                )
-                if result.returncode == 0 and result.stdout.strip():
-                    for pid in result.stdout.strip().split('\n'):
-                        pid = pid.strip()
-                        if pid:
-                            try:
-                                subprocess.run(["kill", "-9", pid], capture_output=True)
-                                print(f"  → Force killed ComfyUI process (PID: {pid})")
-                            except Exception:
-                                pass
-            except Exception:
-                pass
+        remaining_pids = find_fn()
+        for pid in remaining_pids:
+            if kill_fn(pid, force=True):
+                print(f"  → Force killed ComfyUI process (PID: {pid})")
 
     print(f"  → Killed {killed} ComfyUI process(es)")
     return killed
