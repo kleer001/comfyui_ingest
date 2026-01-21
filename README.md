@@ -1,4 +1,4 @@
-# VFX Pipeline v0.01
+# ShotGopher v0.01
 
 An automated VFX pipeline built on ComfyUI for production-ready outputs from raw footage. Combines modern ML models with traditional computer vision to generate depth maps, segmentation masks, clean plates, camera solves, and 3D reconstructions with minimal manual intervention.
 
