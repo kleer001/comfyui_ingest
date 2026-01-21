@@ -43,7 +43,7 @@ These are common mistakes that users can fix themselves.
 ```powershell
 # Correct - use PowerShell
 powershell
-cd comfyui_ingest
+cd shot-gopher
 python scripts/install_wizard.py
 ```
 
@@ -108,7 +108,7 @@ These issues cannot be fixed by code changes. Be aware of them during installati
 - Model files disappear after download
 
 **Workaround:** Ask IT to add an exclusion for the repository directory only:
-- `C:\path\to\comfyui_ingest`
+- `C:\path\to\shot-gopher`
 
 Since everything is sandboxed within the repo (tools, models, environments), only one exclusion is needed.
 
@@ -207,7 +207,7 @@ python scripts/install_wizard.py
 
 If you encounter issues not covered here:
 
-1. Check the [GitHub Issues](https://github.com/kleer001/comfyui_ingest/issues) for similar problems
+1. Check the [GitHub Issues](https://github.com/kleer001/shot-gopher/issues) for similar problems
 2. Run diagnostics and include output in your report:
    ```powershell
    python -c "import sys; print(sys.platform, sys.version)"

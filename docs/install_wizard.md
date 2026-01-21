@@ -27,7 +27,7 @@ Follow the menu prompts to select components.
 ### One-Liner Bootstrap
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/kleer001/shot-gopher/main/bootstrap.sh | bash
 ```
 
 This clones the repository and runs the wizard automatically.
@@ -286,10 +286,10 @@ Generated configuration with all paths:
 {
   "conda_env": "vfx-pipeline",
   "python_executable": "/home/user/miniconda3/envs/vfx-pipeline/bin/python",
-  "install_dir": "/home/user/comfyui_ingest/.vfx_pipeline",
-  "wham_dir": "/home/user/comfyui_ingest/.vfx_pipeline/WHAM",
-  "econ_dir": "/home/user/comfyui_ingest/.vfx_pipeline/ECON",
-  "comfyui_dir": "/home/user/comfyui_ingest/.vfx_pipeline/ComfyUI",
+  "install_dir": "/home/user/shot-gopher/.vfx_pipeline",
+  "wham_dir": "/home/user/shot-gopher/.vfx_pipeline/WHAM",
+  "econ_dir": "/home/user/shot-gopher/.vfx_pipeline/ECON",
+  "comfyui_dir": "/home/user/shot-gopher/.vfx_pipeline/ComfyUI",
   "cuda_available": true,
   "cuda_version": "12.1"
 }

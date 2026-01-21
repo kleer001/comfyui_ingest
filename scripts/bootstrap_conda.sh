@@ -3,14 +3,14 @@
 # Downloads and runs the installation wizard
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_conda.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/kleer001/shot-gopher/main/scripts/bootstrap_conda.sh | bash
 #   or
-#   wget -qO- https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_conda.sh | bash
+#   wget -qO- https://raw.githubusercontent.com/kleer001/shot-gopher/main/scripts/bootstrap_conda.sh | bash
 
 set -e  # Exit on error
 
-REPO_URL="https://github.com/kleer001/comfyui_ingest.git"
-INSTALL_DIR="$(pwd)/comfyui_ingest"
+REPO_URL="https://github.com/kleer001/shot-gopher.git"
+INSTALL_DIR="$(pwd)/shot-gopher"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  VFX Pipeline - Automated Installer"

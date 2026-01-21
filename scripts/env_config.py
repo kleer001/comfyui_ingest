@@ -32,7 +32,7 @@ CONDA_ENV_NAME = "vfx-pipeline"
 # Python version requirement
 PYTHON_VERSION = "3.10"
 
-# Repo root directory (comfyui_ingest/)
+# Repo root directory (shot-gopher/)
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Installation directory for tools (ComfyUI, WHAM, ECON, models)

@@ -114,7 +114,7 @@ HEALTH CHECK
 ============================================================
 
 [Installation Directory]
-✓ Found: /home/user/comfyui_ingest/.vfx_pipeline
+✓ Found: /home/user/shot-gopher/.vfx_pipeline
 
 [Conda Environment]
 ✓ Conda detected: conda
@@ -322,7 +322,7 @@ python scripts/janitor.py -R
 VFX PIPELINE STATUS REPORT
 ============================================================
 Generated: 2026-01-12 14:30:00
-Install directory: /home/user/comfyui_ingest/.vfx_pipeline
+Install directory: /home/user/shot-gopher/.vfx_pipeline
 ============================================================
 
 [Disk Usage]
@@ -476,7 +476,7 @@ Weekly maintenance cron job:
 
 ```bash
 # Add to crontab: crontab -e
-0 2 * * 0 cd /home/user/comfyui_ingest && python scripts/janitor.py -a -y
+0 2 * * 0 cd /home/user/shot-gopher && python scripts/janitor.py -a -y
 ```
 
 Runs every Sunday at 2 AM.
@@ -736,7 +736,7 @@ fi
 Add to cron:
 
 ```
-0 8 * * * /home/user/comfyui_ingest/daily_check.sh
+0 8 * * * /home/user/shot-gopher/daily_check.sh
 ```
 
 ### Weekly Maintenance
@@ -745,7 +745,7 @@ Add to cron:
 #!/bin/bash
 # weekly_maintenance.sh
 
-cd /home/user/comfyui_ingest
+cd /home/user/shot-gopher
 
 # Update all components
 python scripts/janitor.py -u -y
@@ -765,7 +765,7 @@ python scripts/janitor.py -H || {
 Add to cron:
 
 ```
-0 2 * * 0 /home/user/comfyui_ingest/weekly_maintenance.sh
+0 2 * * 0 /home/user/shot-gopher/weekly_maintenance.sh
 ```
 
 ### Pre-Commit Hook

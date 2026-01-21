@@ -133,7 +133,7 @@ curl http://localhost:5000/api/system/status
   "comfyui": true,
   "disk_space_gb": 125.3,
   "projects_dir": "/workspace/projects",
-  "install_dir": "/workspace/comfyui_ingest"
+  "install_dir": "/workspace/shot-gopher"
 }
 ```
 

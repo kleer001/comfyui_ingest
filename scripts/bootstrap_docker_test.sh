@@ -3,14 +3,14 @@
 # Downloads and runs the Docker installation wizard with test pipeline
 #
 # Usage (Linux or WSL2):
-#   curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_docker_test.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/kleer001/shot-gopher/main/scripts/bootstrap_docker_test.sh | bash
 #   or
-#   wget -qO- https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_docker_test.sh | bash
+#   wget -qO- https://raw.githubusercontent.com/kleer001/shot-gopher/main/scripts/bootstrap_docker_test.sh | bash
 
 set -e
 
-REPO_URL="https://github.com/kleer001/comfyui_ingest.git"
-INSTALL_DIR="$(pwd)/comfyui_ingest"
+REPO_URL="https://github.com/kleer001/shot-gopher.git"
+INSTALL_DIR="$(pwd)/shot-gopher"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

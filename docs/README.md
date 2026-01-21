@@ -1,6 +1,6 @@
 # VFX Pipeline Documentation
 
-Complete documentation for the comfyui_ingest VFX pipeline toolset.
+Complete documentation for the shot-gopher VFX pipeline toolset.
 
 ## Quick Links
 
@@ -26,14 +26,14 @@ This VFX pipeline provides a complete workflow for processing footage through:
 Use the one-liner bootstrap script:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/kleer001/shot-gopher/main/bootstrap.sh | bash
 ```
 
 Or manually:
 
 ```bash
-git clone https://github.com/kleer001/comfyui_ingest.git
-cd comfyui_ingest
+git clone https://github.com/kleer001/shot-gopher.git
+cd shot-gopher
 python3 scripts/install_wizard.py
 ```
 
@@ -107,7 +107,7 @@ These modules provide centralized configuration and utilities used across all sc
 ## Architecture
 
 ```
-comfyui_ingest/
+shot-gopher/
 ├── scripts/                  # All executable tools
 │   ├── install_wizard/      # Installation wizard package
 │   │   ├── __init__.py
@@ -143,7 +143,7 @@ comfyui_ingest/
 When you process footage, the pipeline creates this structure in the **sibling `vfx_projects/` directory** (not inside the repository):
 
 ```
-../vfx_projects/MyShot/      # Default: sibling to comfyui_ingest repo
+../vfx_projects/MyShot/      # Default: sibling to shot-gopher repo
 ├── source/
 │   └── frames/              # Extracted frames (frame_0001.png, frame_0002.png, ...)
 ├── workflows/               # ComfyUI workflow copies (with absolute paths)
@@ -281,6 +281,6 @@ See main repository for license information.
 
 ## Support
 
-- **Issues**: https://github.com/kleer001/comfyui_ingest/issues
+- **Issues**: https://github.com/kleer001/shot-gopher/issues
 - **Documentation**: This docs folder
 - **Testing Guide**: See `TESTING.md` in repository root

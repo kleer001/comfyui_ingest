@@ -391,8 +391,8 @@ A: Yes - models are on host (`~/.vfx_pipeline/models`), not in container
 
 ## Support
 
-- Issues: https://github.com/kleer001/comfyui_ingest/issues
-- Discussions: https://github.com/kleer001/comfyui_ingest/discussions
+- Issues: https://github.com/kleer001/shot-gopher/issues
+- Discussions: https://github.com/kleer001/shot-gopher/discussions
 
 ## See Also
 

@@ -6,18 +6,18 @@ Get the Docker-based VFX pipeline running in **under 10 minutes** with the autom
 
 **Linux / WSL2:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap-docker.sh | bash
+curl -fsSL https://raw.githubusercontent.com/kleer001/shot-gopher/main/bootstrap-docker.sh | bash
 ```
 
 **Windows (PowerShell as Administrator):**
 ```powershell
-irm https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap-docker.ps1 | iex
+irm https://raw.githubusercontent.com/kleer001/shot-gopher/main/bootstrap-docker.ps1 | iex
 ```
 
 **Or manual clone:**
 ```bash
-git clone https://github.com/kleer001/comfyui_ingest.git
-cd comfyui_ingest
+git clone https://github.com/kleer001/shot-gopher.git
+cd shot-gopher
 python3 scripts/install_wizard_docker.py
 ```
 
@@ -310,8 +310,8 @@ bash scripts/run_docker.sh --name Test --stages colmap,camera /workspace/project
 ## Getting Help
 
 - **Documentation:** [docs/README-DOCKER.md](docs/README-DOCKER.md)
-- **Issues:** https://github.com/kleer001/comfyui_ingest/issues
-- **Discussions:** https://github.com/kleer001/comfyui_ingest/discussions
+- **Issues:** https://github.com/kleer001/shot-gopher/issues
+- **Discussions:** https://github.com/kleer001/shot-gopher/discussions
 
 ---
 

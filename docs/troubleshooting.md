@@ -257,7 +257,7 @@ python --version               # Python version
 nvidia-smi                     # GPU info
 ```
 
-**Report issues:** [GitHub Issues](https://github.com/kleer001/comfyui_ingest/issues)
+**Report issues:** [GitHub Issues](https://github.com/kleer001/shot-gopher/issues)
 
 ---
 

@@ -2,12 +2,12 @@
 # Downloads and runs the installation wizard
 #
 # Usage:
-#   irm https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_conda.ps1 | iex
+#   irm https://raw.githubusercontent.com/kleer001/shot-gopher/main/scripts/bootstrap_conda.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
-$REPO_URL = "https://github.com/kleer001/comfyui_ingest.git"
-$INSTALL_DIR = Join-Path (Get-Location) "comfyui_ingest"
+$REPO_URL = "https://github.com/kleer001/shot-gopher.git"
+$INSTALL_DIR = Join-Path (Get-Location) "shot-gopher"
 
 Write-Host ""
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan

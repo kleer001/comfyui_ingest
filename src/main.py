@@ -1,4 +1,4 @@
-"""Main module for comfyui_ingest."""
+"""Main module for shot-gopher."""
 
 def main():
     """Main function."""

@@ -2,9 +2,9 @@
 # Sets up WSL2 and launches the Docker installation wizard
 #
 # Usage (PowerShell as Administrator):
-#   irm https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap-docker.ps1 | iex
+#   irm https://raw.githubusercontent.com/kleer001/shot-gopher/main/bootstrap-docker.ps1 | iex
 #   or
-#   Invoke-WebRequest -Uri https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap-docker.ps1 -UseBasicParsing | Invoke-Expression
+#   Invoke-WebRequest -Uri https://raw.githubusercontent.com/kleer001/shot-gopher/main/bootstrap-docker.ps1 -UseBasicParsing | Invoke-Expression
 
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 Write-Host "  VFX Pipeline - Docker Automated Installer (Windows)" -ForegroundColor Cyan
@@ -18,7 +18,7 @@ if (-not $isAdmin) {
     Write-Host "⚠️  This script requires Administrator privileges" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "Please right-click PowerShell and select 'Run as Administrator', then run:" -ForegroundColor Yellow
-    Write-Host "  irm https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap-docker.ps1 | iex" -ForegroundColor White
+    Write-Host "  irm https://raw.githubusercontent.com/kleer001/shot-gopher/main/bootstrap-docker.ps1 | iex" -ForegroundColor White
     Write-Host ""
     Read-Host "Press Enter to exit"
     exit 1
@@ -59,7 +59,7 @@ if (-not $wslInstalled) {
         Write-Host "  1. Open Ubuntu-22.04 from Start menu" -ForegroundColor White
         Write-Host "  2. Create username and password" -ForegroundColor White
         Write-Host "  3. Run in Ubuntu terminal:" -ForegroundColor White
-        Write-Host "     curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap-docker.sh | bash" -ForegroundColor Green
+        Write-Host "     curl -fsSL https://raw.githubusercontent.com/kleer001/shot-gopher/main/bootstrap-docker.sh | bash" -ForegroundColor Green
         Write-Host ""
         Read-Host "Press Enter to exit"
         exit 0
@@ -109,7 +109,7 @@ if (-not $ubuntuInstalled) {
         Write-Host "  1. Create a username and password" -ForegroundColor White
         Write-Host "  2. Wait for setup to complete" -ForegroundColor White
         Write-Host "  3. Then run in Ubuntu terminal:" -ForegroundColor White
-        Write-Host "     curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap-docker.sh | bash" -ForegroundColor Green
+        Write-Host "     curl -fsSL https://raw.githubusercontent.com/kleer001/shot-gopher/main/bootstrap-docker.sh | bash" -ForegroundColor Green
         Write-Host ""
         Read-Host "Press Enter to exit"
         exit 0
@@ -180,7 +180,7 @@ Write-Host "Starting WSL Ubuntu terminal..." -ForegroundColor Cyan
 Write-Host ""
 
 # Launch the bootstrap script in WSL
-$bootstrapCmd = "curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap-docker.sh | bash"
+$bootstrapCmd = "curl -fsSL https://raw.githubusercontent.com/kleer001/shot-gopher/main/bootstrap-docker.sh | bash"
 
 try {
     wsl -d Ubuntu-22.04 bash -c $bootstrapCmd
@@ -192,7 +192,7 @@ try {
     Write-Host ""
     Write-Host "Next steps:" -ForegroundColor Cyan
     Write-Host "  1. Access WSL: wsl -d Ubuntu-22.04" -ForegroundColor White
-    Write-Host "  2. Navigate to: cd ~/comfyui_ingest" -ForegroundColor White
+    Write-Host "  2. Navigate to: cd ~/shot-gopher" -ForegroundColor White
     Write-Host "  3. Run pipeline: bash scripts/run_docker.sh --name MyProject /workspace/projects/video.mp4" -ForegroundColor White
     Write-Host ""
     Write-Host "Projects are saved in WSL at: ~/VFX-Projects/" -ForegroundColor Cyan
@@ -203,7 +203,7 @@ try {
     Write-Host ""
     Write-Host "You can run the installer manually in WSL Ubuntu terminal:" -ForegroundColor Yellow
     Write-Host "  1. Open Ubuntu-22.04 from Start menu" -ForegroundColor White
-    Write-Host "  2. Run: curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/bootstrap-docker.sh | bash" -ForegroundColor Green
+    Write-Host "  2. Run: curl -fsSL https://raw.githubusercontent.com/kleer001/shot-gopher/main/bootstrap-docker.sh | bash" -ForegroundColor Green
     Write-Host ""
 }
 

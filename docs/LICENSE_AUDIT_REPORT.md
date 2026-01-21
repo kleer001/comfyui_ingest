@@ -1,7 +1,7 @@
-# License Audit Report: VFX Pipeline (comfyui_ingest)
+# License Audit Report: VFX Pipeline (shot-gopher)
 
 **Report Date:** 2026-01-20
-**Project:** comfyui_ingest / VFX Pipeline
+**Project:** shot-gopher / VFX Pipeline
 **Report Type:** Executive Summary
 
 ---
@@ -28,7 +28,7 @@ This VFX pipeline integrates multiple open-source projects with **varying licens
 
 | Component | License | Commercial Use |
 |-----------|---------|----------------|
-| **comfyui_ingest** (this project) | MIT | ✅ Unrestricted |
+| **shot-gopher** (this project) | MIT | ✅ Unrestricted |
 | ComfyUI | GPL-3.0 | ✅ Yes (with copyleft obligations) |
 | PyTorch | BSD-3-Clause | ✅ Unrestricted |
 | SAM 2/3 (Segment Anything) | Apache-2.0 | ✅ Unrestricted |
@@ -65,7 +65,7 @@ This VFX pipeline integrates multiple open-source projects with **varying licens
 
 ## Detailed Analysis by Component
 
-### This Project: comfyui_ingest
+### This Project: shot-gopher
 
 **License:** MIT License
 **Copyright:** 2026 kleer001

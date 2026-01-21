@@ -68,7 +68,7 @@ Use Docker for NVIDIA GPU support and isolated environment.
 
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_docker.sh | bash
+curl -fsSL https://raw.githubusercontent.com/kleer001/shot-gopher/main/scripts/bootstrap_docker.sh | bash
 ```
 
 **Prerequisites:** NVIDIA GPU with driver, Docker with nvidia-container-toolkit
@@ -85,7 +85,7 @@ Native Windows unsupported. Use WSL2 + Docker:
 2. Install Docker Desktop with WSL2 backend enabled
 3. Run from WSL2 terminal:
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_docker.sh | bash
+   curl -fsSL https://raw.githubusercontent.com/kleer001/shot-gopher/main/scripts/bootstrap_docker.sh | bash
    ```
 
 **Prerequisites:** Windows 10 2004+ or Windows 11, NVIDIA GPU with driver
@@ -97,7 +97,7 @@ Native Windows unsupported. Use WSL2 + Docker:
 Use Conda for GPU access (Docker can't access Metal/AMD GPUs on macOS).
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_conda.sh | bash
+curl -fsSL https://raw.githubusercontent.com/kleer001/shot-gopher/main/scripts/bootstrap_conda.sh | bash
 ```
 
 **Prerequisites:** macOS 11+, Apple Silicon recommended (Intel Macs slower)
