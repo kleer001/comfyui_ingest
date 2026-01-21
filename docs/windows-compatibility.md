@@ -2,7 +2,7 @@
 
 This document outlines the plan for adding Windows support to the VFX Pipeline. The pipeline is primarily developed on Linux (Ubuntu 20.04+) with Windows compatibility added as a layer.
 
-**Status:** Phase 1-3 implemented, Phase 4-5 pending
+**Status:** Phase 1-4 complete, Phase 5 pending
 
 ## Implementation Status
 
@@ -16,21 +16,35 @@ This document outlines the plan for adding Windows support to the VFX Pipeline. 
 
 ### Completed Changes
 
+**Core Platform Support:**
 - `scripts/env_config.py`: Added `is_windows()`, `is_macos()`, `is_linux()`, `get_platform_name()` helpers
 - `scripts/install_wizard/utils.py`: Replaced `which` with `shutil.which()`, added Windows console input via `msvcrt`, added shell parameter to run_command()
 - `scripts/install_wizard/validator.py`: Uses `PlatformManager.find_tool()` for COLMAP validation
 - `scripts/install_wizard/downloader.py`: Replaced `which` with `shutil.which()` for tool detection, added file locking retry logic
 - `scripts/install_wizard/conda.py`: Added Windows conda path detection (miniconda3, Anaconda3, scoop, etc.)
-- `scripts/install_wizard/platform.py`: Added `find_tool()` with Windows path search, `run_tool()` for .bat handling, winget/scoop package manager detection
 - `scripts/install_wizard/config.py`: Generates `activate.ps1` and `activate.bat` alongside `activate.sh`, fixed PYTHONPATH handling, added conda init check
+
+**Sandboxed Tool Installation:**
+- `scripts/install_wizard/platform.py`:
+  - Added `TOOLS_DIR` constant for repo-local tools (`.vfx_pipeline/tools/`)
+  - Added `find_tool()` with repo-local priority search
+  - Added `install_tool()` for automatic tool download and extraction
+  - Removed home directory paths from search (no `~/` pollution)
+  - Added `run_tool()` for .bat handling, winget/scoop package manager detection
+- `scripts/install_wizard/wizard.py`: Auto-installs FFmpeg and COLMAP when missing (no user prompt)
+
+**Cross-Platform Tool Detection:**
 - `scripts/comfyui_manager.py`: Cross-platform process management (wmic/taskkill on Windows, pgrep/kill on Unix)
 - `scripts/run_colmap.py`: Uses `PlatformManager.find_tool()` for COLMAP detection, handles .bat files with shell=True
 - `scripts/debug_colmap_images.py`: Uses `PlatformManager.find_tool()` for COLMAP detection
 - `scripts/pipeline_utils.py`: Uses `PlatformManager.find_tool()` for ffmpeg/ffprobe detection
 - `web/api.py`: Uses `PlatformManager.find_tool()` for ffprobe detection
+
+**Documentation:**
 - `docs/windows_for_it_dept_native.md`: Created IT admin guide for native Windows setup
 - `docs/windows_for_it_dept_docker.md`: Renamed from original (Docker/WSL2 setup)
 - `docs/windows-troubleshooting.md`: Created user troubleshooting guide
+- `CLAUDE.md`: Added sandboxing requirements and prohibited patterns
 
 ---
 

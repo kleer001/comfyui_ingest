@@ -4,6 +4,15 @@ This document provides IT administrators with the minimal setup requirements to 
 
 For Docker/WSL2 installation, see [windows_for_it_dept_docker.md](windows_for_it_dept_docker.md).
 
+## Key Feature: Automatic Tool Installation
+
+**FFmpeg and COLMAP are now auto-installed by the wizard.** When these tools are missing, the install wizard automatically downloads and installs them to a sandboxed directory within the repository (`.vfx_pipeline/tools/`). No user home directory pollution, no IT intervention required for these tools.
+
+This means:
+- IT only needs to install: GPU drivers, CUDA, Git, and Miniconda
+- FFmpeg, COLMAP, 7-Zip, aria2 are handled automatically
+- All auto-installed tools are sandboxed (delete repo = everything gone)
+
 ## Prerequisites
 
 - Windows 10 (version 1903+) or Windows 11 (64-bit)
@@ -93,11 +102,11 @@ choco install miniconda3
 conda --version
 ```
 
-### 5. FFmpeg
+### 5. FFmpeg (Auto-Installed)
 
-Required for video frame extraction and encoding.
+**IT installation NOT required.** The install wizard automatically downloads and installs FFmpeg to `.vfx_pipeline/tools/ffmpeg/` if not found in system PATH.
 
-**Installation Options (choose one):**
+If you prefer system-wide installation:
 
 ```powershell
 # Option A: winget (recommended)
@@ -105,39 +114,19 @@ winget install ffmpeg
 
 # Option B: Chocolatey
 choco install ffmpeg
-
-# Option C: Scoop
-scoop install ffmpeg
 ```
 
-**Verification:**
-```powershell
-ffmpeg -version
-ffprobe -version
-```
+### 6. COLMAP (Auto-Installed)
 
-### 6. COLMAP (Optional - for Camera Tracking)
+**IT installation NOT required.** The install wizard automatically downloads and installs COLMAP to `.vfx_pipeline/tools/colmap/` if not found in system PATH.
 
-Required only if users need camera tracking/photogrammetry features.
-
-**Installation Options (choose one):**
+If you prefer system-wide installation:
 
 ```powershell
-# Option A: Chocolatey (recommended)
+# Option A: Chocolatey
 choco install colmap
 
-# Option B: Manual download
-# https://colmap.github.io/install.html
-# Download pre-built Windows binaries
-```
-
-**Default Installation Paths:**
-- Chocolatey: `C:\ProgramData\chocolatey\bin\colmap.exe`
-- Manual: `C:\Program Files\COLMAP\COLMAP.bat`
-
-**Verification:**
-```powershell
-colmap --help
+# Option B: Manual download from https://colmap.github.io/install.html
 ```
 
 ### 7. Visual Studio Build Tools (Optional)
@@ -262,9 +251,12 @@ python scripts/install_wizard.py
 The install wizard will:
 1. Detect the Windows environment
 2. Create the conda environment
-3. Install Python dependencies
-4. Generate activation scripts (`activate.ps1`, `activate.bat`)
-5. Download required AI models
+3. **Auto-install missing tools** (FFmpeg, COLMAP) to `.vfx_pipeline/tools/`
+4. Install Python dependencies
+5. Generate activation scripts (`activate.ps1`, `activate.bat`)
+6. Download required AI models
+
+All tools and models are installed within the repository directory - no files are placed in the user's home directory.
 
 ## Post-Setup User Capabilities
 
@@ -297,19 +289,21 @@ If `conda` is not recognized after installation:
    $env:PATH -split ";" | Select-String "CUDA"
    ```
 
-### FFmpeg Not Found
+### FFmpeg or COLMAP Not Found (After Auto-Install)
 
-If FFmpeg was installed but not found:
+The wizard auto-installs these tools to `.vfx_pipeline/tools/`. If they're still not found:
 
 ```powershell
-# Check if it's in a non-PATH location
-Get-Command ffmpeg -ErrorAction SilentlyContinue
+# Check if auto-installed
+ls .vfx_pipeline\tools\
 
-# Common locations to add to PATH:
-# C:\ffmpeg\bin
-# C:\Program Files\FFmpeg\bin
-# %USERPROFILE%\scoop\apps\ffmpeg\current\bin
+# The wizard searches in this order:
+# 1. .vfx_pipeline/tools/<tool>/  (auto-installed)
+# 2. System PATH
+# 3. Standard install locations (Program Files)
 ```
+
+If auto-install failed, check the wizard output for download errors (usually network-related).
 
 ### Permission Denied Errors
 
@@ -320,10 +314,10 @@ If users encounter permission errors:
 
 ### Antivirus Interference
 
-Some antivirus software may flag or slow down ML model downloads. Consider adding exclusions for:
-- The repository directory
-- The conda environments directory (`%USERPROFILE%\miniconda3\envs`)
-- The models directory
+Some antivirus software may flag or slow down ML model downloads. Consider adding exclusions for the repository directory only:
+- `C:\path\to\comfyui_ingest` (contains all tools, models, and environments)
+
+Since everything is sandboxed within the repo, only one exclusion is needed.
 
 ## Support
 

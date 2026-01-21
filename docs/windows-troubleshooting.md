@@ -2,6 +2,12 @@
 
 This guide covers common issues when running the VFX Pipeline on Windows and how to resolve them.
 
+## Key Information
+
+**Tools are auto-installed:** FFmpeg and COLMAP are automatically downloaded and installed to `.vfx_pipeline/tools/` when the wizard runs. No manual installation required.
+
+**Everything is sandboxed:** All tools, models, and environments are installed within the repository directory. Delete the repo folder to completely remove everything.
+
 ## Quick Diagnostics
 
 Run this in PowerShell to check your environment:
@@ -15,6 +21,9 @@ Get-ExecutionPolicy
 
 # Check long paths enabled
 Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -ErrorAction SilentlyContinue
+
+# Check auto-installed tools
+ls .vfx_pipeline\tools\ -ErrorAction SilentlyContinue
 ```
 
 ---
@@ -98,10 +107,10 @@ These issues cannot be fixed by code changes. Be aware of them during installati
 - Downloads fail near completion
 - Model files disappear after download
 
-**Workaround:** Ask IT to add exclusions for:
-- Repository directory: `C:\Users\<USER>\comfyui_ingest`
-- Conda environments: `C:\Users\<USER>\miniconda3\envs`
-- Model cache: `C:\Users\<USER>\.cache\huggingface`
+**Workaround:** Ask IT to add an exclusion for the repository directory only:
+- `C:\path\to\comfyui_ingest`
+
+Since everything is sandboxed within the repo (tools, models, environments), only one exclusion is needed.
 
 ### COLMAP May Fail in Remote Desktop Sessions
 
