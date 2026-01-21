@@ -51,6 +51,7 @@ RUN cmake .. -GNinja \
     -DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCHITECTURES}" \
     -DCUDA_ENABLED=ON \
     -DGUI_ENABLED=OFF \
+    -DCGAL_ENABLED=OFF \
     -DTESTS_ENABLED=OFF \
     && ninja \
     && ninja install
