@@ -272,24 +272,34 @@ class InstallationWizard:
             print_info("Motion capture requires NVIDIA GPU with 12GB+ VRAM")
 
         # ffmpeg
-        if check_command_available("ffmpeg"):
+        if check_command_available("ffmpeg") or PlatformManager.find_tool("ffmpeg"):
             print_success("ffmpeg available")
         else:
-            print_warning("ffmpeg not found (required for video ingestion)")
-            print()
-            print(self.platform_manager.get_missing_dependency_instructions(
-                "ffmpeg", self.os_name, self.environment, self.pkg_manager
-            ))
+            print_info("ffmpeg not found - attempting automatic installation...")
+            installed_path = PlatformManager.install_tool("ffmpeg")
+            if installed_path:
+                print_success(f"ffmpeg installed to {installed_path}")
+            else:
+                print_warning("ffmpeg auto-install failed (required for video ingestion)")
+                print()
+                print(self.platform_manager.get_missing_dependency_instructions(
+                    "ffmpeg", self.os_name, self.environment, self.pkg_manager
+                ))
 
         # COLMAP
-        if check_command_available("colmap"):
+        if check_command_available("colmap") or PlatformManager.find_tool("colmap"):
             print_success("COLMAP available")
         else:
-            print_warning("COLMAP not found (optional, for 3D reconstruction)")
-            print()
-            print(self.platform_manager.get_missing_dependency_instructions(
-                "colmap", self.os_name, self.environment, self.pkg_manager
-            ))
+            print_info("COLMAP not found - attempting automatic installation...")
+            installed_path = PlatformManager.install_tool("colmap")
+            if installed_path:
+                print_success(f"COLMAP installed to {installed_path}")
+            else:
+                print_warning("COLMAP auto-install failed (optional, for 3D reconstruction)")
+                print()
+                print(self.platform_manager.get_missing_dependency_instructions(
+                    "colmap", self.os_name, self.environment, self.pkg_manager
+                ))
 
         return True
 
