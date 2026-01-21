@@ -277,8 +277,32 @@ def _find_comfyui_pids_unix() -> list:
 
 
 def _find_comfyui_pids_windows() -> list:
-    """Find ComfyUI process PIDs on Windows using wmic/tasklist."""
+    """Find ComfyUI process PIDs on Windows using PowerShell (preferred) or wmic (fallback)."""
     pids = []
+    creation_flags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+
+    ps_cmd = (
+        "Get-CimInstance Win32_Process | "
+        "Where-Object { $_.CommandLine -like '*main.py*' -and $_.CommandLine -like '*--listen*' } | "
+        "Select-Object -ExpandProperty ProcessId"
+    )
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_cmd],
+            capture_output=True,
+            text=True,
+            creationflags=creation_flags
+        )
+        if result.returncode == 0:
+            for line in result.stdout.strip().split('\n'):
+                line = line.strip()
+                if line and line.isdigit():
+                    pids.append(line)
+    except Exception:
+        pass
+
+    if pids:
+        return pids
 
     try:
         result = subprocess.run(
@@ -287,7 +311,7 @@ def _find_comfyui_pids_windows() -> list:
              "get", "ProcessId"],
             capture_output=True,
             text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+            creationflags=creation_flags
         )
         if result.returncode == 0:
             for line in result.stdout.strip().split('\n'):
@@ -305,7 +329,7 @@ def _find_comfyui_pids_windows() -> list:
                  "get", "ProcessId"],
                 capture_output=True,
                 text=True,
-                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+                creationflags=creation_flags
             )
             if result.returncode == 0:
                 for line in result.stdout.strip().split('\n'):

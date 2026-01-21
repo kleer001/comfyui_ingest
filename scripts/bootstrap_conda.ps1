@@ -59,6 +59,19 @@ Write-Host ""
 
 # Run the wizard
 python scripts/install_wizard.py $args
+$wizardExitCode = $LASTEXITCODE
+
+Pop-Location
+
+if ($wizardExitCode -ne 0) {
+    Write-Host ""
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Red
+    Write-Host "  Installation Failed!" -ForegroundColor Red
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Check the error messages above and try again." -ForegroundColor Yellow
+    exit $wizardExitCode
+}
 
 Write-Host ""
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Green
@@ -70,5 +83,3 @@ Write-Host "  1. Activate environment: conda activate vfx-pipeline"
 Write-Host "  2. Or use: . $INSTALL_DIR\.vfx_pipeline\activate.ps1"
 Write-Host "  3. Read: $INSTALL_DIR\README.md"
 Write-Host ""
-
-Pop-Location
