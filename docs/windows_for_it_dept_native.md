@@ -27,13 +27,7 @@ Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name
 
 ## Done
 
-Users run:
+Users run in PowerShell:
 ```powershell
-winget install Git.Git --scope user
-winget install Anaconda.Miniconda3 --scope user
-git clone https://github.com/kleer001/comfyui_ingest.git
-cd comfyui_ingest
-python scripts/install_wizard.py
+irm https://raw.githubusercontent.com/kleer001/comfyui_ingest/main/scripts/bootstrap_conda.ps1 | iex
 ```
-
-Wizard auto-installs FFmpeg, COLMAP, and all dependencies to repo directory.
