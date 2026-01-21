@@ -2,9 +2,9 @@
 # Multi-stage build for optimized layer caching
 
 # Stage 1: Get COLMAP from official pre-built image (with CUDA + FreeImage support)
-# Using 20231029.4 tag which is compatible with Ubuntu 22.04 (before 24.04 release)
-# This image is built properly, so FreeImage_Initialise() works
-FROM colmap/colmap:20231029.4 AS colmap-source
+# Using latest tag which has FreeImage initialization fixes (PR #1549, #2332)
+# See: https://github.com/colmap/colmap/issues/1548
+FROM colmap/colmap:latest AS colmap-source
 
 # Stage 2: Base image with system dependencies
 # Using devel image for nvcc (CUDA compiler) needed by SAM3 GPU NMS
@@ -45,8 +45,14 @@ RUN apt-get update && apt-get install -y \
 COPY --from=colmap-source /usr/local/bin/colmap /usr/local/bin/colmap
 # Copy COLMAP's shared libraries (official image uses dynamic linking)
 COPY --from=colmap-source /usr/local/lib/libcolmap* /usr/local/lib/
-# Update library cache
-RUN ldconfig || true
+# Copy FreeImage library from official image to ensure compatibility
+# The apt version (libfreeimage3) may not have proper initialization
+COPY --from=colmap-source /usr/lib/x86_64-linux-gnu/libfreeimage* /usr/lib/x86_64-linux-gnu/
+# Ensure COLMAP is executable and update library cache
+RUN chmod +x /usr/local/bin/colmap && ldconfig
+
+# Ensure /usr/local/bin is in PATH (for shutil.which to find colmap)
+ENV PATH="/usr/local/bin:$PATH"
 
 # Create application directory
 WORKDIR /app
@@ -138,11 +144,14 @@ RUN for dir in */; do \
 
 # Install SAM3 GPU-accelerated NMS (speeds up video tracking 5-10x)
 # Only attempt if nvcc (CUDA compiler) is available
-# UV_SYSTEM_PYTHON=1 tells uv to install into system Python (no venv in Docker)
+# Note: SAM3's install.py uses an outdated comfy_env API (passes config= argument)
+# The new comfy_env API auto-discovers config from cwd, so we call it directly
 RUN cd ComfyUI-SAM3 && \
     if command -v nvcc >/dev/null 2>&1; then \
-        echo "CUDA toolkit found, installing SAM3 GPU NMS..." && \
-        UV_SYSTEM_PYTHON=1 python3 install.py; \
+        echo "CUDA toolkit found, installing comfy-env and SAM3 GPU NMS..." && \
+        pip3 install --no-cache-dir comfy-env && \
+        python3 -c "from comfy_env import install; install()" || \
+        echo "WARNING: SAM3 GPU NMS installation failed. Will use CPU fallback at runtime."; \
     else \
         echo "Skipping SAM3 GPU NMS (nvcc not available - will use CPU fallback at runtime)"; \
     fi

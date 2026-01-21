@@ -62,6 +62,19 @@ class TeeWriter:
             except Exception:
                 pass
 
+    def isatty(self) -> bool:
+        """Check if the first stream is a TTY.
+
+        Delegates to the first stream (typically stdout/stderr) since that
+        determines whether we're running interactively.
+        """
+        if self.streams:
+            try:
+                return self.streams[0].isatty()
+            except Exception:
+                pass
+        return False
+
 
 class LogCapture:
     """Context manager for capturing terminal output to log files.
