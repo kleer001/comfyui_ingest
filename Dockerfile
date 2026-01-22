@@ -1,16 +1,75 @@
 # VFX Ingest Platform - Docker Image
 # Multi-stage build for optimized layer caching
 
-# Stage 1: Get COLMAP from official pre-built image (with CUDA + FreeImage support)
-# Using latest tag which has FreeImage initialization fixes (PR #1549, #2332)
-# See: https://github.com/colmap/colmap/issues/1548
-FROM colmap/colmap:latest AS colmap-source
+# Stage 1: Build COLMAP from source with CUDA support
+# The apt package lacks CUDA, and official Docker image uses Ubuntu 24.04 (incompatible)
+FROM nvidia/cuda:12.1.0-cudnn8-devel-ubuntu22.04 AS colmap-builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install COLMAP build dependencies (complete list from official docs)
+# GCC 10 required: Ubuntu 22.04's CUDA toolkit doesn't support GCC 11 (the default)
+# Using OpenImageIO instead of FreeImage (more robust, used by official Docker image)
+# Reference: https://github.com/colmap/colmap/blob/main/docker/Dockerfile
+RUN apt-get update && apt-get install -y \
+    git \
+    cmake \
+    ninja-build \
+    build-essential \
+    gcc-10 \
+    g++-10 \
+    libboost-program-options-dev \
+    libboost-filesystem-dev \
+    libboost-graph-dev \
+    libboost-system-dev \
+    libeigen3-dev \
+    libopenimageio-dev \
+    libmetis-dev \
+    libgoogle-glog-dev \
+    libgflags-dev \
+    libsqlite3-dev \
+    libglew-dev \
+    qtbase5-dev \
+    libqt5opengl5-dev \
+    libceres-dev \
+    libflann-dev \
+    libcgal-dev \
+    libgmp-dev \
+    libmpfr-dev \
+    liblz4-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set GCC 10 as the compiler for CUDA compatibility
+ENV CC=/usr/bin/gcc-10
+ENV CXX=/usr/bin/g++-10
+ENV CUDAHOSTCXX=/usr/bin/g++-10
+
+# Clone and build COLMAP
+# CUDA architectures: 7.5 (RTX 20xx/T4), 8.0 (A100), 8.6 (RTX 30xx), 8.9 (RTX 40xx), 9.0 (H100)
+# Using 3.10 for FreeImage encapsulation fix (PR #2332) - fixes dynamic linking issues
+ARG COLMAP_VERSION=3.10
+ARG CUDA_ARCHITECTURES="75;80;86;89;90"
+
+RUN git clone --branch ${COLMAP_VERSION} --depth 1 https://github.com/colmap/colmap.git /colmap-src
+
+WORKDIR /colmap-src/build
+RUN cmake .. -GNinja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/colmap-install \
+    -DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCHITECTURES}" \
+    -DCUDA_ENABLED=ON \
+    -DGUI_ENABLED=OFF \
+    -DCGAL_ENABLED=ON \
+    -DTESTS_ENABLED=OFF \
+    && ninja \
+    && ninja install
+
+# Verify COLMAP was built with CUDA
+RUN /colmap-install/bin/colmap -h | head -5
 
 # Stage 2: Base image with system dependencies
-# Using devel image for nvcc (CUDA compiler) needed by SAM3 GPU NMS
 FROM nvidia/cuda:12.1.0-cudnn8-devel-ubuntu22.04 AS base
 
-# Prevent interactive prompts during build
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install system packages and COLMAP runtime dependencies
@@ -25,34 +84,33 @@ RUN apt-get update && apt-get install -y \
     ninja-build \
     libgl1-mesa-glx \
     libglu1-mesa \
-    libglew2.2 \
-    libgomp1 \
-    libboost-filesystem1.74.0 \
     libboost-program-options1.74.0 \
+    libboost-filesystem1.74.0 \
     libboost-graph1.74.0 \
-    libgoogle-glog0v5 \
-    libceres2 \
+    libboost-system1.74.0 \
+    libopenimageio2.4 \
     libmetis5 \
-    libfreeimage3 \
+    libgoogle-glog0v5 \
+    libgflags2.2 \
     libsqlite3-0 \
+    libglew2.2 \
+    libceres2 \
     libflann1.9 \
     libqt5core5a \
     libqt5widgets5 \
+    libqt5opengl5 \
+    libgmp10 \
+    libmpfr6 \
+    liblz4-1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy COLMAP from official image
-# The official image has proper FreeImage initialization built in
-COPY --from=colmap-source /usr/local/bin/colmap /usr/local/bin/colmap
-# Copy COLMAP's shared libraries (official image uses dynamic linking)
-COPY --from=colmap-source /usr/local/lib/libcolmap* /usr/local/lib/
-# Copy FreeImage library from official image to ensure compatibility
-# The apt version (libfreeimage3) may not have proper initialization
-COPY --from=colmap-source /usr/lib/x86_64-linux-gnu/libfreeimage* /usr/lib/x86_64-linux-gnu/
-# Ensure COLMAP is executable and update library cache
-RUN chmod +x /usr/local/bin/colmap && ldconfig
+# Copy COLMAP from builder stage (same Ubuntu version = compatible libraries)
+COPY --from=colmap-builder /colmap-install/bin/colmap /usr/local/bin/colmap
+COPY --from=colmap-builder /colmap-install/lib/ /usr/local/lib/
+RUN ldconfig
 
-# Ensure /usr/local/bin is in PATH (for shutil.which to find colmap)
-ENV PATH="/usr/local/bin:$PATH"
+# Verify COLMAP works
+RUN colmap -h | head -5
 
 # Create application directory
 WORKDIR /app
