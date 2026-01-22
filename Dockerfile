@@ -26,7 +26,8 @@ RUN apt-get update && apt-get install -y \
     libboost-graph-dev \
     libboost-system-dev \
     libeigen3-dev \
-    libfreeimage-dev \
+    libopenimageio-dev \
+    openimageio-tools \
     libmetis-dev \
     libgoogle-glog-dev \
     libgtest-dev \
@@ -84,7 +85,7 @@ RUN apt-get update && apt-get install -y \
     libgoogle-glog0v5 \
     libceres2 \
     libmetis5 \
-    libfreeimage3 \
+    libopenimageio2.2 \
     libsqlite3-0 \
     libqt5core5a \
     libqt5widgets5 \
