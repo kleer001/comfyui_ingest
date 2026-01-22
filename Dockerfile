@@ -24,17 +24,18 @@ RUN apt-get update && apt-get install -y \
     curl \
     xvfb \
     ninja-build \
-    libgl1-mesa-glx \
+    libgl1 \
+    libglx-mesa0 \
     libglu1-mesa \
     libglew2.2 \
     libgomp1 \
     libboost-filesystem1.83.0 \
     libboost-program-options1.83.0 \
     libboost-graph1.83.0 \
-    libgoogle-glog0v2t64 \
-    libceres3t64 \
+    libgoogle-glog0v6t64 \
+    libceres4 \
     libmetis5 \
-    libopenimageio2.5t64 \
+    libopenimageio2.4t64 \
     libsqlite3-0 \
     libqt6core6t64 \
     libqt6widgets6t64 \
