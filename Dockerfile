@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y \
     libglew-dev \
     libsqlite3-dev \
     libfreeimage-dev \
+    libflann-dev \
     qt6-base-dev \
     qt6-base-private-dev \
     libmetis-dev \
@@ -82,6 +83,7 @@ RUN apt-get update && apt-get install -y \
     libmkl-intel-thread \
     libmkl-core \
     libomp5 \
+    libflann1.10 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy COLMAP from builder stage (GPU-enabled build)
