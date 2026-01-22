@@ -9,7 +9,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install COLMAP build dependencies (complete list from official docs)
 # GCC 10 required: Ubuntu 22.04's CUDA toolkit doesn't support GCC 11 (the default)
-# Reference: https://colmap.github.io/legacy/3.9/install.html
+# Using OpenImageIO instead of FreeImage (more robust, used by official Docker image)
+# Reference: https://github.com/colmap/colmap/blob/main/docker/Dockerfile
 RUN apt-get update && apt-get install -y \
     git \
     cmake \
@@ -22,7 +23,7 @@ RUN apt-get update && apt-get install -y \
     libboost-graph-dev \
     libboost-system-dev \
     libeigen3-dev \
-    libfreeimage-dev \
+    libopenimageio-dev \
     libmetis-dev \
     libgoogle-glog-dev \
     libgflags-dev \
@@ -87,7 +88,7 @@ RUN apt-get update && apt-get install -y \
     libboost-filesystem1.74.0 \
     libboost-graph1.74.0 \
     libboost-system1.74.0 \
-    libfreeimage3 \
+    libopenimageio2.4 \
     libmetis5 \
     libgoogle-glog0v5 \
     libgflags2.2 \
