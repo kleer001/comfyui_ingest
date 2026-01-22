@@ -48,8 +48,10 @@ ENV CC=/usr/bin/gcc-10
 ENV CXX=/usr/bin/g++-10
 ENV CUDAHOSTCXX=/usr/bin/g++-10
 
-# Clone and build COLMAP 3.13.0 (latest stable release)
-RUN git clone --branch 3.13.0 --depth 1 https://github.com/colmap/colmap.git /colmap && \
+# Clone and build COLMAP from main branch
+# Note: Using main branch (not 3.13.0) because OpenImageIO support was added
+# in PR #3459, merged December 4, 2025 - after the 3.13.0 release (Nov 7, 2025)
+RUN git clone --depth 1 https://github.com/colmap/colmap.git /colmap && \
     cd /colmap && \
     mkdir build && cd build && \
     cmake .. -GNinja \
