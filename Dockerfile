@@ -7,8 +7,8 @@ FROM colmap/colmap:latest AS colmap-source
 
 # Stage 2: Base image with system dependencies
 # Using Ubuntu 24.04 to match COLMAP image (avoids glibc mismatch)
-# CUDA 12.4 has PyTorch wheels available
-FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu24.04 AS base
+# CUDA 12.6 works with PyTorch cu124 wheels (backward compatible)
+FROM nvidia/cuda:12.6.1-cudnn-devel-ubuntu24.04 AS base
 
 # Prevent interactive prompts during build
 ENV DEBIAN_FRONTEND=noninteractive
