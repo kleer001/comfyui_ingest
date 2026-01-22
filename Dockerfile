@@ -29,8 +29,6 @@ RUN apt-get update && apt-get install -y \
     libflann-dev \
     libopenimageio-dev \
     libsuitesparse-dev \
-    qt6-base-dev \
-    qt6-base-private-dev \
     libmetis-dev \
     libmkl-full-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -45,6 +43,7 @@ RUN git clone --branch ${COLMAP_VERSION} --depth 1 https://github.com/colmap/col
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/colmap-install \
         -DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCHITECTURES}" \
+        -DGUI_ENABLED=OFF \
         -DBLA_VENDOR=Intel10_64lp && \
     ninja install && \
     rm -rf /colmap-src
@@ -78,9 +77,6 @@ RUN apt-get update && apt-get install -y \
     libmetis5 \
     libfreeimage3 \
     libsqlite3-0 \
-    libqt6core6t64 \
-    libqt6widgets6t64 \
-    libqt6openglwidgets6 \
     libcurl4t64 \
     libmkl-intel-lp64 \
     libmkl-intel-thread \
