@@ -106,11 +106,13 @@ def setup_gsir_data_structure(
     gsir_data_dir.mkdir(parents=True, exist_ok=True)
 
     # Source paths
-    colmap_sparse = project_dir / "colmap" / "sparse" / "0"
+    # GS-IR expects sparse/0/ structure, so we link to the parent sparse/ dir
+    colmap_sparse_parent = project_dir / "colmap" / "sparse"
+    colmap_sparse_model = colmap_sparse_parent / "0"
     source_frames = project_dir / "source" / "frames"
 
-    if not colmap_sparse.exists():
-        print(f"    Error: COLMAP sparse model not found: {colmap_sparse}", file=sys.stderr)
+    if not colmap_sparse_model.exists():
+        print(f"    Error: COLMAP sparse model not found: {colmap_sparse_model}", file=sys.stderr)
         print(f"    Run the colmap stage first", file=sys.stderr)
         return False
 
@@ -136,15 +138,15 @@ def setup_gsir_data_structure(
             shutil.rmtree(images_link)
 
     try:
-        # GS-IR expects sparse/ to contain the model directly (not sparse/0/)
-        # So we link to the "0" subdirectory
-        sparse_link.symlink_to(colmap_sparse.resolve())
+        # GS-IR expects sparse/0/ structure (standard COLMAP output)
+        # So we link to the parent sparse/ directory
+        sparse_link.symlink_to(colmap_sparse_parent.resolve())
         images_link.symlink_to(source_frames.resolve())
         print(f"    Created symlinks for GS-IR data structure")
     except OSError as e:
         # Symlinks may fail on some systems, fall back to copy
         print(f"    Warning: Could not create symlinks ({e}), copying data...")
-        shutil.copytree(colmap_sparse, sparse_link)
+        shutil.copytree(colmap_sparse_parent, sparse_link)
         shutil.copytree(source_frames, images_link)
 
     return True
