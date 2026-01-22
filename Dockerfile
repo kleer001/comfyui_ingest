@@ -25,8 +25,8 @@ RUN apt-get update && apt-get install -y \
     libglew-dev \
     libsqlite3-dev \
     libfreeimage-dev \
-    qtbase6-dev \
-    libqt6opengl6-dev \
+    qt6-base-dev \
+    qt6-base-private-dev \
     libmetis-dev \
     libmkl-full-dev \
     && rm -rf /var/lib/apt/lists/*
