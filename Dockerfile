@@ -86,8 +86,8 @@ RUN apt-get update && apt-get install -y \
     libmkl-intel-thread \
     libmkl-core \
     libomp5 \
-    libflann1.10 \
-    libopenimageio2.5t64 \
+    libflann1.9 \
+    libopenimageio2.4t64 \
     libcholmod5 \
     && rm -rf /var/lib/apt/lists/*
 
