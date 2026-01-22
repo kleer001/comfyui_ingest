@@ -95,10 +95,12 @@ WORKDIR /app/.vfx_pipeline
 RUN git clone --recursive https://github.com/lzhnb/GS-IR.git GS-IR
 
 # Fix missing <cstdint> includes in GS-IR source (upstream bug)
-# Required for uint32_t type definition in CUDA compilation
+# Required for uint32_t/uint64_t/uintptr_t type definitions in CUDA compilation
 RUN cd GS-IR/gs-ir && \
     sed -i '1i#include <cstdint>' src/utils.h && \
-    sed -i '1i#include <cstdint>' src/pbr_utils.cuh
+    sed -i '1i#include <cstdint>' src/pbr_utils.cuh && \
+    cd ../submodules/diff-gaussian-rasterization/cuda_rasterizer && \
+    sed -i '1i#include <cstdint>' rasterizer_impl.h
 
 # Install nvdiffrast (required for GS-IR rendering)
 # --no-build-isolation required so it can find PyTorch during build
