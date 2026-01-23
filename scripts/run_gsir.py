@@ -86,6 +86,54 @@ def check_gsir_available() -> tuple[bool, Optional[Path]]:
     return False, None
 
 
+def run_colmap_undistorter(
+    colmap_dir: Path,
+    output_dir: Path,
+    image_path: Path
+) -> bool:
+    """Run COLMAP image_undistorter to convert to PINHOLE camera model.
+
+    GS-IR only supports undistorted datasets with PINHOLE or SIMPLE_PINHOLE
+    camera models. This function converts distorted COLMAP reconstructions.
+
+    Args:
+        colmap_dir: Path to COLMAP reconstruction (containing sparse/0/)
+        output_dir: Path for undistorted output
+        image_path: Path to original images
+
+    Returns:
+        True if undistortion succeeded
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    args = [
+        "colmap", "image_undistorter",
+        "--image_path", str(image_path),
+        "--input_path", str(colmap_dir / "sparse" / "0"),
+        "--output_path", str(output_dir),
+        "--output_type", "COLMAP",
+    ]
+
+    print(f"    Running COLMAP image_undistorter...")
+    try:
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            timeout=1800
+        )
+        if result.returncode != 0:
+            print(f"    Error: image_undistorter failed: {result.stderr}", file=sys.stderr)
+            return False
+        return True
+    except subprocess.TimeoutExpired:
+        print(f"    Error: image_undistorter timed out", file=sys.stderr)
+        return False
+    except FileNotFoundError:
+        print(f"    Error: colmap command not found", file=sys.stderr)
+        return False
+
+
 def setup_gsir_data_structure(
     project_dir: Path,
     gsir_data_dir: Path
@@ -93,8 +141,11 @@ def setup_gsir_data_structure(
     """Set up the data structure expected by GS-IR.
 
     GS-IR expects:
-      - source_path/sparse/ - COLMAP sparse reconstruction
-      - source_path/images/ - Input images
+      - source_path/sparse/0/ - COLMAP sparse reconstruction (PINHOLE cameras)
+      - source_path/images/ - Undistorted input images
+
+    If the COLMAP reconstruction uses distorted camera models, this function
+    will run image_undistorter to convert to PINHOLE format.
 
     Args:
         project_dir: Our project directory
@@ -105,11 +156,10 @@ def setup_gsir_data_structure(
     """
     gsir_data_dir.mkdir(parents=True, exist_ok=True)
 
-    # Source paths
-    # GS-IR expects sparse/0/ structure, so we link to the parent sparse/ dir
-    colmap_sparse_parent = project_dir / "colmap" / "sparse"
-    colmap_sparse_model = colmap_sparse_parent / "0"
+    colmap_dir = project_dir / "colmap"
+    colmap_sparse_model = colmap_dir / "sparse" / "0"
     source_frames = project_dir / "source" / "frames"
+    undistorted_dir = colmap_dir / "undistorted"
 
     if not colmap_sparse_model.exists():
         print(f"    Error: COLMAP sparse model not found: {colmap_sparse_model}", file=sys.stderr)
@@ -120,34 +170,37 @@ def setup_gsir_data_structure(
         print(f"    Error: Source frames not found: {source_frames}", file=sys.stderr)
         return False
 
-    # Create symlinks (or copy if symlinks fail)
+    use_undistorted = undistorted_dir / "sparse"
+    use_images = undistorted_dir / "images"
+
+    if not use_undistorted.exists() or not use_images.exists():
+        print(f"    Undistorting images for GS-IR (PINHOLE camera required)...")
+        if not run_colmap_undistorter(colmap_dir, undistorted_dir, source_frames):
+            print(f"    Error: Failed to undistort images", file=sys.stderr)
+            return False
+
+    if not use_undistorted.exists():
+        print(f"    Error: Undistorted sparse model not found: {use_undistorted}", file=sys.stderr)
+        return False
+
     sparse_link = gsir_data_dir / "sparse"
     images_link = gsir_data_dir / "images"
 
-    # Remove existing links/dirs
-    if sparse_link.exists() or sparse_link.is_symlink():
-        if sparse_link.is_symlink():
-            sparse_link.unlink()
-        else:
-            shutil.rmtree(sparse_link)
-
-    if images_link.exists() or images_link.is_symlink():
-        if images_link.is_symlink():
-            images_link.unlink()
-        else:
-            shutil.rmtree(images_link)
+    for link in [sparse_link, images_link]:
+        if link.exists() or link.is_symlink():
+            if link.is_symlink():
+                link.unlink()
+            else:
+                shutil.rmtree(link)
 
     try:
-        # GS-IR expects sparse/0/ structure (standard COLMAP output)
-        # So we link to the parent sparse/ directory
-        sparse_link.symlink_to(colmap_sparse_parent.resolve())
-        images_link.symlink_to(source_frames.resolve())
+        sparse_link.symlink_to(use_undistorted.resolve())
+        images_link.symlink_to(use_images.resolve())
         print(f"    Created symlinks for GS-IR data structure")
     except OSError as e:
-        # Symlinks may fail on some systems, fall back to copy
         print(f"    Warning: Could not create symlinks ({e}), copying data...")
-        shutil.copytree(colmap_sparse_parent, sparse_link)
-        shutil.copytree(source_frames, images_link)
+        shutil.copytree(use_undistorted, sparse_link)
+        shutil.copytree(use_images, images_link)
 
     return True
 
