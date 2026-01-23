@@ -341,15 +341,32 @@ def run_colmap_command(
 
     stdout_lines = []
     last_progress = ""
+    last_progress_time = 0
     is_tty = sys.stdout.isatty()
+    throttle_interval = 0 if is_tty else 2.0  # Only update every 2 seconds when not TTY
 
     # Progress patterns for different COLMAP stages
     # Feature extraction: "Processed file [1/521]"
     extract_pattern = re.compile(r'Processed file \[(\d+)/(\d+)\]')
     # Matching: "Matching block [1/52, 1/52]" or image pairs
     match_pattern = re.compile(r'Matching block \[(\d+)/(\d+)')
-    # Mapper: "Registering image #142 (150)"
+    # Mapper: "Registering image #142 (150)" or "Registered X/Y images"
     register_pattern = re.compile(r'Registering image #(\d+)\s*\((\d+)\)')
+    register_alt_pattern = re.compile(r'Registered\s+(\d+)/(\d+)\s+images')
+    # Bundle adjustment
+    bundle_pattern = re.compile(r'Bundle adjustment')
+
+    import time
+
+    def should_print_progress():
+        nonlocal last_progress_time
+        if is_tty:
+            return True
+        now = time.time()
+        if now - last_progress_time >= throttle_interval:
+            last_progress_time = now
+            return True
+        return False
 
     for line in iter(process.stdout.readline, ''):
         stdout_lines.append(line)
@@ -360,7 +377,7 @@ def run_colmap_command(
         if match:
             current, total = match.group(1), match.group(2)
             progress = f"Extracting features: {current}/{total}"
-            if progress != last_progress:
+            if progress != last_progress and should_print_progress():
                 if is_tty:
                     print(f"\r    {progress}    ", end="")
                 else:
@@ -374,7 +391,7 @@ def run_colmap_command(
         if match:
             current, total = match.group(1), match.group(2)
             progress = f"Matching: block {current}/{total}"
-            if progress != last_progress:
+            if progress != last_progress and should_print_progress():
                 if is_tty:
                     print(f"\r    {progress}    ", end="")
                 else:
@@ -383,19 +400,25 @@ def run_colmap_command(
                 last_progress = progress
             continue
 
-        # Check for registration progress (mapper)
+        # Check for registration progress (mapper) - try both patterns
         match = register_pattern.search(line_stripped)
+        if not match:
+            match = register_alt_pattern.search(line_stripped)
         if match:
             current = int(match.group(1))
             total = int(match.group(2))
             progress = f"Registered {current}/{total} images"
-            if progress != last_progress:
+            if progress != last_progress and should_print_progress():
                 if is_tty:
                     print(f"\r    {progress}    ", end="")
                 else:
                     print(f"    {progress}")
                 sys.stdout.flush()
                 last_progress = progress
+            continue
+
+        # Skip verbose bundle adjustment output
+        if bundle_pattern.search(line_stripped):
             continue
 
     # Clear the progress line and print newline (only needed for TTY mode)

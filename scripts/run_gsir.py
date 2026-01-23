@@ -272,25 +272,63 @@ def run_gsir_command(
     )
 
     stdout_lines = []
-    # Pattern: iteration progress (various formats)
-    iter_pattern = re.compile(r'[Ii]teration\s*[:\s]*(\d+)\s*[/|of]\s*(\d+)')
-    last_reported = 0
-    report_interval = 500  # Report every 500 iterations
+    import time
 
-    # Use iter(readline, '') to avoid Python's internal buffering
+    # Patterns for progress detection
+    iter_pattern = re.compile(r'[Ii]teration\s*[:\s]*(\d+)\s*[/|of]\s*(\d+)')
+    # tqdm pattern: "50%|█████     | 15000/30000 [05:23<05:23, 46.37it/s]"
+    tqdm_pattern = re.compile(r'(\d+)%\|.*\|\s*(\d+)/(\d+)')
+    # Alternative: "Training progress:  50%"
+    percent_pattern = re.compile(r'(\d+)%')
+
+    last_reported = 0
+    last_report_time = 0
+    report_interval = 1000  # Report every 1000 iterations
+    time_interval = 5.0  # Or at least every 5 seconds
+    is_tty = sys.stdout.isatty()
+
     for line in iter(process.stdout.readline, ''):
         stdout_lines.append(line)
-        line = line.strip()
+        line_stripped = line.strip()
 
-        # Check for iteration progress
-        match = iter_pattern.search(line)
+        # Skip empty lines and repetitive tqdm updates
+        if not line_stripped or '\r' in line:
+            continue
+
+        current = total = None
+
+        # Try iteration pattern first
+        match = iter_pattern.search(line_stripped)
         if match:
             current = int(match.group(1))
             total = int(match.group(2))
-            if current - last_reported >= report_interval or current == total:
-                print(f"    Iteration {current}/{total}")
+
+        # Try tqdm pattern
+        if not current:
+            match = tqdm_pattern.search(line_stripped)
+            if match:
+                current = int(match.group(2))
+                total = int(match.group(3))
+
+        if current and total:
+            now = time.time()
+            should_report = (
+                current - last_reported >= report_interval or
+                now - last_report_time >= time_interval or
+                current == total
+            )
+            if should_report:
+                pct = int(100 * current / total) if total > 0 else 0
+                if is_tty:
+                    print(f"\r    Training: {current}/{total} ({pct}%)    ", end="")
+                else:
+                    print(f"    Training: {current}/{total} ({pct}%)")
                 sys.stdout.flush()
                 last_reported = current
+                last_report_time = now
+
+    if is_tty and last_reported > 0:
+        print()  # Newline after progress
 
     process.wait()
 
