@@ -575,6 +575,9 @@ def run_gsir_pipeline(
         print("Or set GSIR_PATH environment variable to installation directory", file=sys.stderr)
         return False
 
+    import time
+    pipeline_start = time.time()
+
     print(f"\n{'='*60}")
     print(f"GS-IR Material Decomposition")
     print(f"{'='*60}")
@@ -628,11 +631,18 @@ def run_gsir_pipeline(
         print(f"\nGS-IR command timed out", file=sys.stderr)
         return False
 
+    # Calculate timing
+    pipeline_end = time.time()
+    total_seconds = pipeline_end - pipeline_start
+    total_minutes = total_seconds / 60
+
     print(f"\n{'='*60}")
     print(f"GS-IR Material Decomposition Complete")
     print(f"{'='*60}")
     print(f"Model: {gsir_model_dir}")
     print(f"Materials: {materials_output}")
+    print()
+    print(f"TOTAL TIME: {total_minutes:.1f} minutes")
     print()
 
     return True

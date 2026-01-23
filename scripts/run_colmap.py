@@ -1381,6 +1381,9 @@ def run_colmap_pipeline(
         print("  Conda: conda install -c conda-forge colmap", file=sys.stderr)
         return False
 
+    import time
+    pipeline_start = time.time()
+
     diag = diagnose_colmap_environment(verbose=True)
     preset = QUALITY_PRESETS.get(quality, QUALITY_PRESETS["medium"])
 
@@ -1532,6 +1535,12 @@ def run_colmap_pipeline(
                 else:
                     print("    Mesh generation failed (continuing)", file=sys.stderr)
 
+            # Calculate timing
+            pipeline_end = time.time()
+            total_seconds = pipeline_end - pipeline_start
+            total_minutes = total_seconds / 60
+            per_frame_seconds = total_seconds / frame_count if frame_count > 0 else 0
+
             print(f"\n{'='*60}")
             print(f"COLMAP Reconstruction Complete")
             print(f"{'='*60}")
@@ -1539,6 +1548,8 @@ def run_colmap_pipeline(
             print(f"Camera data: {camera_dir}")
             if run_dense:
                 print(f"Dense model: {dense_path}")
+            print()
+            print(f"TOTAL TIME: {total_minutes:.1f} minutes ({per_frame_seconds:.2f}s per frame)")
             print()
 
             return True
