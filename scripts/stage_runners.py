@@ -40,7 +40,7 @@ def run_export_camera(project_dir: Path, fps: float = 24.0) -> bool:
         sys.executable, str(script_path),
         str(project_dir),
         "--fps", str(fps),
-        "--format", "both"
+        "--format", "all"
     ]
 
     try:
