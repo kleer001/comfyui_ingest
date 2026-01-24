@@ -21,6 +21,7 @@ import os
 import re
 import shutil
 import sqlite3
+import struct
 import subprocess
 import sys
 import time
@@ -617,6 +618,58 @@ def match_features(
         _run_matcher(gpu=False)
 
 
+def find_best_sparse_model(sparse_path: Path) -> Optional[Path]:
+    """Find the sparse model with the most registered images.
+
+    COLMAP may produce multiple sub-models if it can't connect all images.
+    This function finds the largest one (most registered images).
+
+    Args:
+        sparse_path: Path to sparse reconstruction directory containing model subdirs
+
+    Returns:
+        Path to the best model directory, or None if no valid models found
+    """
+    if not sparse_path.exists():
+        return None
+
+    best_model = None
+    best_count = 0
+
+    for model_dir in sorted(sparse_path.iterdir()):
+        if not model_dir.is_dir():
+            continue
+
+        images_bin = model_dir / "images.bin"
+        images_txt = model_dir / "images.txt"
+
+        if images_bin.exists():
+            try:
+                with open(images_bin, "rb") as f:
+                    import struct
+                    num_images = struct.unpack("<Q", f.read(8))[0]
+                    if num_images > best_count:
+                        best_count = num_images
+                        best_model = model_dir
+            except (IOError, struct.error):
+                pass
+        elif images_txt.exists():
+            try:
+                with open(images_txt, "r") as f:
+                    lines = [l for l in f if l.strip() and not l.startswith("#")]
+                    num_images = len(lines) // 2
+                    if num_images > best_count:
+                        best_count = num_images
+                        best_model = model_dir
+            except IOError:
+                pass
+
+    if best_model and best_count > 0:
+        print(f"    Selected model {best_model.name} with {best_count} registered images")
+
+    return best_model
+
+
 def run_sparse_reconstruction(
     database_path: Path,
     image_path: Path,
@@ -653,11 +706,22 @@ def run_sparse_reconstruction(
 
     run_colmap_command("mapper", args, "Running sparse reconstruction")
 
-    # Check if reconstruction produced output
-    model_path = output_path / "0"
-    if not model_path.exists():
+    # Find the best model (most registered images)
+    # COLMAP may produce multiple sub-models if it can't connect all images
+    best_model = find_best_sparse_model(output_path)
+
+    if best_model is None:
         print("    Warning: No reconstruction model produced", file=sys.stderr)
         return False
+
+    # If best model is not "0", reorganize so downstream code works consistently
+    model_0 = output_path / "0"
+    if best_model.name != "0":
+        print(f"    Reorganizing: best model is {best_model.name}, moving to 0")
+        if model_0.exists():
+            backup_path = output_path / f"0_backup_{best_model.name}"
+            model_0.rename(backup_path)
+        best_model.rename(model_0)
 
     return True
 
