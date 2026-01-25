@@ -109,17 +109,21 @@ def get_existing_projects() -> list:
 def print_projects_menu(projects: list):
     """Print list of existing projects."""
     print("\n  Existing Projects:")
-    print("  " + "-" * 50)
+    print("  " + "-" * 60)
 
     if not projects:
         print("    (no projects found)")
     else:
         for i, proj in enumerate(projects, 1):
             completed = get_completed_stages(proj)
-            status = f"[{len(completed)} stages done]" if completed else "[new]"
-            print(f"  {i:2}. {proj.name:20} {status}")
+            if completed:
+                stages_str = ", ".join(sorted(completed))
+            else:
+                stages_str = "(no stages run)"
+            print(f"  {i:2}. {proj.name}")
+            print(f"      {stages_str}")
 
-    print("  " + "-" * 50)
+    print("  " + "-" * 60)
     print("   n. New project from movie file")
     print("   p. Enter path manually")
     print("   q. Quit")
