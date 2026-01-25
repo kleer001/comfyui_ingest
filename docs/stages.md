@@ -121,8 +121,18 @@ Creates segmentation masks using SAM3 (Segment Anything Model 3).
 
 **⚠️ When to use automatic vs interactive segmentation:**
 - **Single person/object:** Automatic roto works well
-- **Multiple people:** Use [interactive](#interactive) segmentation instead—automatic detection may miss people or produce inconsistent tracking across frames
+- **Multiple people:** Use [interactive](#interactive) segmentation instead
 - **Non-standard objects:** Use [interactive](#interactive) for objects that text prompts can't reliably identify (specific props, partial views, unusual angles)
+
+**Common issues with automatic multi-person roto:**
+- **Dropped segmentation:** People disappear from masks mid-shot when occluded or at frame edges
+- **Identity swapping:** Person A's mask suddenly contains Person B after they cross paths
+- **Stuttering/flickering:** Mask boundaries jump erratically frame-to-frame
+- **Merged masks:** Two people combined into one mask when standing close together
+- **Phantom detection:** Background objects incorrectly identified as people
+- **Inconsistent instance count:** Different number of people detected across frames
+
+These issues compound in downstream stages (matanyone, cleanplate) and are difficult to fix in post.
 
 ### Basic Usage
 

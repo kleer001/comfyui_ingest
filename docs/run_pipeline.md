@@ -136,7 +136,14 @@ python scripts/run_pipeline.py footage.mp4 -s roto --prompt "person"
 # Creates: roto/mask/, roto/person_00/, roto/person_01/, etc.
 ```
 
-**⚠️ Note:** Automatic multi-person detection works best with clearly separated individuals. For crowded scenes, overlapping people, or when consistent tracking is critical, use [interactive segmentation](#interactive-segmentation-recommended-for-multiple-people) instead.
+**⚠️ Automatic multi-person roto is unreliable.** Common issues include:
+- **Dropped segmentation:** People vanish from masks when occluded or near frame edges
+- **Identity swapping:** Masks switch between people after they cross paths
+- **Stuttering/flickering:** Erratic mask boundaries frame-to-frame
+- **Merged masks:** Nearby people combined into one mask
+- **Inconsistent detection:** Different person count across frames
+
+For production work with multiple people, use [interactive segmentation](#interactive-segmentation-recommended-for-multiple-people) instead.
 
 ### High-Quality COLMAP
 
