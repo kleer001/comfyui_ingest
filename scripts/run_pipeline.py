@@ -69,6 +69,26 @@ from log_manager import LogCapture
 CONTAINER_NAME = "vfx-pipeline-run"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 COMFYUI_DIR = INSTALL_DIR / "ComfyUI"
+LAST_PROJECT_FILE = INSTALL_DIR / ".last_project"
+
+
+def save_last_project(project_dir: Path) -> None:
+    """Save the last used project directory."""
+    INSTALL_DIR.mkdir(parents=True, exist_ok=True)
+    LAST_PROJECT_FILE.write_text(str(project_dir.resolve()))
+
+
+def get_last_project() -> Optional[Path]:
+    """Get the last used project directory, if it exists."""
+    if not LAST_PROJECT_FILE.exists():
+        return None
+    try:
+        path = Path(LAST_PROJECT_FILE.read_text().strip())
+        if path.exists() and path.is_dir():
+            return path
+    except Exception:
+        pass
+    return None
 
 
 def check_docker_available() -> bool:
@@ -278,7 +298,7 @@ def sanitize_stages(stages: list[str]) -> list[str]:
 
 
 def run_pipeline(
-    input_path: Path,
+    input_path: Optional[Path],
     project_name: Optional[str] = None,
     projects_dir: Path = DEFAULT_PROJECTS_DIR,
     stages: list[str] = None,
@@ -342,9 +362,15 @@ def run_pipeline(
         comfyui_was_started = True
 
     if not project_name:
-        project_name = input_path.stem.replace(" ", "_")
+        if input_path:
+            project_name = input_path.stem.replace(" ", "_")
+        else:
+            print("Error: project_name required when input_path is None", file=sys.stderr)
+            return False
 
     project_dir = projects_dir / project_name
+
+    save_last_project(project_dir)
 
     if is_in_container():
         if not str(project_dir).startswith("/workspace"):
@@ -359,12 +385,13 @@ def run_pipeline(
     print(f"\n{'='*60}")
     print(f"VFX Pipeline: {project_name}")
     print(f"{'='*60}")
-    print(f"Input: {input_path}")
+    if input_path:
+        print(f"Input: {input_path}")
     print(f"Project: {project_dir}")
     print(f"Stages: {', '.join(stages)}")
     print()
 
-    if not fps and input_path.suffix.lower() in {".mp4", ".mov", ".avi", ".mkv", ".webm", ".mxf"}:
+    if input_path and not fps and input_path.suffix.lower() in {".mp4", ".mov", ".avi", ".mkv", ".webm", ".mxf"}:
         info = get_video_info(input_path)
         for stream in info.get("streams", []):
             if stream.get("codec_type") == "video":
@@ -384,9 +411,10 @@ def run_pipeline(
     project_metadata = {
         "name": project_name,
         "fps": fps,
-        "source": str(input_path),
         "start_frame": 1,
     }
+    if input_path:
+        project_metadata["source"] = str(input_path)
     if metadata_path.exists():
         try:
             with open(metadata_path) as f:
@@ -405,7 +433,9 @@ def run_pipeline(
 
     if "ingest" in stages:
         print("\n=== Stage: ingest ===")
-        if skip_existing and list(source_frames.glob("frame_*.png")):
+        if not input_path:
+            print("  → Skipping (no input file, existing project)")
+        elif skip_existing and list(source_frames.glob("frame_*.png")):
             print("  → Skipping (frames exist)")
         else:
             frame_count = extract_frames(input_path, source_frames, START_FRAME, fps)
@@ -413,10 +443,11 @@ def run_pipeline(
 
         preview_dir = project_dir / "preview"
         preview_dir.mkdir(exist_ok=True)
-        source_preview = preview_dir / f"source{input_path.suffix}"
-        if not source_preview.exists():
-            shutil.copy2(input_path, source_preview)
-            print(f"  → Copied source to {source_preview.name}")
+        if input_path:
+            source_preview = preview_dir / f"source{input_path.suffix}"
+            if not source_preview.exists():
+                shutil.copy2(input_path, source_preview)
+                print(f"  → Copied source to {source_preview.name}")
 
     total_frames = len(list(source_frames.glob("frame_*.png")))
 
@@ -775,7 +806,9 @@ def main():
     parser.add_argument(
         "input",
         type=Path,
-        help="Input movie file or image sequence"
+        nargs="?",
+        default=None,
+        help="Input movie file, image sequence, or existing project dir (default: last used project)"
     )
     parser.add_argument(
         "--name", "-n",
@@ -936,10 +969,27 @@ def main():
 
     check_conda_env_or_warn()
 
-    input_path = args.input.resolve()
-    if not input_path.exists():
-        print(f"Error: Input not found: {input_path}", file=sys.stderr)
-        sys.exit(1)
+    input_path = None
+    project_dir = None
+
+    if args.input is None:
+        last_project = get_last_project()
+        if last_project:
+            project_dir = last_project
+            print(f"Using last project: {project_dir.name}")
+        else:
+            print("Error: No input specified and no previous project found", file=sys.stderr)
+            print("Usage: run_pipeline.py <movie_file_or_project_dir>", file=sys.stderr)
+            sys.exit(1)
+    else:
+        input_path = args.input.resolve()
+        if not input_path.exists():
+            print(f"Error: Input not found: {input_path}", file=sys.stderr)
+            sys.exit(1)
+
+        if input_path.is_dir() and (input_path / "source").exists():
+            project_dir = input_path
+            print(f"Using existing project: {project_dir.name}")
 
     if args.stages.lower() == "all":
         stages = STAGE_ORDER.copy()
@@ -954,26 +1004,49 @@ def main():
 
     print(f"Stages to run: {', '.join(stages)}")
 
-    success = run_pipeline(
-        input_path=input_path,
-        project_name=args.name,
-        projects_dir=args.projects_dir,
-        stages=stages,
-        comfyui_url=args.comfyui_url,
-        fps=args.fps,
-        skip_existing=args.skip_existing,
-        colmap_quality=args.colmap_quality,
-        colmap_dense=args.colmap_dense,
-        colmap_mesh=args.colmap_mesh,
-        colmap_use_masks=not args.colmap_no_masks,
-        gsir_iterations=args.gsir_iterations,
-        gsir_path=args.gsir_path,
-        auto_start_comfyui=not args.no_auto_comfyui,
-        roto_prompt=args.prompt,
-        separate_instances=args.separate_instances,
-        auto_movie=args.auto_movie,
-        overwrite=not args.no_overwrite,
-    )
+    if project_dir:
+        save_last_project(project_dir)
+        success = run_pipeline(
+            input_path=None,
+            project_name=project_dir.name,
+            projects_dir=project_dir.parent,
+            stages=stages,
+            comfyui_url=args.comfyui_url,
+            fps=args.fps,
+            skip_existing=args.skip_existing,
+            colmap_quality=args.colmap_quality,
+            colmap_dense=args.colmap_dense,
+            colmap_mesh=args.colmap_mesh,
+            colmap_use_masks=not args.colmap_no_masks,
+            gsir_iterations=args.gsir_iterations,
+            gsir_path=args.gsir_path,
+            auto_start_comfyui=not args.no_auto_comfyui,
+            roto_prompt=args.prompt,
+            separate_instances=args.separate_instances,
+            auto_movie=args.auto_movie,
+            overwrite=not args.no_overwrite,
+        )
+    else:
+        success = run_pipeline(
+            input_path=input_path,
+            project_name=args.name,
+            projects_dir=args.projects_dir,
+            stages=stages,
+            comfyui_url=args.comfyui_url,
+            fps=args.fps,
+            skip_existing=args.skip_existing,
+            colmap_quality=args.colmap_quality,
+            colmap_dense=args.colmap_dense,
+            colmap_mesh=args.colmap_mesh,
+            colmap_use_masks=not args.colmap_no_masks,
+            gsir_iterations=args.gsir_iterations,
+            gsir_path=args.gsir_path,
+            auto_start_comfyui=not args.no_auto_comfyui,
+            roto_prompt=args.prompt,
+            separate_instances=args.separate_instances,
+            auto_movie=args.auto_movie,
+            overwrite=not args.no_overwrite,
+        )
 
     sys.exit(0 if success else 1)
 
