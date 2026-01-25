@@ -1,0 +1,213 @@
+#!/usr/bin/env python3
+"""Shot Gopher - Simple TUI for the VFX pipeline.
+
+A friendly interface for running the shot-gopher VFX pipeline.
+"""
+
+import os
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+
+from pipeline_constants import STAGES, STAGE_ORDER
+
+
+def clear_screen():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+
+def print_banner():
+    print("""
+    _____ _           _      _____             _
+   / ____| |         | |    / ____|           | |
+  | (___ | |__   ___ | |_  | |  __  ___  _ __ | |__   ___ _ __
+   \\___ \\| '_ \\ / _ \\| __| | | |_ |/ _ \\| '_ \\| '_ \\ / _ \\ '__|
+   ____) | | | | (_) | |_  | |__| | (_) | |_) | | | |  __/ |
+  |_____/|_| |_|\\___/ \\__|  \\_____|\\___/| .__/|_| |_|\\___|_|
+                                        | |
+                                        |_|   VFX Pipeline TUI
+    """)
+
+
+def print_stages_menu():
+    print("\n  Available Stages:")
+    print("  " + "-" * 50)
+    for i, stage in enumerate(STAGE_ORDER, 1):
+        desc = STAGES[stage]
+        print(f"  {i:2}. {stage:12} - {desc}")
+    print("  " + "-" * 50)
+    print(f"   a. Run ALL stages")
+    print(f"   q. Quit")
+    print()
+
+
+def get_input_path():
+    print("\n  Enter path to:")
+    print("    - A movie file (to create new project)")
+    print("    - An existing project directory")
+    print()
+
+    while True:
+        path_str = input("  Path: ").strip()
+
+        if not path_str:
+            print("  ! Please enter a path")
+            continue
+
+        if path_str.lower() == 'q':
+            return None
+
+        path = Path(path_str).expanduser().resolve()
+
+        if not path.exists():
+            print(f"  ! Path not found: {path}")
+            continue
+
+        return path
+
+
+def get_stage_selection():
+    print_stages_menu()
+
+    while True:
+        selection = input("  Select stages (e.g., 1,2,3 or 1-5 or 'a' for all): ").strip().lower()
+
+        if selection == 'q':
+            return None
+
+        if selection == 'a':
+            return STAGE_ORDER.copy()
+
+        try:
+            stages = []
+            for part in selection.split(','):
+                part = part.strip()
+                if '-' in part:
+                    start, end = part.split('-')
+                    start_idx = int(start) - 1
+                    end_idx = int(end)
+                    stages.extend(STAGE_ORDER[start_idx:end_idx])
+                else:
+                    idx = int(part) - 1
+                    if 0 <= idx < len(STAGE_ORDER):
+                        stages.append(STAGE_ORDER[idx])
+                    else:
+                        raise ValueError(f"Invalid stage number: {part}")
+
+            if stages:
+                return stages
+            else:
+                print("  ! No valid stages selected")
+
+        except (ValueError, IndexError) as e:
+            print(f"  ! Invalid selection: {e}")
+            print("  ! Use numbers like: 1,2,3 or 1-5 or 'a' for all")
+
+
+def get_project_name(input_path):
+    if input_path.is_file():
+        default_name = input_path.stem.replace(" ", "_")
+        print(f"\n  Project name [{default_name}]: ", end="")
+        name = input().strip()
+        return name if name else default_name
+    return None
+
+
+def confirm_run(input_path, stages, project_name=None):
+    print("\n  " + "=" * 50)
+    print("  Ready to run:")
+    print("  " + "=" * 50)
+
+    if input_path.is_file():
+        print(f"  Input:   {input_path}")
+        print(f"  Project: {project_name}")
+    else:
+        print(f"  Project: {input_path}")
+
+    print(f"  Stages:  {', '.join(stages)}")
+    print()
+
+    response = input("  Proceed? [Y/n]: ").strip().lower()
+    return response in ('', 'y', 'yes')
+
+
+def run_pipeline(input_path, stages, project_name=None):
+    from run_pipeline import run_pipeline as do_run
+    from env_config import DEFAULT_PROJECTS_DIR
+
+    if input_path.is_file():
+        project_dir = DEFAULT_PROJECTS_DIR / project_name
+        return do_run(
+            input_movie=input_path,
+            project_dir=project_dir,
+            stages=stages,
+        )
+    else:
+        return do_run(
+            input_movie=None,
+            project_dir=input_path,
+            stages=stages,
+        )
+
+
+def main():
+    clear_screen()
+    print_banner()
+
+    print("  Welcome to Shot Gopher!")
+    print("  A simple way to process VFX shots.\n")
+
+    input_path = get_input_path()
+    if input_path is None:
+        print("\n  Goodbye!")
+        return 0
+
+    project_name = get_project_name(input_path)
+
+    clear_screen()
+    print_banner()
+
+    if input_path.is_file():
+        print(f"  Input: {input_path.name}")
+    else:
+        print(f"  Project: {input_path}")
+
+    stages = get_stage_selection()
+    if stages is None:
+        print("\n  Goodbye!")
+        return 0
+
+    if not confirm_run(input_path, stages, project_name):
+        print("\n  Cancelled.")
+        return 0
+
+    print("\n  " + "=" * 50)
+    print("  Starting pipeline...")
+    print("  " + "=" * 50 + "\n")
+
+    try:
+        success = run_pipeline(input_path, stages, project_name)
+
+        if success:
+            print("\n  " + "=" * 50)
+            print("  Pipeline completed successfully!")
+            print("  " + "=" * 50)
+            return 0
+        else:
+            print("\n  " + "=" * 50)
+            print("  Pipeline failed. Check output above for errors.")
+            print("  " + "=" * 50)
+            return 1
+
+    except KeyboardInterrupt:
+        print("\n\n  Interrupted by user.")
+        return 130
+    except Exception as e:
+        print(f"\n  Error: {e}")
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
