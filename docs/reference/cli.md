@@ -123,7 +123,7 @@ Opens ComfyUI in browser for manual point/box selection of objects.
 ### Matchmove Only
 
 ```bash
-python scripts/run_pipeline.py footage.mp4 -s depth,camera
+python scripts/run_pipeline.py footage.mp4 -s colmap,camera
 ```
 
 ### Object Removal
@@ -203,10 +203,12 @@ Pipeline creates this directory structure:
 ├── gsir/
 │   ├── model/           # Checkpoints
 │   └── materials/       # Albedo, roughness, metallic
-├── camera/
-│   ├── extrinsics.json
-│   ├── intrinsics.json
-│   └── camera.abc       # Alembic export
+├── camera/              # From COLMAP stage
+│   ├── extrinsics.json  # 4x4 matrices per frame
+│   ├── intrinsics.json  # fx, fy, cx, cy
+│   ├── camera.abc       # Alembic export
+│   ├── camera.chan      # Nuke export
+│   └── camera.jsx       # After Effects export
 └── preview/             # Preview movies (if --auto-movie)
 ```
 

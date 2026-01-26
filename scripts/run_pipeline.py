@@ -312,6 +312,7 @@ def run_pipeline(
     colmap_max_size: int = -1,
     gsir_iterations: int = 35000,
     gsir_path: Optional[str] = None,
+    mocap_method: str = "auto",
     auto_start_comfyui: bool = True,
     roto_prompt: Optional[str] = None,
     separate_instances: bool = False,
@@ -335,6 +336,7 @@ def run_pipeline(
         colmap_max_size: Max image dimension for COLMAP (-1 for no limit)
         gsir_iterations: Total GS-IR training iterations
         gsir_path: Path to GS-IR installation
+        mocap_method: Motion capture method - "auto", "gvhmr", or "wham"
         auto_start_comfyui: Auto-start ComfyUI if not running (default: True)
         roto_prompt: Segmentation prompt (default: 'person')
         separate_instances: Separate multi-person masks into individual instances
@@ -755,16 +757,23 @@ def run_pipeline(
         print("\n=== Stage: mocap ===")
         mocap_output = project_dir / "mocap" / "wham"
         camera_dir = project_dir / "camera"
-        if not camera_dir.exists() or not (camera_dir / "extrinsics.json").exists():
-            print("  → Skipping (camera data required - run colmap stage first)")
-        elif skip_existing and mocap_output.exists():
+        has_camera = camera_dir.exists() and (camera_dir / "extrinsics.json").exists()
+
+        if skip_existing and mocap_output.exists():
             print("  → Skipping (mocap data exists)")
         else:
-            if not run_mocap(
-                project_dir,
-                skip_texture=False,
-            ):
-                print("  → Motion capture failed", file=sys.stderr)
+            if not has_camera and mocap_method == "wham":
+                print("  → Skipping WHAM (camera data required - run colmap stage first)")
+            else:
+                if has_camera:
+                    print(f"  → Using COLMAP camera data for improved accuracy")
+                if not run_mocap(
+                    project_dir,
+                    method=mocap_method,
+                    use_colmap_intrinsics=has_camera,
+                    skip_texture=False,
+                ):
+                    print("  → Motion capture failed", file=sys.stderr)
 
         clear_gpu_memory(comfyui_url)
 
@@ -922,6 +931,12 @@ def main():
         help="Path to GS-IR installation (default: auto-detect)"
     )
     parser.add_argument(
+        "--mocap-method",
+        choices=["auto", "gvhmr", "wham"],
+        default="auto",
+        help="Motion capture method: auto (GVHMR with WHAM fallback), gvhmr, wham (default: auto)"
+    )
+    parser.add_argument(
         "--no-auto-comfyui",
         action="store_true",
         help="Don't auto-start ComfyUI (assume it's already running)"
@@ -1043,6 +1058,7 @@ def main():
             colmap_max_size=args.colmap_max_size,
             gsir_iterations=args.gsir_iterations,
             gsir_path=args.gsir_path,
+            mocap_method=args.mocap_method,
             auto_start_comfyui=not args.no_auto_comfyui,
             roto_prompt=args.prompt,
             separate_instances=args.separate_instances,
@@ -1065,6 +1081,7 @@ def main():
             colmap_max_size=args.colmap_max_size,
             gsir_iterations=args.gsir_iterations,
             gsir_path=args.gsir_path,
+            mocap_method=args.mocap_method,
             auto_start_comfyui=not args.no_auto_comfyui,
             roto_prompt=args.prompt,
             separate_instances=args.separate_instances,
