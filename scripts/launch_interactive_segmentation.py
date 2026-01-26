@@ -351,14 +351,20 @@ ComfyUI is running at: {url}
 
 Opening browser...
 
-Instructions:
-1. In ComfyUI, click Menu > Load
-2. Navigate to: {container_workflow}
-3. Click points on the image in the 'Interactive Selector' node
-   - Left-click = include in mask
-   - Right-click = exclude from mask
-4. Click 'Queue Prompt' to run segmentation
-5. Masks will be saved to: {project_dir}/roto/custom/
+WORKFLOW LOCATION (inside ComfyUI's Load dialog):
+  {container_workflow}
+
+QUICK LOAD: You can also drag the workflow file from:
+  {project_dir / 'workflows' / TEMPLATE_NAME}
+  directly into the ComfyUI browser window.
+
+USAGE:
+1. Load the workflow (Menu > Load > navigate to path above)
+2. Click points on the image in the 'Interactive Selector' node
+   - Left-click = include in mask  (positive)
+   - Right-click = exclude from mask (negative)
+3. Click 'Queue Prompt' to run segmentation
+4. Masks will be saved to: {project_dir}/roto/custom/
 """)
 
         webbrowser.open(url)
@@ -389,28 +395,39 @@ def populate_workflow(workflow_data: dict, project_dir: Path) -> dict:
     Output nodes (SaveImage): Use paths relative to ComfyUI output directory
     """
     comfyui_output = get_comfyui_output_dir()
+    project_dir_str = str(project_dir)
 
-    def get_save_path(subpath: str) -> str:
-        """Get SaveImage-compatible path (relative to ComfyUI output dir)."""
-        full_path = project_dir / subpath
-        try:
-            return str(full_path.relative_to(comfyui_output))
-        except ValueError:
-            return str(full_path)
+    print(f"  Populating workflow paths:")
+    print(f"    Project dir: {project_dir}")
+    print(f"    ComfyUI output dir: {comfyui_output}")
 
     nodes = workflow_data.get("nodes", [])
     for node in nodes:
         node_type = node.get("type")
-        widgets = node.get("widgets_values", [])
+        node_title = node.get("title", "")
+        widgets = node.get("widgets_values")
 
-        if node_type == "VHS_LoadImagesPath" and widgets:
-            if widgets[0] == "source/frames":
-                widgets[0] = str(project_dir / "source" / "frames")
+        if widgets is None or len(widgets) == 0:
+            continue
 
-        elif node_type == "SaveImage" and widgets:
-            if widgets[0].startswith("roto/custom"):
-                suffix = widgets[0][len("roto/custom"):]
-                widgets[0] = get_save_path("roto/custom") + suffix
+        if node_type == "VHS_LoadImagesPath":
+            old_path = widgets[0]
+            if isinstance(old_path, str) and "source/frames" in old_path:
+                new_path = str(project_dir / "source" / "frames")
+                widgets[0] = new_path
+                print(f"    VHS_LoadImagesPath: '{old_path}' -> '{new_path}'")
+
+        elif node_type == "SaveImage":
+            old_prefix = widgets[0]
+            if isinstance(old_prefix, str) and "roto/custom" in old_prefix:
+                full_path = project_dir / "roto" / "custom"
+                try:
+                    relative_path = full_path.relative_to(comfyui_output)
+                    new_prefix = str(relative_path / "mask")
+                except ValueError:
+                    new_prefix = str(full_path / "mask")
+                widgets[0] = new_prefix
+                print(f"    SaveImage: '{old_prefix}' -> '{new_prefix}'")
 
     return workflow_data
 
@@ -427,6 +444,8 @@ def prepare_workflow(project_dir: Path) -> Path:
     template_path = WORKFLOW_TEMPLATES_DIR / TEMPLATE_NAME
     if not template_path.exists():
         raise FileNotFoundError(f"Template not found: {template_path}")
+
+    print(f"  Template: {template_path}")
 
     workflows_dir = project_dir / "workflows"
     workflows_dir.mkdir(parents=True, exist_ok=True)
@@ -610,23 +629,40 @@ def run_internal_prepare(project_dir: Path) -> int:
     """Internal mode: just prepare workflow (called from within container)."""
     project_dir = Path(project_dir).resolve()
 
+    print(f"Preparing interactive segmentation workflow...")
+    print(f"  Project: {project_dir}")
+    print(f"  Container: {is_in_container()}")
+
     if not project_dir.exists():
         print(f"Error: Project directory not found: {project_dir}", file=sys.stderr)
         return 1
 
+    source_frames = project_dir / "source" / "frames"
+    if source_frames.exists():
+        frame_count = len(list(source_frames.glob("*.png"))) + len(list(source_frames.glob("*.jpg")))
+        print(f"  Source frames: {frame_count} found in {source_frames}")
+    else:
+        print(f"  Warning: Source frames directory not found: {source_frames}")
+
     try:
         workflow_path = prepare_workflow(project_dir)
-        print(f"Workflow prepared: {workflow_path}")
+        print(f"  Output: {workflow_path}")
 
         with open(workflow_path) as f:
             workflow = json.load(f)
+
+        print(f"\nVerifying populated paths:")
         for node in workflow.get("nodes", []):
             node_type = node.get("type")
+            node_title = node.get("title", "")
             widgets = node.get("widgets_values", [])
-            if node_type == "VHS_LoadImagesPath":
-                print(f"  VHS_LoadImagesPath path: {widgets[0] if widgets else 'N/A'}")
-            elif node_type == "SaveImage":
-                print(f"  SaveImage prefix: {widgets[0] if widgets else 'N/A'}")
+            if node_type == "VHS_LoadImagesPath" and widgets:
+                print(f"  ✓ Load Source Frames: {widgets[0]}")
+            elif node_type == "SaveImage" and widgets:
+                print(f"  ✓ Save Masks: {widgets[0]}")
+
+        print(f"\nWorkflow ready!")
+
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
