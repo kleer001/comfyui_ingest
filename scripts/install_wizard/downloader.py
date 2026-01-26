@@ -180,6 +180,59 @@ This model uses ~6.8GB VRAM (vs 23.6GB for Large), suitable for most GPUs.'''
             'instructions': '''MatAnyone model for stable video matting.
 Download from: https://github.com/pq-yang/MatAnyone/releases/download/v1.0.0/matanyone.pth
 Place in ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint/matanyone.pth'''
+        },
+        'gvhmr': {
+            'name': 'GVHMR Checkpoints',
+            'requires_auth': False,
+            'use_google_drive': True,
+            'gdrive_folder_id': '1eebJ13FUEXrKBawHpJroW0sNSxLjh9xD',
+            'files': [
+                {
+                    'gdrive_id': '1M5V-M3WZmcjn3I3Vv6rvwR9VqVuqnNxo',
+                    'filename': 'gvhmr/gvhmr_siga24_release.ckpt',
+                    'size_mb': 1200,
+                },
+                {
+                    'gdrive_id': '1i8Y6V8BeYKP3Os0n_G9HYbDJXMMqWyME',
+                    'filename': 'hmr2/epoch=10-step=25000.ckpt',
+                    'size_mb': 900,
+                },
+                {
+                    'gdrive_id': '1dG3T8OJhg1CKmVYhHvgVaQrz7Y1XUaKF',
+                    'filename': 'vitpose/vitpose-h-multi-coco.pth',
+                    'size_mb': 1100,
+                },
+                {
+                    'gdrive_id': '1FPbkdK9ZXW6EwJ8Y5R7OmJrMjY6UKWJY',
+                    'filename': 'dpvo/dpvo.pth',
+                    'size_mb': 200,
+                },
+            ],
+            'dest_dir_rel': 'GVHMR/inputs/checkpoints',
+            'instructions': '''GVHMR checkpoints for world-grounded motion capture.
+
+Manual download (if automatic fails):
+1. Visit: https://drive.google.com/drive/folders/1eebJ13FUEXrKBawHpJroW0sNSxLjh9xD
+2. Download all checkpoint folders (gvhmr/, hmr2/, vitpose/, dpvo/)
+3. Place in: GVHMR/inputs/checkpoints/
+
+YOLO will be auto-downloaded on first run.
+SMPL/SMPLX models must be downloaded separately (see smplx checkpoint).'''
+        },
+        'yolo_gvhmr': {
+            'name': 'YOLO for GVHMR',
+            'requires_auth': False,
+            'use_huggingface': False,
+            'files': [
+                {
+                    'url': 'https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8x.pt',
+                    'filename': 'yolov8x.pt',
+                    'size_mb': 131,
+                }
+            ],
+            'dest_dir_rel': 'GVHMR/inputs/checkpoints/yolo',
+            'instructions': '''YOLOv8x for person detection in GVHMR.
+Auto-downloads from Ultralytics releases.'''
         }
     }
 
@@ -1712,6 +1765,36 @@ Place in ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint/matanyone.pth'''
                 if state_manager:
                     state_manager.mark_checkpoint_downloaded(comp_id, dest_dir)
                 return True
+
+        # Handle Google Drive downloads with individual file IDs
+        use_google_drive = checkpoint_info.get('use_google_drive', False)
+        if use_google_drive:
+            success = True
+            for file_info in checkpoint_info['files']:
+                if 'gdrive_id' not in file_info:
+                    print_warning(f"No gdrive_id for {file_info['filename']}, skipping")
+                    continue
+
+                dest_path = dest_dir / file_info['filename']
+                if dest_path.exists():
+                    print_success(f"{file_info['filename']} already exists")
+                    continue
+
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+                gdrive_url = f"https://drive.google.com/uc?id={file_info['gdrive_id']}"
+
+                if not self.download_file_gdown(
+                    gdrive_url,
+                    dest_path,
+                    expected_size_mb=file_info.get('size_mb')
+                ):
+                    success = False
+                    print_info(checkpoint_info['instructions'])
+                    break
+
+            if success and state_manager:
+                state_manager.mark_checkpoint_downloaded(comp_id, dest_dir)
+            return success
 
         success = True
         for file_info in checkpoint_info['files']:

@@ -121,6 +121,20 @@ class InstallationWizard:
             ]
         }
 
+        # GVHMR (Gravity-View Human Motion Recovery - improved world-grounded mocap)
+        self.components['gvhmr'] = {
+            'name': 'GVHMR',
+            'required': False,
+            'installers': [
+                GitRepoInstaller(
+                    'GVHMR',
+                    'https://github.com/zju3dv/GVHMR.git',
+                    self.install_dir / "GVHMR",
+                    size_gb=4.0  # Code + checkpoints (~3.5GB models)
+                )
+            ]
+        }
+
         # GS-IR (Gaussian Splatting Inverse Rendering for material decomposition)
         self.components['gsir'] = {
             'name': 'GS-IR',

@@ -148,13 +148,17 @@ def export_camera_to_vfx_formats(
 
 def run_mocap(
     project_dir: Path,
+    method: str = "auto",
+    use_colmap_intrinsics: bool = True,
     skip_texture: bool = False,
 ) -> bool:
-    """Run human motion capture with WHAM.
+    """Run human motion capture with GVHMR (preferred) or WHAM fallback.
 
     Args:
         project_dir: Project directory with frames and camera data
-        skip_texture: Skip texture projection (faster)
+        method: Motion capture method - "auto", "gvhmr", or "wham"
+        use_colmap_intrinsics: Use COLMAP focal length for GVHMR
+        skip_texture: Skip texture projection (unused, kept for compatibility)
 
     Returns:
         True if mocap succeeded
@@ -168,7 +172,11 @@ def run_mocap(
     cmd = [
         sys.executable, str(script_path),
         str(project_dir),
+        "--method", method,
     ]
+
+    if not use_colmap_intrinsics:
+        cmd.append("--no-colmap-intrinsics")
 
     if skip_texture:
         cmd.append("--skip-texture")
