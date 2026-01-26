@@ -280,8 +280,7 @@ def detect_static_camera(
 
         translations = []
         for matrix_data in extrinsics:
-            if isinstance(matrix_data, list):
-                matrix = [row[:3] for row in matrix_data[:3]]
+            if isinstance(matrix_data, list) and len(matrix_data) >= 3:
                 translations.append([matrix_data[0][3], matrix_data[1][3], matrix_data[2][3]])
 
         if not translations:
@@ -336,12 +335,24 @@ def find_or_create_video(
 
     print(f"  → Creating video from {len(frames)} frames...")
 
-    frame_pattern = frames_dir / "frame_%04d.png"
-    if not (frames_dir / "frame_0001.png").exists():
+    if (frames_dir / "frame_0001.png").exists():
+        frame_pattern = frames_dir / "frame_%04d.png"
+    elif (frames_dir / "frame_00001.png").exists():
         frame_pattern = frames_dir / "frame_%05d.png"
-        if not (frames_dir / "frame_00001.png").exists():
-            first_frame = frames[0]
-            frame_pattern = first_frame.parent / f"{first_frame.stem.rsplit('_', 1)[0]}_%04d{first_frame.suffix}"
+    elif (frames_dir / "frame_0001.jpg").exists():
+        frame_pattern = frames_dir / "frame_%04d.jpg"
+    elif (frames_dir / "frame_00001.jpg").exists():
+        frame_pattern = frames_dir / "frame_%05d.jpg"
+    else:
+        first_frame = frames[0]
+        stem = first_frame.stem
+        if '_' in stem:
+            prefix = stem.rsplit('_', 1)[0]
+            num_part = stem.rsplit('_', 1)[1]
+            num_digits = len(num_part)
+            frame_pattern = first_frame.parent / f"{prefix}_%0{num_digits}d{first_frame.suffix}"
+        else:
+            frame_pattern = first_frame.parent / f"%04d{first_frame.suffix}"
 
     cmd = [
         "ffmpeg", "-y",
@@ -531,11 +542,18 @@ def convert_gvhmr_to_wham_format(
                 body_pose,
                 np.zeros((n_frames, 6))
             ], axis=1)
-        else:
+        elif body_pose.shape[1] > 63:
             poses = np.concatenate([
                 global_orient,
-                body_pose[:, :63] if body_pose.shape[1] > 63 else body_pose,
-                np.zeros((n_frames, max(0, 72 - 3 - body_pose.shape[1])))
+                body_pose[:, :63],
+                np.zeros((n_frames, 6))
+            ], axis=1)
+        else:
+            padding_needed = 69 - body_pose.shape[1]
+            poses = np.concatenate([
+                global_orient,
+                body_pose,
+                np.zeros((n_frames, padding_needed))
             ], axis=1)
 
         if transl is not None:
@@ -600,7 +618,9 @@ def run_mocap_pipeline(
     mocap_dir = project_dir / "mocap"
     mocap_dir.mkdir(parents=True, exist_ok=True)
 
-    gvhmr_available = (INSTALL_DIR / "GVHMR").exists()
+    gvhmr_dir = INSTALL_DIR / "GVHMR"
+    gvhmr_checkpoint = gvhmr_dir / "inputs" / "checkpoints" / "gvhmr" / "gvhmr_siga24_release.ckpt"
+    gvhmr_available = gvhmr_dir.exists() and gvhmr_checkpoint.exists()
     wham_available = deps.get("wham", False)
 
     if method == "auto":
