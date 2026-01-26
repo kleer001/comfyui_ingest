@@ -118,11 +118,10 @@ def start_docker_container(
         "--name", CONTAINER_NAME,
         "-d",
         "-p", "8188:8188",
-        "-e", "START_COMFYUI=true",
         "-v", f"{project_dir.parent}:/workspace/projects",
         "-v", f"{models_dir}:/models:ro",
         "vfx-ingest",
-        "sleep", "infinity"
+        "interactive"
     ]
 
     try:
@@ -160,18 +159,31 @@ def wait_for_comfyui(url: str, timeout: int = 120) -> bool:
     start_time = time.time()
 
     while time.time() - start_time < timeout:
+        if not check_container_running():
+            print("Container stopped unexpectedly!", file=sys.stderr)
+            logs = get_container_logs()
+            if logs:
+                print("Container logs:", file=sys.stderr)
+                print(logs, file=sys.stderr)
+            return False
+
         try:
             req = urllib.request.Request(f"{url}/system_stats", method="GET")
             with urllib.request.urlopen(req, timeout=5):
                 print("ComfyUI is ready!")
                 return True
-        except (urllib.error.URLError, TimeoutError, ConnectionRefusedError):
+        except (urllib.error.URLError, TimeoutError, ConnectionRefusedError,
+                ConnectionResetError, OSError):
             pass
         time.sleep(2)
         elapsed = int(time.time() - start_time)
         print(f"  ...waiting ({elapsed}s)")
 
     print("Timeout waiting for ComfyUI", file=sys.stderr)
+    logs = get_container_logs()
+    if logs:
+        print("Container logs:", file=sys.stderr)
+        print(logs, file=sys.stderr)
     return False
 
 
@@ -208,6 +220,34 @@ def prepare_workflow_in_container(project_name: str) -> bool:
     except subprocess.TimeoutExpired:
         print("Timeout preparing workflow", file=sys.stderr)
         return False
+
+
+def check_container_running() -> bool:
+    """Check if the container is still running."""
+    try:
+        result = subprocess.run(
+            ["docker", "inspect", "-f", "{{.State.Running}}", CONTAINER_NAME],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        return result.stdout.strip() == "true"
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
+
+
+def get_container_logs(tail: int = 50) -> str:
+    """Get recent container logs for debugging."""
+    try:
+        result = subprocess.run(
+            ["docker", "logs", "--tail", str(tail), CONTAINER_NAME],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        return result.stdout + result.stderr
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return ""
 
 
 def stop_docker_container() -> None:

@@ -9,6 +9,13 @@ NC='\033[0m' # No Color
 
 echo -e "${GREEN}=== VFX Ingest Platform (Container) ===${NC}"
 
+# Check for interactive mode (just run ComfyUI, no pipeline)
+INTERACTIVE_MODE=false
+if [[ "$1" == "interactive" || "$1" == "comfyui" ]]; then
+    INTERACTIVE_MODE=true
+    echo -e "${YELLOW}Running in interactive mode (ComfyUI only)${NC}"
+fi
+
 # Validate mounted volumes
 if [ ! -d "/models" ]; then
     echo -e "${RED}ERROR: /models volume not mounted${NC}"
@@ -92,27 +99,41 @@ fi
 COMFYUI_STAGES="depth|roto|matanyone|cleanplate"
 NEED_COMFYUI=false
 
-# Parse command line for stages
-for arg in "$@"; do
-    if [[ "$arg" == "-s" || "$arg" == "--stages" ]]; then
-        CHECKING_STAGES=true
-    elif [[ "$CHECKING_STAGES" == "true" ]]; then
-        if [[ "$arg" == "all" ]] || echo "$arg" | grep -qE "$COMFYUI_STAGES"; then
-            NEED_COMFYUI=true
-        fi
-        CHECKING_STAGES=false
-    fi
-done
-
-# If no stages specified, assume all (needs ComfyUI)
-if [[ "$@" != *"-s"* && "$@" != *"--stages"* ]]; then
+# Interactive mode always needs ComfyUI
+if [ "$INTERACTIVE_MODE" = "true" ]; then
     NEED_COMFYUI=true
+else
+    # Parse command line for stages
+    for arg in "$@"; do
+        if [[ "$arg" == "-s" || "$arg" == "--stages" ]]; then
+            CHECKING_STAGES=true
+        elif [[ "$CHECKING_STAGES" == "true" ]]; then
+            if [[ "$arg" == "all" ]] || echo "$arg" | grep -qE "$COMFYUI_STAGES"; then
+                NEED_COMFYUI=true
+            fi
+            CHECKING_STAGES=false
+        fi
+    done
+
+    # If no stages specified, assume all (needs ComfyUI)
+    if [[ "$@" != *"-s"* && "$@" != *"--stages"* ]]; then
+        NEED_COMFYUI=true
+    fi
 fi
 
 # Start ComfyUI in background only if needed
 if [ "$NEED_COMFYUI" = "true" ]; then
     echo -e "${GREEN}Starting ComfyUI...${NC}"
     cd /app/.vfx_pipeline/ComfyUI
+
+    # In interactive mode, run ComfyUI in foreground
+    if [ "$INTERACTIVE_MODE" = "true" ]; then
+        echo -e "${GREEN}ComfyUI starting on port 8188 (interactive mode)${NC}"
+        echo -e "${YELLOW}Press Ctrl+C to stop${NC}"
+        exec python3 main.py --listen 0.0.0.0 --port 8188 --output-directory /workspace
+    fi
+
+    # For pipeline mode, run ComfyUI in background
     python3 main.py --listen 0.0.0.0 --port 8188 \
         --output-directory /workspace > /tmp/comfyui.log 2>&1 &
     COMFYUI_PID=$!
