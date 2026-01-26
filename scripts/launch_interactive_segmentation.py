@@ -187,6 +187,39 @@ def wait_for_comfyui(url: str, timeout: int = 120) -> bool:
     return False
 
 
+def copy_workflow_to_comfyui_input(project_name: str) -> bool:
+    """Copy the prepared workflow to ComfyUI's input directory for easy access.
+
+    Args:
+        project_name: Name of the project directory
+
+    Returns:
+        True if successful
+    """
+    container_workflow = f"/workspace/projects/{project_name}/workflows/{TEMPLATE_NAME}"
+    comfyui_input = "/app/.vfx_pipeline/ComfyUI/input"
+
+    cmd = [
+        "docker", "exec", CONTAINER_NAME,
+        "bash", "-c",
+        f"mkdir -p {comfyui_input} && cp {container_workflow} {comfyui_input}/interactive_segmentation.json"
+    ]
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        if result.returncode == 0:
+            print(f"Workflow copied to ComfyUI input: {comfyui_input}/interactive_segmentation.json")
+            return True
+        return False
+    except subprocess.TimeoutExpired:
+        return False
+
+
 def prepare_workflow_in_container(project_name: str) -> bool:
     """Prepare the workflow inside the Docker container.
 
@@ -341,7 +374,12 @@ def run_docker_mode(
             stop_docker_container()
             return 1
 
+        if not copy_workflow_to_comfyui_input(project_name):
+            print("Warning: Could not copy workflow to ComfyUI input dir", file=sys.stderr)
+
         container_workflow = f"/workspace/projects/{project_name}/workflows/{TEMPLATE_NAME}"
+
+        comfyui_input_workflow = "/app/.vfx_pipeline/ComfyUI/input/interactive_segmentation.json"
 
         print(f"\n{'='*60}")
         print("Ready for Interactive Segmentation")
@@ -351,15 +389,18 @@ ComfyUI is running at: {url}
 
 Opening browser...
 
-WORKFLOW LOCATION (inside ComfyUI's Load dialog):
-  {container_workflow}
+LOAD THE WORKFLOW:
+  Option 1: Menu > Load > navigate to:
+            input/interactive_segmentation.json
 
-QUICK LOAD: You can also drag the workflow file from:
-  {project_dir / 'workflows' / TEMPLATE_NAME}
-  directly into the ComfyUI browser window.
+  Option 2: Or navigate to full path:
+            {container_workflow}
+
+  Option 3: Drag and drop from host:
+            {project_dir / 'workflows' / TEMPLATE_NAME}
 
 USAGE:
-1. Load the workflow (Menu > Load > navigate to path above)
+1. Load the workflow using one of the options above
 2. Click points on the image in the 'Interactive Selector' node
    - Left-click = include in mask  (positive)
    - Right-click = exclude from mask (negative)
