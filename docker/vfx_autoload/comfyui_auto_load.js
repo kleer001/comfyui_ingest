@@ -1,36 +1,67 @@
 /**
- * ComfyUI Auto-Load Extension
+ * ComfyUI Workflow Auto-Loader Extension
  *
- * This extension automatically loads a workflow from /input/auto_load_workflow.json
- * when ComfyUI starts. Used by launch_interactive_segmentation.py for Docker mode.
+ * Automatically loads a workflow when ComfyUI starts.
+ *
+ * Usage:
+ *   1. URL parameter: http://localhost:8188/?workflow=/path/to/workflow.json
+ *   2. Default location: /input/auto_load_workflow.json
+ *
+ * The URL parameter takes precedence over the default location.
+ * Paths can be absolute (/input/...) or relative to ComfyUI root.
+ *
+ * Installation:
+ *   Copy this folder to: ComfyUI/web/extensions/comfyui_autoload/
+ *
+ * License: MIT
+ * Repository: https://github.com/kleer001/shot-gopher
  */
 
 import { app } from "../../scripts/app.js";
 
-const AUTO_LOAD_PATH = "/input/auto_load_workflow.json";
+const EXTENSION_NAME = "comfyui.autoload";
+const DEFAULT_WORKFLOW_PATH = "/input/auto_load_workflow.json";
+const STARTUP_DELAY_MS = 1500;
+
+function getWorkflowPathFromURL() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("workflow");
+}
+
+async function fetchWorkflow(path) {
+    const response = await fetch(path);
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return response.json();
+}
+
+async function loadWorkflowFromPath(path, source) {
+    try {
+        console.log(`[AutoLoad] Attempting to load workflow from ${source}: ${path}`);
+        const workflow = await fetchWorkflow(path);
+        await app.loadGraphData(workflow);
+        console.log(`[AutoLoad] Workflow loaded successfully from ${source}`);
+        return true;
+    } catch (error) {
+        console.log(`[AutoLoad] Could not load from ${source}: ${error.message}`);
+        return false;
+    }
+}
 
 app.registerExtension({
-    name: "vfx.autoload",
+    name: EXTENSION_NAME,
 
     async setup() {
-        // Wait for app to be fully initialized
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise(resolve => setTimeout(resolve, STARTUP_DELAY_MS));
 
-        try {
-            const response = await fetch(AUTO_LOAD_PATH);
-            if (!response.ok) {
-                console.log("[VFX AutoLoad] No auto-load workflow found at", AUTO_LOAD_PATH);
-                return;
-            }
+        const urlPath = getWorkflowPathFromURL();
 
-            const workflow = await response.json();
-            console.log("[VFX AutoLoad] Loading workflow from", AUTO_LOAD_PATH);
-
-            await app.loadGraphData(workflow);
-            console.log("[VFX AutoLoad] Workflow loaded successfully!");
-
-        } catch (error) {
-            console.log("[VFX AutoLoad] Could not auto-load workflow:", error.message);
+        if (urlPath) {
+            const loaded = await loadWorkflowFromPath(urlPath, "URL parameter");
+            if (loaded) return;
         }
+
+        await loadWorkflowFromPath(DEFAULT_WORKFLOW_PATH, "default location");
     }
 });
