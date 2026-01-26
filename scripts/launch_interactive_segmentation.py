@@ -375,33 +375,44 @@ Instructions:
     return 0
 
 
+def get_comfyui_output_dir() -> Path:
+    """Get the output directory that ComfyUI uses for SaveImage nodes."""
+    if is_in_container():
+        return Path(os.environ.get("COMFYUI_OUTPUT_DIR", "/workspace"))
+    return INSTALL_DIR.parent.parent
+
+
 def populate_workflow(workflow_data: dict, project_dir: Path) -> dict:
-    """Replace placeholder paths in workflow with actual project paths."""
+    """Replace placeholder paths in workflow with actual project paths.
 
-    def replace_in_value(value):
-        if isinstance(value, str):
-            relative_patterns = [
-                ("source/frames/", str(project_dir / "source/frames") + "/"),
-                ("source/frames", str(project_dir / "source/frames")),
-                ("roto/custom/", str(project_dir / "roto/custom") + "/"),
-                ("roto/custom", str(project_dir / "roto/custom")),
-                ("roto/", str(project_dir / "roto") + "/"),
-                ("roto", str(project_dir / "roto")),
-            ]
-            for pattern, replacement in relative_patterns:
-                if value == pattern:
-                    value = replacement
-                elif value.startswith(pattern + "/"):
-                    value = replacement + "/" + value[len(pattern) + 1:]
-            return value
-        elif isinstance(value, list):
-            return [replace_in_value(item) for item in value]
-        elif isinstance(value, dict):
-            return {k: replace_in_value(v) for k, v in value.items()}
-        else:
-            return value
+    Input nodes (VHS_LoadImagesPath): Use absolute paths
+    Output nodes (SaveImage): Use paths relative to ComfyUI output directory
+    """
+    comfyui_output = get_comfyui_output_dir()
 
-    return replace_in_value(workflow_data)
+    def get_save_path(subpath: str) -> str:
+        """Get SaveImage-compatible path (relative to ComfyUI output dir)."""
+        full_path = project_dir / subpath
+        try:
+            return str(full_path.relative_to(comfyui_output))
+        except ValueError:
+            return str(full_path)
+
+    nodes = workflow_data.get("nodes", [])
+    for node in nodes:
+        node_type = node.get("type")
+        widgets = node.get("widgets_values", [])
+
+        if node_type == "VHS_LoadImagesPath" and widgets:
+            if widgets[0] == "source/frames":
+                widgets[0] = str(project_dir / "source" / "frames")
+
+        elif node_type == "SaveImage" and widgets:
+            if widgets[0].startswith("roto/custom"):
+                suffix = widgets[0][len("roto/custom"):]
+                widgets[0] = get_save_path("roto/custom") + suffix
+
+    return workflow_data
 
 
 def prepare_workflow(project_dir: Path) -> Path:
@@ -606,6 +617,16 @@ def run_internal_prepare(project_dir: Path) -> int:
     try:
         workflow_path = prepare_workflow(project_dir)
         print(f"Workflow prepared: {workflow_path}")
+
+        with open(workflow_path) as f:
+            workflow = json.load(f)
+        for node in workflow.get("nodes", []):
+            node_type = node.get("type")
+            widgets = node.get("widgets_values", [])
+            if node_type == "VHS_LoadImagesPath":
+                print(f"  VHS_LoadImagesPath path: {widgets[0] if widgets else 'N/A'}")
+            elif node_type == "SaveImage":
+                print(f"  SaveImage prefix: {widgets[0] if widgets else 'N/A'}")
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
