@@ -187,6 +187,178 @@ def wait_for_comfyui(url: str, timeout: int = 120) -> bool:
     return False
 
 
+def inject_workflow_loader(project_dir: Path, comfyui_url: str) -> bool:
+    """Inject a workflow loader script into ComfyUI by copying to its web directory.
+
+    Args:
+        project_dir: Project directory containing the workflow
+        comfyui_url: ComfyUI URL
+
+    Returns:
+        True if successful
+    """
+    import urllib.request
+
+    workflow_path = project_dir / "workflows" / TEMPLATE_NAME
+    if not workflow_path.exists():
+        return False
+
+    with open(workflow_path) as f:
+        workflow_json = f.read()
+
+    loader_script = f'''
+(function() {{
+    const workflow = {workflow_json};
+
+    function loadWorkflow() {{
+        if (window.app && window.app.loadGraphData) {{
+            window.app.loadGraphData(workflow);
+            console.log("Interactive segmentation workflow loaded!");
+            // Remove the loader script element
+            const script = document.getElementById('vfx-workflow-loader');
+            if (script) script.remove();
+        }} else {{
+            setTimeout(loadWorkflow, 500);
+        }}
+    }}
+
+    if (document.readyState === 'complete') {{
+        setTimeout(loadWorkflow, 1000);
+    }} else {{
+        window.addEventListener('load', () => setTimeout(loadWorkflow, 1000));
+    }}
+}})();
+'''
+
+    try:
+        data = json.dumps({"content": loader_script}).encode('utf-8')
+        req = urllib.request.Request(
+            f"{comfyui_url}/api/upload/temp",
+            data=data,
+            headers={"Content-Type": "application/json"}
+        )
+        urllib.request.urlopen(req, timeout=5)
+    except Exception:
+        pass
+
+    cmd = [
+        "docker", "exec", CONTAINER_NAME,
+        "bash", "-c",
+        f"echo '{loader_script}' > /app/.vfx_pipeline/ComfyUI/web/extensions/vfx_loader.js"
+    ]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        return result.returncode == 0
+    except subprocess.TimeoutExpired:
+        return False
+
+
+def start_workflow_loader(project_dir: Path, comfyui_url: str) -> int:
+    """Start a proxy server that injects the workflow into ComfyUI.
+
+    Args:
+        project_dir: Project directory containing the workflow
+        comfyui_url: ComfyUI URL
+
+    Returns:
+        Port number if successful, 0 on failure
+    """
+    import http.server
+    import socketserver
+    import threading
+    import urllib.request
+    import urllib.error
+
+    workflow_path = project_dir / "workflows" / TEMPLATE_NAME
+    if not workflow_path.exists():
+        return 0
+
+    with open(workflow_path) as f:
+        workflow_json = f.read()
+
+    loader_script = f'''
+<script id="vfx-workflow-loader">
+(function() {{
+    const workflow = {workflow_json};
+
+    function loadWorkflow() {{
+        if (window.app && window.app.loadGraphData) {{
+            window.app.loadGraphData(workflow);
+            console.log("Interactive segmentation workflow loaded!");
+            document.getElementById('vfx-workflow-loader').remove();
+        }} else {{
+            setTimeout(loadWorkflow, 500);
+        }}
+    }}
+
+    if (document.readyState === 'complete') {{
+        setTimeout(loadWorkflow, 1000);
+    }} else {{
+        window.addEventListener('load', () => setTimeout(loadWorkflow, 1000));
+    }}
+}})();
+</script>
+'''
+
+    class ProxyHandler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, format, *args):
+            pass
+
+        def do_GET(self):
+            target_url = f"{comfyui_url}{self.path}"
+            try:
+                with urllib.request.urlopen(target_url, timeout=10) as resp:
+                    content = resp.read()
+                    content_type = resp.headers.get('Content-Type', 'text/html')
+
+                    if self.path == '/' or self.path.endswith('.html'):
+                        content = content.decode('utf-8')
+                        content = content.replace('</head>', f'{loader_script}</head>')
+                        content = content.encode('utf-8')
+
+                    self.send_response(200)
+                    self.send_header('Content-Type', content_type)
+                    self.send_header('Content-Length', len(content))
+                    self.end_headers()
+                    self.wfile.write(content)
+            except urllib.error.URLError as e:
+                self.send_error(502, f"Proxy error: {e}")
+
+        def do_POST(self):
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length)
+            target_url = f"{comfyui_url}{self.path}"
+
+            try:
+                req = urllib.request.Request(target_url, data=body, method='POST')
+                for header, value in self.headers.items():
+                    if header.lower() not in ('host', 'content-length'):
+                        req.add_header(header, value)
+
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    content = resp.read()
+                    self.send_response(resp.status)
+                    for header, value in resp.headers.items():
+                        self.send_header(header, value)
+                    self.end_headers()
+                    self.wfile.write(content)
+            except urllib.error.URLError as e:
+                self.send_error(502, f"Proxy error: {e}")
+
+    for port in range(8190, 8200):
+        try:
+            server = socketserver.TCPServer(("", port), ProxyHandler)
+            server.allow_reuse_address = True
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            return port
+        except OSError:
+            continue
+
+    return 0
+
+
 def copy_workflow_to_comfyui_input(project_name: str) -> bool:
     """Copy the prepared workflow to ComfyUI's input directory for easy access.
 
@@ -379,36 +551,46 @@ def run_docker_mode(
 
         container_workflow = f"/workspace/projects/{project_name}/workflows/{TEMPLATE_NAME}"
 
-        comfyui_input_workflow = "/app/.vfx_pipeline/ComfyUI/input/interactive_segmentation.json"
-
         print(f"\n{'='*60}")
         print("Ready for Interactive Segmentation")
         print(f"{'='*60}")
-        print(f"""
+
+        loader_port = start_workflow_loader(project_dir, url)
+        if loader_port:
+            loader_url = f"http://localhost:{loader_port}"
+            print(f"""
 ComfyUI is running at: {url}
+Workflow loader at: {loader_url}
 
-Opening browser...
-
-LOAD THE WORKFLOW:
-  Option 1: Menu > Load > navigate to:
-            input/interactive_segmentation.json
-
-  Option 2: Or navigate to full path:
-            {container_workflow}
-
-  Option 3: Drag and drop from host:
-            {project_dir / 'workflows' / TEMPLATE_NAME}
+Opening browser with auto-load...
 
 USAGE:
-1. Load the workflow using one of the options above
+1. The workflow will load automatically
 2. Click points on the image in the 'Interactive Selector' node
    - Left-click = include in mask  (positive)
    - Right-click = exclude from mask (negative)
 3. Click 'Queue Prompt' to run segmentation
 4. Masks will be saved to: {project_dir}/roto/custom/
 """)
+            webbrowser.open(loader_url)
+        else:
+            print(f"""
+ComfyUI is running at: {url}
 
-        webbrowser.open(url)
+Opening browser...
+
+NOTE: Auto-load failed. Please load the workflow manually:
+  Menu > Load > input/interactive_segmentation.json
+
+USAGE:
+1. Load the workflow manually
+2. Click points on the image in the 'Interactive Selector' node
+   - Left-click = include in mask  (positive)
+   - Right-click = exclude from mask (negative)
+3. Click 'Queue Prompt' to run segmentation
+4. Masks will be saved to: {project_dir}/roto/custom/
+""")
+            webbrowser.open(url)
 
         print("="*60)
         print("Press ENTER when you're done to stop the container...")
