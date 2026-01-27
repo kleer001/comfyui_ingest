@@ -248,10 +248,13 @@ def run_docker_mode(
     signal.signal(signal.SIGTERM, signal_handler)
 
     try:
+        uid = os.getuid()
+        gid = os.getgid()
         cmd = [
             "docker", "run",
             "--rm",
             "--name", CONTAINER_NAME,
+            "--user", f"{uid}:{gid}",
             "--gpus", "all",
             "-e", "NVIDIA_VISIBLE_DEVICES=all",
             "-e", "START_COMFYUI=false",
