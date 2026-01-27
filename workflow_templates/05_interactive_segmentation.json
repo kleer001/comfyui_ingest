@@ -2,7 +2,7 @@
   "id": "00000000-0000-0000-0000-000000000005",
   "revision": 0,
   "last_node_id": 15,
-  "last_link_id": 15,
+  "last_link_id": 14,
   "nodes": [
     {
       "id": 1,
@@ -15,7 +15,7 @@
       "outputs": [
         {"name": "IMAGE", "type": "IMAGE", "links": [1, 14], "slot_index": 0},
         {"name": "MASK", "type": "MASK", "links": null, "slot_index": 1},
-        {"name": "frame_count", "type": "INT", "links": [15], "slot_index": 2}
+        {"name": "frame_count", "type": "INT", "links": null, "slot_index": 2}
       ],
       "properties": {"Node name for S&R": "VHS_LoadImagesPath"},
       "widgets_values": ["source/frames", 0, 0, 1, "Disabled", 1920, 1080, null, null],
@@ -38,23 +38,22 @@
     },
     {
       "id": 14,
-      "type": "VHS_SelectEveryNthFrame",
+      "type": "VHS_SelectEveryNthImage",
       "pos": [550, 350],
       "size": [300, 120],
       "flags": {},
       "order": 2,
       "mode": 0,
       "inputs": [
-        {"name": "images", "type": "IMAGE", "link": 14},
-        {"name": "total_frames", "type": "INT", "link": 15}
+        {"name": "images", "type": "IMAGE", "link": 14}
       ],
       "outputs": [
         {"name": "IMAGE", "type": "IMAGE", "links": [10], "slot_index": 0},
-        {"name": "frame_count", "type": "INT", "links": null, "slot_index": 1}
+        {"name": "count", "type": "INT", "links": null, "slot_index": 1}
       ],
-      "properties": {"Node name for S&R": "VHS_SelectEveryNthFrame"},
-      "widgets_values": [0, 1, 1],
-      "title": "🎬 Select Start Frame (change first number)"
+      "properties": {"Node name for S&R": "VHS_SelectEveryNthImage"},
+      "widgets_values": [9999, 0],
+      "title": "🎬 Select Frame (skip_first = frame number)"
     },
     {
       "id": 10,
@@ -206,7 +205,7 @@
       "order": 11,
       "mode": 0,
       "properties": {"text": ""},
-      "widgets_values": ["📋 INTERACTIVE SEGMENTATION\n\nFor complex shots requiring manual selection:\n\n1. Set the start frame in 'Select Start Frame' node\n2. IMPORTANT: Set the same frame number in\n   'Video Segmentation' node (frame_idx)\n3. Click points in the 'Interactive Selector' node\n   - Left click = positive (include)\n   - Shift+Left or Right click = negative (exclude)\n4. Click 'Queue Prompt' to run\n5. Masks save to roto/custom/\n\nRequires: ComfyUI-SAM3, ComfyUI-VideoHelperSuite"],
+      "widgets_values": ["📋 INTERACTIVE SEGMENTATION\n\nFor complex shots requiring manual selection:\n\n1. In 'Select Frame' node, set skip_first_images\n   to the frame number you want (0 = first frame)\n2. IMPORTANT: Set the same frame number in\n   'Video Segmentation' node (frame_idx)\n3. Click points in the 'Interactive Selector' node\n   - Left click = positive (include)\n   - Shift+Left or Right click = negative (exclude)\n4. Click 'Queue Prompt' to run\n5. Masks save to roto/custom/\n\nRequires: ComfyUI-SAM3, ComfyUI-VideoHelperSuite"],
       "title": "📋 Instructions",
       "color": "#332",
       "bgcolor": "#553"
@@ -239,8 +238,7 @@
     [10, 14, 0, 10, 0, "IMAGE"],
     [12, 10, 0, 3, 1, "SAM3_POINTS_PROMPT"],
     [13, 10, 1, 3, 2, "SAM3_POINTS_PROMPT"],
-    [14, 1, 0, 14, 0, "IMAGE"],
-    [15, 1, 2, 14, 1, "INT"]
+    [14, 1, 0, 14, 0, "IMAGE"]
   ],
   "groups": [
     {
