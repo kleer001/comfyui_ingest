@@ -1026,6 +1026,12 @@ def main():
 
         if input_path.is_dir() and (input_path / "source").exists():
             project_dir = input_path
+            if is_in_container() and str(project_dir).startswith("/workspace/input"):
+                project_dir = Path("/workspace/projects") / project_dir.name
+                print(f"Redirecting project to writable location: {project_dir}")
+                if not project_dir.exists():
+                    print(f"  Copying project from input to projects directory...")
+                    shutil.copytree(input_path, project_dir)
             print(f"Using existing project: {project_dir.name}")
 
     if args.stages.lower() == "all":
