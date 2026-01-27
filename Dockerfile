@@ -1,52 +1,65 @@
 # VFX Ingest Platform - Docker Image
 # Multi-stage build for optimized layer caching
 
+# Build argument to skip COLMAP (speeds up rebuilds for testing)
+# Usage: docker build --build-arg SKIP_COLMAP=true .
+ARG SKIP_COLMAP=false
+
 # Stage 1: Build COLMAP from source with CUDA support
 # The official colmap/colmap:latest image does NOT have GPU support
 # We must build from source with CUDA enabled
 FROM nvidia/cuda:12.6.1-cudnn-devel-ubuntu24.04 AS colmap-builder
 
+ARG SKIP_COLMAP
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install COLMAP build dependencies
-# Reference: https://github.com/colmap/colmap/blob/main/cmake/FindDependencies.cmake
-RUN apt-get update && apt-get install -y \
-    git \
-    cmake \
-    ninja-build \
-    build-essential \
-    libboost-program-options-dev \
-    libboost-graph-dev \
-    libboost-system-dev \
-    libeigen3-dev \
-    libcgal-dev \
-    libceres-dev \
-    libgoogle-glog-dev \
-    libgflags-dev \
-    libglew-dev \
-    libsqlite3-dev \
-    libfreeimage-dev \
-    libflann-dev \
-    libopenimageio-dev \
-    libsuitesparse-dev \
-    libmetis-dev \
-    libmkl-full-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Install COLMAP build dependencies (skip if SKIP_COLMAP=true)
+RUN if [ "$SKIP_COLMAP" = "true" ]; then \
+        echo "Skipping COLMAP build (SKIP_COLMAP=true)" && \
+        mkdir -p /colmap-install/bin /colmap-install/lib; \
+    else \
+        apt-get update && apt-get install -y \
+            git \
+            cmake \
+            ninja-build \
+            build-essential \
+            libboost-program-options-dev \
+            libboost-graph-dev \
+            libboost-system-dev \
+            libeigen3-dev \
+            libcgal-dev \
+            libceres-dev \
+            libgoogle-glog-dev \
+            libgflags-dev \
+            libglew-dev \
+            libsqlite3-dev \
+            libfreeimage-dev \
+            libflann-dev \
+            libopenimageio-dev \
+            libsuitesparse-dev \
+            libmetis-dev \
+            libmkl-full-dev \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
 
-# Clone and build COLMAP with CUDA support
+# Clone and build COLMAP with CUDA support (skip if SKIP_COLMAP=true)
 ARG COLMAP_VERSION=3.11.1
 ARG CUDA_ARCHITECTURES="75;86;89"
 
-RUN git clone --branch ${COLMAP_VERSION} --depth 1 https://github.com/colmap/colmap.git /colmap-src && \
-    mkdir -p /colmap-src/build && cd /colmap-src/build && \
-    cmake .. -GNinja \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX=/colmap-install \
-        -DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCHITECTURES}" \
-        -DGUI_ENABLED=OFF \
-        -DBLA_VENDOR=Intel10_64lp && \
-    ninja install && \
-    rm -rf /colmap-src
+RUN if [ "$SKIP_COLMAP" = "true" ]; then \
+        echo "COLMAP build skipped"; \
+    else \
+        git clone --branch ${COLMAP_VERSION} --depth 1 https://github.com/colmap/colmap.git /colmap-src && \
+        mkdir -p /colmap-src/build && cd /colmap-src/build && \
+        cmake .. -GNinja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/colmap-install \
+            -DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCHITECTURES}" \
+            -DGUI_ENABLED=OFF \
+            -DBLA_VENDOR=Intel10_64lp && \
+        ninja install && \
+        rm -rf /colmap-src; \
+    fi
 
 # Stage 2: Base image with system dependencies
 FROM nvidia/cuda:12.6.1-cudnn-devel-ubuntu24.04 AS base
