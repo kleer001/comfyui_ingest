@@ -272,6 +272,86 @@ class GitRepoInstaller(ComponentInstaller):
         return True
 
 
+class ComfyUICustomNodesInstaller(ComponentInstaller):
+    """Installer for ComfyUI custom nodes required by the VFX pipeline.
+
+    These nodes are mounted into the Docker container from the host filesystem,
+    allowing easy updates via ComfyUI Manager without rebuilding the image.
+    """
+
+    CUSTOM_NODES = [
+        {
+            "name": "ComfyUI-VideoHelperSuite",
+            "url": "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git",
+        },
+        {
+            "name": "ComfyUI-Video-Depth-Anything",
+            "url": "https://github.com/yuvraj108c/ComfyUI-Video-Depth-Anything.git",
+        },
+        {
+            "name": "ComfyUI-SAM3",
+            "url": "https://github.com/PozzettiAndrea/ComfyUI-SAM3.git",
+        },
+        {
+            "name": "ComfyUI_ProPainter_Nodes",
+            "url": "https://github.com/daniabib/ComfyUI_ProPainter_Nodes.git",
+        },
+        {
+            "name": "ComfyUI-MatAnyone",
+            "url": "https://github.com/FuouM/ComfyUI-MatAnyone.git",
+        },
+    ]
+
+    def __init__(self, install_dir: Optional[Path] = None, size_gb: float = 0.5):
+        super().__init__("ComfyUI Custom Nodes", size_gb)
+        self.install_dir = install_dir or INSTALL_DIR / "ComfyUI" / "custom_nodes"
+
+    def check(self) -> bool:
+        if not self.install_dir.exists():
+            return False
+        installed_count = sum(
+            1 for node in self.CUSTOM_NODES
+            if (self.install_dir / node["name"]).exists()
+        )
+        self.installed = installed_count == len(self.CUSTOM_NODES)
+        return self.installed
+
+    def install(self) -> bool:
+        print(f"\nInstalling ComfyUI custom nodes to {self.install_dir}...")
+
+        self.install_dir.mkdir(parents=True, exist_ok=True)
+
+        all_success = True
+        for node in self.CUSTOM_NODES:
+            node_dir = self.install_dir / node["name"]
+
+            if node_dir.exists():
+                print_info(f"  {node['name']} already exists, skipping")
+                continue
+
+            print(f"  Cloning {node['name']}...")
+            success, _ = run_command([
+                "git", "clone", node["url"], str(node_dir)
+            ], check=False)
+
+            if success:
+                print_success(f"  {node['name']} installed")
+            else:
+                print_error(f"  Failed to clone {node['name']}")
+                all_success = False
+
+        if all_success:
+            self.installed = True
+            print_success(f"All ComfyUI custom nodes installed to {self.install_dir}")
+        else:
+            print_warning("Some nodes failed to install")
+
+        return all_success
+
+    def get_node_list(self) -> list:
+        return [node["name"] for node in self.CUSTOM_NODES]
+
+
 class GSIRInstaller(ComponentInstaller):
     """Installer for GS-IR (Gaussian Splatting Inverse Rendering).
 

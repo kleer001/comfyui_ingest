@@ -43,6 +43,11 @@ setup_user() {
 RUN_AS_USER=false
 if setup_user; then
     RUN_AS_USER=true
+# Check for interactive mode (just run ComfyUI, no pipeline)
+INTERACTIVE_MODE=false
+if [[ "$1" == "interactive" || "$1" == "comfyui" ]]; then
+    INTERACTIVE_MODE=true
+    echo -e "${YELLOW}Running in interactive mode (ComfyUI only)${NC}"
 fi
 
 # Validate mounted volumes
@@ -128,21 +133,26 @@ fi
 COMFYUI_STAGES="depth|roto|matanyone|cleanplate"
 NEED_COMFYUI=false
 
-# Parse command line for stages
-for arg in "$@"; do
-    if [[ "$arg" == "-s" || "$arg" == "--stages" ]]; then
-        CHECKING_STAGES=true
-    elif [[ "$CHECKING_STAGES" == "true" ]]; then
-        if [[ "$arg" == "all" ]] || echo "$arg" | grep -qE "$COMFYUI_STAGES"; then
-            NEED_COMFYUI=true
-        fi
-        CHECKING_STAGES=false
-    fi
-done
-
-# If no stages specified, assume all (needs ComfyUI)
-if [[ "$@" != *"-s"* && "$@" != *"--stages"* ]]; then
+# Interactive mode always needs ComfyUI
+if [ "$INTERACTIVE_MODE" = "true" ]; then
     NEED_COMFYUI=true
+else
+    # Parse command line for stages
+    for arg in "$@"; do
+        if [[ "$arg" == "-s" || "$arg" == "--stages" ]]; then
+            CHECKING_STAGES=true
+        elif [[ "$CHECKING_STAGES" == "true" ]]; then
+            if [[ "$arg" == "all" ]] || echo "$arg" | grep -qE "$COMFYUI_STAGES"; then
+                NEED_COMFYUI=true
+            fi
+            CHECKING_STAGES=false
+        fi
+    done
+
+    # If no stages specified, assume all (needs ComfyUI)
+    if [[ "$@" != *"-s"* && "$@" != *"--stages"* ]]; then
+        NEED_COMFYUI=true
+    fi
 fi
 
 # Start ComfyUI in background only if needed
@@ -156,6 +166,17 @@ if [ "$NEED_COMFYUI" = "true" ]; then
         python3 main.py --listen 0.0.0.0 --port 8188 \
             --output-directory /workspace > /tmp/comfyui.log 2>&1 &
     fi
+
+    # In interactive mode, run ComfyUI in foreground
+    if [ "$INTERACTIVE_MODE" = "true" ]; then
+        echo -e "${GREEN}ComfyUI starting on port 8188 (interactive mode)${NC}"
+        echo -e "${YELLOW}Press Ctrl+C to stop${NC}"
+        exec python3 main.py --listen 0.0.0.0 --port 8188 --output-directory /workspace
+    fi
+
+    # For pipeline mode, run ComfyUI in background
+    python3 main.py --listen 0.0.0.0 --port 8188 \
+        --output-directory /workspace > /tmp/comfyui.log 2>&1 &
     COMFYUI_PID=$!
 
     # Wait for ComfyUI to be ready
@@ -185,3 +206,13 @@ if [ "$RUN_AS_USER" = "true" ]; then
 else
     exec python3 /app/scripts/run_pipeline.py "$@"
 fi
+python3 /app/scripts/run_pipeline.py "$@"
+EXIT_CODE=$?
+
+# Fix ownership of output files if HOST_UID/HOST_GID are set
+if [ -n "$HOST_UID" ] && [ -n "$HOST_GID" ]; then
+    echo -e "${YELLOW}Fixing file permissions for host user...${NC}"
+    chown -R "$HOST_UID:$HOST_GID" /workspace/projects 2>/dev/null || true
+fi
+
+exit $EXIT_CODE

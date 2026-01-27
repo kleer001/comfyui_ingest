@@ -118,11 +118,10 @@ def start_docker_container(
         "--name", CONTAINER_NAME,
         "-d",
         "-p", "8188:8188",
-        "-e", "START_COMFYUI=true",
         "-v", f"{project_dir.parent}:/workspace/projects",
         "-v", f"{models_dir}:/models:ro",
         "vfx-ingest",
-        "sleep", "infinity"
+        "interactive"
     ]
 
     try:
@@ -160,19 +159,103 @@ def wait_for_comfyui(url: str, timeout: int = 120) -> bool:
     start_time = time.time()
 
     while time.time() - start_time < timeout:
+        if not check_container_running():
+            print("Container stopped unexpectedly!", file=sys.stderr)
+            logs = get_container_logs()
+            if logs:
+                print("Container logs:", file=sys.stderr)
+                print(logs, file=sys.stderr)
+            return False
+
         try:
             req = urllib.request.Request(f"{url}/system_stats", method="GET")
             with urllib.request.urlopen(req, timeout=5):
                 print("ComfyUI is ready!")
                 return True
-        except (urllib.error.URLError, TimeoutError, ConnectionRefusedError):
+        except (urllib.error.URLError, TimeoutError, ConnectionRefusedError,
+                ConnectionResetError, OSError):
             pass
         time.sleep(2)
         elapsed = int(time.time() - start_time)
         print(f"  ...waiting ({elapsed}s)")
 
     print("Timeout waiting for ComfyUI", file=sys.stderr)
+    logs = get_container_logs()
+    if logs:
+        print("Container logs:", file=sys.stderr)
+        print(logs, file=sys.stderr)
     return False
+
+
+def copy_workflow_to_comfyui_output(project_name: str) -> bool:
+    """Copy the prepared workflow to the auto-load extension directory.
+
+    The workflow is copied as 'workflow.json' to the vfx_autoload extension
+    directory, where it can be served as a static file and fetched by the
+    auto-load JavaScript extension.
+
+    Args:
+        project_name: Name of the project directory
+
+    Returns:
+        True if successful
+    """
+    container_workflow = f"/workspace/projects/{project_name}/workflows/{TEMPLATE_NAME}"
+    extension_dir = "/app/.vfx_pipeline/ComfyUI/web/extensions/vfx_autoload"
+    dest_file = f"{extension_dir}/workflow.json"
+
+    print(f"Copying workflow for auto-load:")
+    print(f"  From: {container_workflow}")
+    print(f"  To:   {dest_file}")
+
+    check_source_cmd = [
+        "docker", "exec", CONTAINER_NAME,
+        "grep", "-o", "source/frames[^\"]*", container_workflow
+    ]
+    check_result = subprocess.run(
+        check_source_cmd,
+        capture_output=True,
+        text=True,
+        timeout=10
+    )
+    print(f"  Source file contains path: {check_result.stdout.strip() or '(not found)'}")
+
+    copy_cmd = [
+        "docker", "exec", CONTAINER_NAME,
+        "cp", container_workflow, dest_file
+    ]
+
+    try:
+        result = subprocess.run(
+            copy_cmd,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        if result.returncode != 0:
+            print(f"Failed to copy workflow: {result.stderr}", file=sys.stderr)
+            return False
+
+        print(f"  Copy successful")
+
+        verify_cmd = [
+            "docker", "exec", CONTAINER_NAME,
+            "grep", "-o", "source/frames[^\"]*", dest_file
+        ]
+        verify_result = subprocess.run(
+            verify_cmd,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        if verify_result.stdout.strip():
+            print(f"  Verified path in dest file: {verify_result.stdout.strip()}")
+        else:
+            print("  WARNING: Path not found in copied file!", file=sys.stderr)
+
+        return True
+    except subprocess.TimeoutExpired:
+        return False
 
 
 def prepare_workflow_in_container(project_name: str) -> bool:
@@ -208,6 +291,34 @@ def prepare_workflow_in_container(project_name: str) -> bool:
     except subprocess.TimeoutExpired:
         print("Timeout preparing workflow", file=sys.stderr)
         return False
+
+
+def check_container_running() -> bool:
+    """Check if the container is still running."""
+    try:
+        result = subprocess.run(
+            ["docker", "inspect", "-f", "{{.State.Running}}", CONTAINER_NAME],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        return result.stdout.strip() == "true"
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
+
+
+def get_container_logs(tail: int = 50) -> str:
+    """Get recent container logs for debugging."""
+    try:
+        result = subprocess.run(
+            ["docker", "logs", "--tail", str(tail), CONTAINER_NAME],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        return result.stdout + result.stderr
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return ""
 
 
 def stop_docker_container() -> None:
@@ -301,7 +412,8 @@ def run_docker_mode(
             stop_docker_container()
             return 1
 
-        container_workflow = f"/workspace/projects/{project_name}/workflows/{TEMPLATE_NAME}"
+        if not copy_workflow_to_comfyui_output(project_name):
+            print("Warning: Could not copy workflow to ComfyUI output dir", file=sys.stderr)
 
         print(f"\n{'='*60}")
         print("Ready for Interactive Segmentation")
@@ -309,18 +421,19 @@ def run_docker_mode(
         print(f"""
 ComfyUI is running at: {url}
 
-Opening browser...
+Opening browser - workflow will load automatically...
 
-Instructions:
-1. In ComfyUI, click Menu > Load
-2. Navigate to: {container_workflow}
-3. Click points on the image in the 'Interactive Selector' node
-   - Left-click = include in mask
-   - Right-click = exclude from mask
-4. Click 'Queue Prompt' to run segmentation
-5. Masks will be saved to: {project_dir}/roto/custom/
+USAGE:
+1. The workflow will load automatically (wait a moment)
+2. Click points on the image in the 'Interactive Selector' node
+   - Left-click = include in mask  (positive)
+   - Right-click = exclude from mask (negative)
+3. Click 'Queue Prompt' to run segmentation
+4. Masks will be saved to: {project_dir}/roto/custom/
+
+If the workflow doesn't load automatically:
+  Menu > Load > Look in output folder for auto_load_workflow.json
 """)
-
         webbrowser.open(url)
 
         print("="*60)
@@ -335,33 +448,55 @@ Instructions:
     return 0
 
 
+def get_comfyui_output_dir() -> Path:
+    """Get the output directory that ComfyUI uses for SaveImage nodes."""
+    if is_in_container():
+        return Path(os.environ.get("COMFYUI_OUTPUT_DIR", "/workspace"))
+    return INSTALL_DIR.parent.parent
+
+
 def populate_workflow(workflow_data: dict, project_dir: Path) -> dict:
-    """Replace placeholder paths in workflow with actual project paths."""
+    """Replace placeholder paths in workflow with actual project paths.
 
-    def replace_in_value(value):
-        if isinstance(value, str):
-            relative_patterns = [
-                ("source/frames/", str(project_dir / "source/frames") + "/"),
-                ("source/frames", str(project_dir / "source/frames")),
-                ("roto/custom/", str(project_dir / "roto/custom") + "/"),
-                ("roto/custom", str(project_dir / "roto/custom")),
-                ("roto/", str(project_dir / "roto") + "/"),
-                ("roto", str(project_dir / "roto")),
-            ]
-            for pattern, replacement in relative_patterns:
-                if value == pattern:
-                    value = replacement
-                elif value.startswith(pattern + "/"):
-                    value = replacement + "/" + value[len(pattern) + 1:]
-            return value
-        elif isinstance(value, list):
-            return [replace_in_value(item) for item in value]
-        elif isinstance(value, dict):
-            return {k: replace_in_value(v) for k, v in value.items()}
-        else:
-            return value
+    Input nodes (VHS_LoadImagesPath): Use absolute paths
+    Output nodes (SaveImage): Use paths relative to ComfyUI output directory
+    """
+    comfyui_output = get_comfyui_output_dir()
+    project_dir_str = str(project_dir)
 
-    return replace_in_value(workflow_data)
+    print(f"  Populating workflow paths:")
+    print(f"    Project dir: {project_dir}")
+    print(f"    ComfyUI output dir: {comfyui_output}")
+
+    nodes = workflow_data.get("nodes", [])
+    for node in nodes:
+        node_type = node.get("type")
+        node_title = node.get("title", "")
+        widgets = node.get("widgets_values")
+
+        if widgets is None or len(widgets) == 0:
+            continue
+
+        if node_type == "VHS_LoadImagesPath":
+            old_path = widgets[0]
+            if isinstance(old_path, str) and "source/frames" in old_path:
+                new_path = str(project_dir / "source" / "frames")
+                widgets[0] = new_path
+                print(f"    VHS_LoadImagesPath: '{old_path}' -> '{new_path}'")
+
+        elif node_type == "SaveImage":
+            old_prefix = widgets[0]
+            if isinstance(old_prefix, str) and "roto/custom" in old_prefix:
+                full_path = project_dir / "roto" / "custom"
+                try:
+                    relative_path = full_path.relative_to(comfyui_output)
+                    new_prefix = str(relative_path / "mask")
+                except ValueError:
+                    new_prefix = str(full_path / "mask")
+                widgets[0] = new_prefix
+                print(f"    SaveImage: '{old_prefix}' -> '{new_prefix}'")
+
+    return workflow_data
 
 
 def prepare_workflow(project_dir: Path) -> Path:
@@ -376,6 +511,8 @@ def prepare_workflow(project_dir: Path) -> Path:
     template_path = WORKFLOW_TEMPLATES_DIR / TEMPLATE_NAME
     if not template_path.exists():
         raise FileNotFoundError(f"Template not found: {template_path}")
+
+    print(f"  Template: {template_path}")
 
     workflows_dir = project_dir / "workflows"
     workflows_dir.mkdir(parents=True, exist_ok=True)
@@ -559,13 +696,40 @@ def run_internal_prepare(project_dir: Path) -> int:
     """Internal mode: just prepare workflow (called from within container)."""
     project_dir = Path(project_dir).resolve()
 
+    print(f"Preparing interactive segmentation workflow...")
+    print(f"  Project: {project_dir}")
+    print(f"  Container: {is_in_container()}")
+
     if not project_dir.exists():
         print(f"Error: Project directory not found: {project_dir}", file=sys.stderr)
         return 1
 
+    source_frames = project_dir / "source" / "frames"
+    if source_frames.exists():
+        frame_count = len(list(source_frames.glob("*.png"))) + len(list(source_frames.glob("*.jpg")))
+        print(f"  Source frames: {frame_count} found in {source_frames}")
+    else:
+        print(f"  Warning: Source frames directory not found: {source_frames}")
+
     try:
         workflow_path = prepare_workflow(project_dir)
-        print(f"Workflow prepared: {workflow_path}")
+        print(f"  Output: {workflow_path}")
+
+        with open(workflow_path) as f:
+            workflow = json.load(f)
+
+        print(f"\nVerifying populated paths:")
+        for node in workflow.get("nodes", []):
+            node_type = node.get("type")
+            node_title = node.get("title", "")
+            widgets = node.get("widgets_values", [])
+            if node_type == "VHS_LoadImagesPath" and widgets:
+                print(f"  ✓ Load Source Frames: {widgets[0]}")
+            elif node_type == "SaveImage" and widgets:
+                print(f"  ✓ Save Masks: {widgets[0]}")
+
+        print(f"\nWorkflow ready!")
+
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1

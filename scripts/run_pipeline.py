@@ -248,6 +248,8 @@ def run_docker_mode(
     signal.signal(signal.SIGTERM, signal_handler)
 
     try:
+        uid = os.getuid()
+        gid = os.getgid()
         cmd = [
             "docker", "run",
             "--rm",
@@ -255,6 +257,8 @@ def run_docker_mode(
             "--gpus", "all",
             "-e", "NVIDIA_VISIBLE_DEVICES=all",
             "-e", "START_COMFYUI=false",
+            "-e", f"HOST_UID={uid}",
+            "-e", f"HOST_GID={gid}",
             "-v", f"{input_path.parent}:/workspace/input:ro",
             "-v", f"{projects_dir}:/workspace/projects",
             "-v", f"{models_dir}:/models:ro",
@@ -1026,6 +1030,12 @@ def main():
 
         if input_path.is_dir() and (input_path / "source").exists():
             project_dir = input_path
+            if is_in_container() and str(project_dir).startswith("/workspace/input"):
+                project_dir = Path("/workspace/projects") / project_dir.name
+                print(f"Redirecting project to writable location: {project_dir}")
+                if not project_dir.exists():
+                    print(f"  Copying project from input to projects directory...")
+                    shutil.copytree(input_path, project_dir)
             print(f"Using existing project: {project_dir.name}")
 
     if args.stages.lower() == "all":
