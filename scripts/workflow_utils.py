@@ -180,13 +180,13 @@ def update_cleanplate_resolution(
     Args:
         workflow_path: Path to workflow JSON
         source_frames_dir: Directory containing source frames
-        max_processing_width: Max internal width (default: from CLEANPLATE_MAX_WIDTH env or 960)
-        max_processing_height: Max internal height (default: from CLEANPLATE_MAX_HEIGHT env or 540)
+        max_processing_width: Max internal width (default: from CLEANPLATE_MAX_WIDTH env or 1920)
+        max_processing_height: Max internal height (default: from CLEANPLATE_MAX_HEIGHT env or 1080)
     """
     if max_processing_width is None:
-        max_processing_width = int(os.environ.get("CLEANPLATE_MAX_WIDTH", "960"))
+        max_processing_width = int(os.environ.get("CLEANPLATE_MAX_WIDTH", "1920"))
     if max_processing_height is None:
-        max_processing_height = int(os.environ.get("CLEANPLATE_MAX_HEIGHT", "540"))
+        max_processing_height = int(os.environ.get("CLEANPLATE_MAX_HEIGHT", "1080"))
 
     frames = sorted(source_frames_dir.glob("*.png"))
     if not frames:
