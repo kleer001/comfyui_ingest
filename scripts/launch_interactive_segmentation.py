@@ -109,6 +109,8 @@ def start_docker_container(
     env = os.environ.copy()
     env["VFX_PROJECTS_DIR"] = str(project_dir.parent)
     env["VFX_MODELS_DIR"] = str(models_dir)
+    env["HOST_UID"] = str(os.getuid())
+    env["HOST_GID"] = str(os.getgid())
 
     cmd = [
         "docker", "compose",
