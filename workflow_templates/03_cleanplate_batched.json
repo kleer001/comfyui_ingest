@@ -70,8 +70,8 @@
       "inputs": [{"name": "image", "type": "IMAGE", "link": 1}],
       "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [5]}],
       "properties": {"Node name for S&R": "ImageScale"},
-      "widgets_values": ["lanczos", 1280, 720, "disabled", "disabled"],
-      "title": "📐 Downscale to 720p"
+      "widgets_values": ["lanczos", 1920, 1080, "disabled", "disabled"],
+      "title": "📐 Scale Source to 1080p"
     },
     {
       "id": 8,
@@ -84,8 +84,8 @@
       "inputs": [{"name": "image", "type": "IMAGE", "link": 2}],
       "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [6]}],
       "properties": {"Node name for S&R": "ImageScale"},
-      "widgets_values": ["lanczos", 1280, 720, "disabled", "disabled"],
-      "title": "📐 Downscale Mask to 720p"
+      "widgets_values": ["lanczos", 1920, 1080, "disabled", "disabled"],
+      "title": "📐 Scale Mask to 1080p"
     },
     {
       "id": 3,
@@ -119,8 +119,8 @@
         {"name": "MASK_DILATE", "type": "MASK", "links": null}
       ],
       "properties": {"Node name for S&R": "ProPainterInpaint"},
-      "widgets_values": [1280, 720, 5, 8, 10, 2, 80, 5, "enable"],
-      "title": "🎨 ProPainter (720p, 10 frames)"
+      "widgets_values": [1920, 1080, 5, 8, 10, 2, 80, 5, "enable"],
+      "title": "🎨 ProPainter (1080p, 10 frames)"
     },
     {
       "id": 10,
@@ -158,7 +158,7 @@
       "order": 9,
       "mode": 0,
       "properties": {"text": ""},
-      "widgets_values": ["📋 BATCHED CLEANPLATE WORKFLOW\n\nProcesses 10 frames at a time to fit in GPU memory. VHS_BatchManager auto-queues batches.\nClick 'Queue Prompt' once - it will process all batches automatically, clearing GPU between each.\n⚠️ Adjust batch size in BatchManager if needed (lower = less VRAM, more batches)"],
+      "widgets_values": ["📋 BATCHED CLEANPLATE WORKFLOW (1080p)\n\nProcesses 10 frames at a time. VHS_BatchManager auto-queues batches.\nClick 'Queue Prompt' once - it will process all batches automatically.\n⚠️ Adjust batch size in BatchManager if needed (lower = less VRAM, more batches)"],
       "title": "📋 Instructions"
     }
   ],

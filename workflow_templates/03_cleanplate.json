@@ -49,8 +49,8 @@
       "inputs": [{"name": "image", "type": "IMAGE", "link": 1}],
       "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [5]}],
       "properties": {"Node name for S&R": "ImageScale"},
-      "widgets_values": ["lanczos", 1280, 720, "disabled", "disabled"],
-      "title": "📐 Downscale to 720p (saves VRAM)"
+      "widgets_values": ["lanczos", 1920, 1080, "disabled", "disabled"],
+      "title": "📐 Scale Source to 1080p"
     },
     {
       "id": 8,
@@ -63,8 +63,8 @@
       "inputs": [{"name": "image", "type": "IMAGE", "link": 6}],
       "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [7]}],
       "properties": {"Node name for S&R": "ImageScale"},
-      "widgets_values": ["lanczos", 1280, 720, "disabled", "disabled"],
-      "title": "📐 Downscale Mask to 720p"
+      "widgets_values": ["lanczos", 1920, 1080, "disabled", "disabled"],
+      "title": "📐 Scale Mask to 1080p"
     },
     {
       "id": 9,
@@ -98,8 +98,8 @@
         {"name": "MASK_DILATE", "type": "MASK", "links": null}
       ],
       "properties": {"Node name for S&R": "ProPainterInpaint"},
-      "widgets_values": [1280, 720, 5, 8, 10, 2, 80, 5, "enable"],
-      "title": "🎨 ProPainter Inpaint (720p, low VRAM)"
+      "widgets_values": [1920, 1080, 5, 8, 10, 2, 80, 5, "enable"],
+      "title": "🎨 ProPainter Inpaint (1080p)"
     },
     {
       "id": 10,
@@ -137,7 +137,7 @@
       "order": 8,
       "mode": 0,
       "properties": {"text": ""},
-      "widgets_values": ["📋 CLEANPLATE WORKFLOW\n\nInput: source/frames + roto masks → Output: cleanplate/ at 1080p\nDownscales to 720p for ProPainter (saves GPU RAM), then upscales output to 1080p.\n⚠️ Adjust scale nodes if your source isn't 1080p!"],
+      "widgets_values": ["📋 CLEANPLATE WORKFLOW\n\nInput: source/frames + roto masks → Output: cleanplate/ at 1080p\nProcesses at native 1080p resolution.\n⚠️ Adjust scale nodes if your source isn't 1080p!"],
       "title": "📋 Instructions"
     }
   ],
