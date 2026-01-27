@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from .downloader import CheckpointDownloader
+from .installers import ComfyUICustomNodesInstaller
 from .platform import PlatformManager
 from .utils import (
     Colors,
@@ -419,6 +420,7 @@ class DockerWizard:
         self.state_manager = DockerStateManager(self.state_file)
         self.docker_manager = DockerManager()
         self.checkpoint_downloader = DockerCheckpointDownloader(self.models_dir)
+        self.custom_nodes_installer = ComfyUICustomNodesInstaller()
 
         platform_manager = PlatformManager()
         self.platform_name, self.environment, _ = platform_manager.detect_platform()
@@ -896,6 +898,14 @@ class DockerWizard:
                 else:
                     print_error(f"Failed to download {checkpoint_id}")
                     sys.exit(1)
+
+        print_header("Installing ComfyUI Custom Nodes")
+        if not self.custom_nodes_installer.check():
+            if not self.custom_nodes_installer.install():
+                print_warning("Some ComfyUI custom nodes failed to install")
+                print_info("You can install them manually via ComfyUI Manager")
+        else:
+            print_success("ComfyUI custom nodes already installed")
 
         if not self.build_docker_image():
             print_error("Docker image build failed")
