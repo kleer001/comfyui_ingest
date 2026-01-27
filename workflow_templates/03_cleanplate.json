@@ -1,8 +1,8 @@
 {
   "id": "00000000-0000-0000-0000-000000000003",
   "revision": 0,
-  "last_node_id": 8,
-  "last_link_id": 5,
+  "last_node_id": 6,
+  "last_link_id": 4,
   "nodes": [
     {
       "id": 1,
@@ -71,31 +71,17 @@
       ],
       "properties": {"Node name for S&R": "ProPainterInpaint"},
       "widgets_values": [1920, 1080, 5, 8, 10, 10, 80, 20, "enable"],
-      "title": "🎨 ProPainter Inpaint (1080p internal)"
-    },
-    {
-      "id": 7,
-      "type": "ImageScale",
-      "pos": [1240, 300],
-      "size": [320, 150],
-      "flags": {},
-      "order": 4,
-      "mode": 0,
-      "inputs": [{"name": "image", "type": "IMAGE", "link": 4}],
-      "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [5]}],
-      "properties": {"Node name for S&R": "ImageScale"},
-      "widgets_values": ["lanczos", 1920, 1080, "disabled"],
-      "title": "📐 Scale to 1080p"
+      "title": "🎨 ProPainter Inpaint (1080p)"
     },
     {
       "id": 5,
       "type": "SaveImage",
-      "pos": [1640, 300],
+      "pos": [1240, 300],
       "size": [320, 280],
       "flags": {},
-      "order": 5,
+      "order": 4,
       "mode": 0,
-      "inputs": [{"name": "images", "type": "IMAGE", "link": 5}],
+      "inputs": [{"name": "images", "type": "IMAGE", "link": 4}],
       "properties": {},
       "widgets_values": ["cleanplate/clean"],
       "title": "💾 Save Clean Plates"
@@ -104,12 +90,12 @@
       "id": 6,
       "type": "Note",
       "pos": [100, 50],
-      "size": [600, 100],
+      "size": [500, 100],
       "flags": {},
-      "order": 6,
+      "order": 5,
       "mode": 0,
       "properties": {"text": ""},
-      "widgets_values": ["📋 CLEANPLATE WORKFLOW\n\nInput: source/frames + roto masks → Output: cleanplate/\nProPainter processes at 1080p internally, ImageScale outputs at 1080p."],
+      "widgets_values": ["📋 CLEANPLATE WORKFLOW\n\nInput: source/frames + roto masks → Output: cleanplate/\nProPainter processes and outputs at 1080p."],
       "title": "📋 Instructions"
     }
   ],
@@ -117,18 +103,16 @@
     [1, 1, 0, 4, 0, "IMAGE"],
     [2, 2, 0, 3, 0, "IMAGE"],
     [3, 3, 0, 4, 1, "MASK"],
-    [4, 4, 0, 7, 0, "IMAGE"],
-    [5, 7, 0, 5, 0, "IMAGE"]
+    [4, 4, 0, 5, 0, "IMAGE"]
   ],
   "groups": [
     {"title": "📥 INPUT", "bounding": [80, 180, 380, 520], "color": "#3f789e"},
     {"title": "🎨 INPAINT", "bounding": [760, 280, 420, 440], "color": "#9e3e5f"},
-    {"title": "📐 SCALE", "bounding": [1220, 280, 360, 180], "color": "#5e9e8f"},
-    {"title": "💾 OUTPUT", "bounding": [1620, 280, 360, 340], "color": "#3e9e5f"}
+    {"title": "💾 OUTPUT", "bounding": [1220, 280, 360, 340], "color": "#3e9e5f"}
   ],
   "config": {},
   "extra": {
-    "ds": {"scale": 0.7, "offset": [0, 0]},
+    "ds": {"scale": 0.8, "offset": [0, 0]},
     "info": {
       "name": "VFX Pipeline - Cleanplate",
       "author": "VFX Pipeline",
