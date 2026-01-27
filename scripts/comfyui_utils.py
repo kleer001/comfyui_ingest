@@ -158,6 +158,7 @@ def convert_workflow_to_api_format(
         # Fallback widget names for common nodes when node_defs unavailable
         fallback_widgets = {
             "ImageToMask": ["channel"],
+            "ImageScale": ["upscale_method", "width", "height", "crop"],
             "SaveImage": ["filename_prefix"],
             "PreviewImage": [],
             "VHS_LoadImagesPath": ["directory", "image_load_cap", "skip_first_images", "select_every_nth", "meta_batch"],
@@ -220,11 +221,10 @@ def convert_workflow_to_api_format(
                 if i >= len(non_connected_widgets):
                     break
 
-                # Skip None/null values and UI state indicators like "Disabled"
-                # These consume a widget slot but shouldn't be passed to the API
+                # Skip None/null values - these consume a widget slot but shouldn't be passed
+                # Note: "disabled" is a valid value for some widgets (e.g., ImageScale crop)
+                # so we only skip explicit None values
                 if value is None:
-                    continue
-                if isinstance(value, str) and value in ("Disabled", "disabled", "None", "none"):
                     continue
 
                 inputs[non_connected_widgets[i]] = value
