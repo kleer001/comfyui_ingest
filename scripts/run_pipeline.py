@@ -46,7 +46,7 @@ from pipeline_utils import (
     get_video_info,
     generate_preview_movie,
 )
-from matte_utils import combine_mattes, combine_mask_sequences
+from matte_utils import combine_mattes, prepare_roto_for_cleanplate
 from workflow_utils import (
     refresh_workflow_from_template,
     update_segmentation_prompt,
@@ -688,22 +688,9 @@ def run_pipeline(
         cleanplate_dir = project_dir / "cleanplate"
         roto_dir = project_dir / "roto"
 
-        # Roto sequence detection logic:
-        # - If one sequence in roto/ → use it (regardless of name)
-        # - If multiple sequences → prefer combined/ if exists, else OR them together
-        #
-        # Open questions for future refinement:
-        # - Should we validate frame count matches source frames?
-        # - Should we error instead of auto-combining when combined/ is missing?
-        # - MatAnyone creates roto/combined/ from matte/person_XX/ outputs;
-        #   cleanplate's fallback combine uses raw roto/ masks (less refined)
-        # - Roto sources may come from different places (SAM3, external, manual)
-        all_roto_dirs = []
-        for subdir in sorted(roto_dir.iterdir()) if roto_dir.exists() else []:
-            if subdir.is_dir() and list(subdir.glob("*.png")):
-                all_roto_dirs.append(subdir)
+        roto_ready, roto_message = prepare_roto_for_cleanplate(roto_dir)
 
-        if not all_roto_dirs:
+        if not roto_ready:
             print("")
             print("  " + "=" * 50)
             print("  !!!  NO ROTO DATA FOUND - SKIPPING CLEANPLATE  !!!")
@@ -721,25 +708,7 @@ def run_pipeline(
                 if overwrite:
                     clear_output_directory(cleanplate_dir)
 
-                for old_file in roto_dir.glob("*.png"):
-                    old_file.unlink()
-
-                if len(all_roto_dirs) == 1:
-                    source_dir = all_roto_dirs[0]
-                    for i, mask_file in enumerate(sorted(source_dir.glob("*.png"))):
-                        out_name = f"mask_{i+1:05d}.png"
-                        shutil.copy2(mask_file, roto_dir / out_name)
-                    print(f"  → Using masks from {source_dir.name}/")
-                else:
-                    combined_dir = roto_dir / "combined"
-                    if combined_dir in all_roto_dirs:
-                        for i, mask_file in enumerate(sorted(combined_dir.glob("*.png"))):
-                            out_name = f"mask_{i+1:05d}.png"
-                            shutil.copy2(mask_file, roto_dir / out_name)
-                        print(f"  → Using combined mattes from roto/combined/")
-                    else:
-                        count = combine_mask_sequences(all_roto_dirs, roto_dir, prefix="mask")
-                        print(f"  → Consolidated {count} frames from {len(all_roto_dirs)} mask sources")
+                print(f"  → {roto_message}")
 
                 update_cleanplate_resolution(workflow_path, source_frames)
                 if not run_comfyui_workflow(

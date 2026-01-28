@@ -38,6 +38,7 @@ from comfyui_utils import (
     wait_for_completion,
 )
 from workflow_utils import WORKFLOW_TEMPLATES_DIR
+from matte_utils import prepare_roto_for_cleanplate
 
 
 TEMPLATE_FILE = "03_cleanplate_chunk_template.json"
@@ -436,6 +437,14 @@ def run_batched_cleanplate(
     print(f"Total frames: {total_frames}")
     print(f"Batch size: {batch_size}")
     print(f"Overlap: {overlap}")
+
+    roto_dir = project_dir / "roto"
+    roto_ready, roto_message = prepare_roto_for_cleanplate(roto_dir)
+    if not roto_ready:
+        print(f"\nError: {roto_message}", file=sys.stderr)
+        print("Run the 'roto' stage first to generate masks.", file=sys.stderr)
+        return False
+    print(f"Roto: {roto_message}")
 
     chunks = calculate_chunks(total_frames, batch_size, overlap)
     print(f"Chunks: {len(chunks)}")
