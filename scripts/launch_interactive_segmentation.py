@@ -500,7 +500,9 @@ def populate_workflow(workflow_data: dict, project_dir: Path) -> dict:
         if node_type == "VHS_LoadImagesPath":
             old_path = widgets[0]
             if isinstance(old_path, str) and "source/frames" in old_path:
-                new_path = str(project_dir / "source" / "frames")
+                # Use path relative to ComfyUI input dir (symlinked in entrypoint)
+                # This allows VHS to browse/preview files
+                new_path = f"projects/{project_dir.name}/source/frames"
                 widgets[0] = new_path
                 print(f"    VHS_LoadImagesPath: '{old_path}' -> '{new_path}'")
 

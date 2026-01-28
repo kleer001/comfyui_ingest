@@ -88,6 +88,12 @@ fi
 # Symlink models to locations expected by custom nodes
 echo -e "${YELLOW}Linking models to custom node paths...${NC}"
 
+# Link projects into ComfyUI input so VHS_LoadImagesPath can browse them
+if [ -d "/workspace/projects" ]; then
+    ln -sf /workspace/projects "${COMFYUI_DIR}/input/projects" 2>/dev/null || true
+    echo -e "${GREEN}  ✓ Linked projects to ComfyUI input${NC}"
+fi
+
 # MatAnyone expects checkpoint in its own directory
 MATANYONE_SRC="/models/matanyone/matanyone.pth"
 MATANYONE_DST="${COMFYUI_DIR}/custom_nodes/ComfyUI-MatAnyone/checkpoint"
