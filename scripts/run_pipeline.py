@@ -334,6 +334,7 @@ def run_pipeline(
     mocap_method: str = "auto",
     auto_start_comfyui: bool = True,
     roto_prompt: Optional[str] = None,
+    roto_start_frame: Optional[int] = None,
     separate_instances: bool = False,
     auto_movie: bool = False,
     overwrite: bool = True,
@@ -358,6 +359,7 @@ def run_pipeline(
         mocap_method: Motion capture method - "auto", "gvhmr", or "wham"
         auto_start_comfyui: Auto-start ComfyUI if not running (default: True)
         roto_prompt: Segmentation prompt (default: 'person')
+        roto_start_frame: Frame to start segmentation from (enables bidirectional)
         separate_instances: Separate multi-person masks into individual instances
         auto_movie: Generate preview MP4s from completed image sequences
         overwrite: Clear existing output before running stages (default: True)
@@ -568,7 +570,10 @@ def run_pipeline(
 
                 if len(prompts) > 1:
                     print(f"\n  [{i+1}/{len(prompts)}] Segmenting: {prompt}")
-                update_segmentation_prompt(workflow_path, prompt, output_subdir, project_dir)
+                update_segmentation_prompt(
+                    workflow_path, prompt, output_subdir, project_dir,
+                    start_frame=roto_start_frame
+                )
                 if not run_comfyui_workflow(
                     workflow_path, comfyui_url,
                     output_dir=output_subdir,
@@ -937,6 +942,12 @@ def main():
         help="Segmentation prompt for roto stage (default: 'person'). Example: 'person, ball, backpack'"
     )
     parser.add_argument(
+        "--start-frame",
+        type=int,
+        default=None,
+        help="Frame to start segmentation from (enables bidirectional propagation). Use when subject isn't visible on first frame."
+    )
+    parser.add_argument(
         "--separate-instances",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -1056,6 +1067,7 @@ def main():
             mocap_method=args.mocap_method,
             auto_start_comfyui=not args.no_auto_comfyui,
             roto_prompt=args.prompt,
+            roto_start_frame=args.start_frame,
             separate_instances=args.separate_instances,
             auto_movie=args.auto_movie,
             overwrite=not args.no_overwrite,
@@ -1079,6 +1091,7 @@ def main():
             mocap_method=args.mocap_method,
             auto_start_comfyui=not args.no_auto_comfyui,
             roto_prompt=args.prompt,
+            roto_start_frame=args.start_frame,
             separate_instances=args.separate_instances,
             auto_movie=args.auto_movie,
             overwrite=not args.no_overwrite,

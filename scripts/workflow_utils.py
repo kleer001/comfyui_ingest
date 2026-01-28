@@ -82,7 +82,8 @@ def update_segmentation_prompt(
     workflow_path: Path,
     prompt: str,
     output_subdir: Path = None,
-    project_dir: Path = None
+    project_dir: Path = None,
+    start_frame: int = None
 ) -> None:
     """Update the text prompt and output path in segmentation workflow.
 
@@ -91,8 +92,11 @@ def update_segmentation_prompt(
         prompt: Segmentation target text
         output_subdir: If provided, update SaveImage to write here
         project_dir: Project root for computing relative paths
+        start_frame: If provided, set frame_idx and enable bidirectional propagation
     """
     print(f"  → Setting segmentation prompt: {prompt}")
+    if start_frame is not None:
+        print(f"  → Starting segmentation from frame {start_frame} (bidirectional)")
 
     with open(workflow_path) as f:
         workflow = json.load(f)
@@ -107,7 +111,16 @@ def update_segmentation_prompt(
             widgets = node.get("widgets_values", [])
             if len(widgets) >= 2:
                 widgets[1] = prompt
+                if start_frame is not None and len(widgets) >= 3:
+                    widgets[2] = start_frame
                 node["widgets_values"] = widgets
+
+        elif node.get("type") == "SAM3Propagate":
+            if start_frame is not None:
+                widgets = node.get("widgets_values", [])
+                if len(widgets) >= 3:
+                    widgets[2] = "both"
+                    node["widgets_values"] = widgets
 
         if output_subdir and node.get("type") == "SaveImage":
             widgets = node.get("widgets_values", [])
