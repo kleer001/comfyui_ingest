@@ -158,9 +158,10 @@ def convert_workflow_to_api_format(
         # Fallback widget names for common nodes when node_defs unavailable
         fallback_widgets = {
             "ImageToMask": ["channel"],
+            "ImageScale": ["upscale_method", "width", "height", "crop"],
             "SaveImage": ["filename_prefix"],
             "PreviewImage": [],
-            "VHS_LoadImagesPath": ["directory", "image_load_cap", "skip_first_images", "select_every_nth", "meta_batch"],
+            "VHS_LoadImagesPath": ["directory", "image_load_cap", "skip_first_images", "select_every_nth"],
             "LoadVideoDepthAnythingModel": ["model"],
             "VideoDepthAnythingProcess": ["input_size", "max_res", "precision"],
             "VideoDepthAnythingOutput": ["colormap"],
@@ -216,18 +217,25 @@ def convert_workflow_to_api_format(
             # Only map to widgets that don't have connections
             non_connected_widgets = [n for n in widget_names if n not in connected_input_names]
 
+            # Inputs that are optional connections (not widgets) - skip "Disabled" for these
+            connection_type_inputs = {"meta_batch", "model", "vae", "clip", "control_net"}
+
             for i, value in enumerate(widget_values):
                 if i >= len(non_connected_widgets):
                     break
 
-                # Skip None/null values and UI state indicators like "Disabled"
-                # These consume a widget slot but shouldn't be passed to the API
+                # Skip None/null values
                 if value is None:
                     continue
-                if isinstance(value, str) and value in ("Disabled", "disabled", "None", "none"):
+
+                widget_name = non_connected_widgets[i]
+
+                # Skip "Disabled" placeholder for connection-type inputs
+                # These are optional connections that show "Disabled" when unconnected
+                if widget_name in connection_type_inputs and value == "Disabled":
                     continue
 
-                inputs[non_connected_widgets[i]] = value
+                inputs[widget_name] = value
 
         api_workflow[node_id] = {
             "class_type": node_type,

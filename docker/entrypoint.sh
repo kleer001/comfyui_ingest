@@ -9,40 +9,27 @@ NC='\033[0m' # No Color
 
 echo -e "${GREEN}=== VFX Ingest Platform (Container) ===${NC}"
 
-# Handle user switching for correct file ownership
-# If HOST_UID/HOST_GID are set and non-zero, create a matching user and run as them
-VFX_USER="vfxuser"
-VFX_HOME="/home/${VFX_USER}"
+# Key paths (avoid hardcoding throughout script)
+VFX_PIPELINE_DIR="/app/.vfx_pipeline"
+COMFYUI_DIR="${VFX_PIPELINE_DIR}/ComfyUI"
 
-setup_user() {
-    local uid="${HOST_UID:-0}"
-    local gid="${HOST_GID:-0}"
+# Build-time UID/GID (set in Dockerfile, files already owned by this user)
+# If HOST_UID matches this, we skip the runtime chown (instant startup)
+BUILD_UID=1000
+BUILD_GID=1000
 
-    if [ "$uid" = "0" ] || [ "$gid" = "0" ]; then
-        echo -e "${YELLOW}Running as root (HOST_UID/HOST_GID not set)${NC}"
-        echo -e "${YELLOW}Files will be owned by root. Set HOST_UID and HOST_GID for correct ownership.${NC}"
-        return 1
-    fi
-
-    echo -e "${GREEN}Setting up user with UID:${uid} GID:${gid}${NC}"
-
-    if ! getent group "$gid" > /dev/null 2>&1; then
-        groupadd -g "$gid" vfxgroup
-    fi
-
-    if ! id -u "$VFX_USER" > /dev/null 2>&1; then
-        useradd -u "$uid" -g "$gid" -m -d "$VFX_HOME" -s /bin/bash "$VFX_USER"
-    fi
-
-    chown -R "$uid:$gid" "$VFX_HOME" 2>/dev/null || true
-    chown -R "$uid:$gid" /workspace 2>/dev/null || true
-
-    return 0
-}
-
+# Determine if we should run as non-root user
+# gosu can run with just UID:GID - no named user needed
 RUN_AS_USER=false
-if setup_user; then
+if [ "${HOST_UID:-0}" != "0" ] && [ "${HOST_GID:-0}" != "0" ]; then
     RUN_AS_USER=true
+    echo -e "${GREEN}Will run as UID:${HOST_UID} GID:${HOST_GID}${NC}"
+    chown -R "$HOST_UID:$HOST_GID" /workspace 2>/dev/null || true
+else
+    echo -e "${YELLOW}Running as root (HOST_UID/HOST_GID not set)${NC}"
+    echo -e "${YELLOW}Files will be owned by root. Set HOST_UID and HOST_GID for correct ownership.${NC}"
+fi
+
 # Check for interactive mode (just run ComfyUI, no pipeline)
 INTERACTIVE_MODE=false
 if [[ "$1" == "interactive" || "$1" == "comfyui" ]]; then
@@ -87,12 +74,29 @@ if [ $MISSING_MODELS -eq 1 ]; then
     echo "Run model download script on host: ./scripts/download_models.sh"
 fi
 
+# Set permissions on VFX pipeline directory for non-root user
+# Do this BEFORE creating symlinks/directories so they inherit correct ownership
+if [ "$RUN_AS_USER" = "true" ] && [ -n "$HOST_UID" ] && [ -n "$HOST_GID" ]; then
+    if [ "$HOST_UID" = "$BUILD_UID" ] && [ "$HOST_GID" = "$BUILD_GID" ]; then
+        echo -e "${GREEN}UID/GID matches build-time user (${BUILD_UID}:${BUILD_GID}) - skipping chown${NC}"
+    else
+        echo -e "${YELLOW}Adjusting permissions for UID:${HOST_UID} GID:${HOST_GID} (one-time operation)...${NC}"
+        chown -R "$HOST_UID:$HOST_GID" "$VFX_PIPELINE_DIR" 2>/dev/null || true
+    fi
+fi
+
 # Symlink models to locations expected by custom nodes
 echo -e "${YELLOW}Linking models to custom node paths...${NC}"
 
+# Link projects into ComfyUI input so VHS_LoadImagesPath can browse them
+if [ -d "/workspace/projects" ]; then
+    ln -sf /workspace/projects "${COMFYUI_DIR}/input/projects" 2>/dev/null || true
+    echo -e "${GREEN}  ✓ Linked projects to ComfyUI input${NC}"
+fi
+
 # MatAnyone expects checkpoint in its own directory
 MATANYONE_SRC="/models/matanyone/matanyone.pth"
-MATANYONE_DST="/app/.vfx_pipeline/ComfyUI/custom_nodes/ComfyUI-MatAnyone/checkpoint"
+MATANYONE_DST="${COMFYUI_DIR}/custom_nodes/ComfyUI-MatAnyone/checkpoint"
 if [ -f "$MATANYONE_SRC" ]; then
     mkdir -p "$MATANYONE_DST"
     if [ ! -e "$MATANYONE_DST/matanyone.pth" ]; then
@@ -107,7 +111,7 @@ fi
 
 # SAM3 expects model at ComfyUI root (downloads automatically if missing, but symlink avoids re-download)
 SAM3_SRC="/models/sam3/sam3.pt"
-SAM3_DST="/app/.vfx_pipeline/ComfyUI/sam3.pt"
+SAM3_DST="${COMFYUI_DIR}/sam3.pt"
 if [ -f "$SAM3_SRC" ]; then
     if [ ! -e "$SAM3_DST" ]; then
         ln -sf "$SAM3_SRC" "$SAM3_DST"
@@ -119,7 +123,7 @@ fi
 
 # SMPL-X models for mocap stage (manual download required)
 SMPLX_SRC="/models/smplx"
-SMPLX_DST="/app/.vfx_pipeline/smplx_models"
+SMPLX_DST="${VFX_PIPELINE_DIR}/smplx_models"
 if [ -d "$SMPLX_SRC" ]; then
     if [ ! -e "$SMPLX_DST" ]; then
         ln -sf "$SMPLX_SRC" "$SMPLX_DST"
@@ -158,25 +162,28 @@ fi
 # Start ComfyUI in background only if needed
 if [ "$NEED_COMFYUI" = "true" ]; then
     echo -e "${GREEN}Starting ComfyUI...${NC}"
-    cd /app/.vfx_pipeline/ComfyUI
+    cd "$COMFYUI_DIR"
+
+    # In interactive mode, run ComfyUI in foreground (never returns)
+    if [ "$INTERACTIVE_MODE" = "true" ]; then
+        echo -e "${GREEN}ComfyUI starting on port 8188 (interactive mode)${NC}"
+        echo -e "${YELLOW}Press Ctrl+C to stop${NC}"
+        if [ "$RUN_AS_USER" = "true" ]; then
+            export HOME=/tmp
+            exec gosu "${HOST_UID}:${HOST_GID}" python3 main.py --listen 0.0.0.0 --port 8188 --output-directory /workspace
+        else
+            exec python3 main.py --listen 0.0.0.0 --port 8188 --output-directory /workspace
+        fi
+    fi
+
+    # For pipeline mode, run ComfyUI in background
     if [ "$RUN_AS_USER" = "true" ]; then
-        gosu "$VFX_USER" python3 main.py --listen 0.0.0.0 --port 8188 \
+        HOME=/tmp gosu "${HOST_UID}:${HOST_GID}" python3 main.py --listen 0.0.0.0 --port 8188 \
             --output-directory /workspace > /tmp/comfyui.log 2>&1 &
     else
         python3 main.py --listen 0.0.0.0 --port 8188 \
             --output-directory /workspace > /tmp/comfyui.log 2>&1 &
     fi
-
-    # In interactive mode, run ComfyUI in foreground
-    if [ "$INTERACTIVE_MODE" = "true" ]; then
-        echo -e "${GREEN}ComfyUI starting on port 8188 (interactive mode)${NC}"
-        echo -e "${YELLOW}Press Ctrl+C to stop${NC}"
-        exec python3 main.py --listen 0.0.0.0 --port 8188 --output-directory /workspace
-    fi
-
-    # For pipeline mode, run ComfyUI in background
-    python3 main.py --listen 0.0.0.0 --port 8188 \
-        --output-directory /workspace > /tmp/comfyui.log 2>&1 &
     COMFYUI_PID=$!
 
     # Wait for ComfyUI to be ready
@@ -197,16 +204,21 @@ else
     echo -e "${YELLOW}Skipping ComfyUI (not needed for requested stages)${NC}"
 fi
 
-# Execute the main command
+# Execute the main command (pipeline mode only - interactive mode already exec'd above)
+if [ "$INTERACTIVE_MODE" = "true" ]; then
+    echo -e "${RED}ERROR: Interactive mode should have exec'd into ComfyUI${NC}"
+    echo "This indicates ComfyUI failed to start. Check the logs above."
+    exit 1
+fi
+
 echo -e "${GREEN}Running pipeline...${NC}"
 cd /app
 
 if [ "$RUN_AS_USER" = "true" ]; then
-    exec gosu "$VFX_USER" python3 /app/scripts/run_pipeline.py "$@"
+    HOME=/tmp gosu "${HOST_UID}:${HOST_GID}" python3 /app/scripts/run_pipeline.py "$@"
 else
-    exec python3 /app/scripts/run_pipeline.py "$@"
+    python3 /app/scripts/run_pipeline.py "$@"
 fi
-python3 /app/scripts/run_pipeline.py "$@"
 EXIT_CODE=$?
 
 # Fix ownership of output files if HOST_UID/HOST_GID are set

@@ -46,11 +46,17 @@
       "flags": {},
       "order": 2,
       "mode": 0,
-      "inputs": [{"name": "image", "type": "IMAGE", "link": 1}],
+      "inputs": [
+        {"name": "image", "type": "IMAGE", "link": 1},
+        {"name": "upscale_method", "type": "COMBO", "link": null, "widget": {"name": "upscale_method"}},
+        {"name": "width", "type": "INT", "link": null, "widget": {"name": "width"}},
+        {"name": "height", "type": "INT", "link": null, "widget": {"name": "height"}},
+        {"name": "crop", "type": "COMBO", "link": null, "widget": {"name": "crop"}}
+      ],
       "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [5]}],
       "properties": {"Node name for S&R": "ImageScale"},
-      "widgets_values": ["lanczos", 1280, 720, "disabled"],
-      "title": "📐 Downscale to 720p"
+      "widgets_values": ["lanczos", 1920, 1080, "disabled"],
+      "title": "📐 Scale Source to 1080p"
     },
     {
       "id": 8,
@@ -60,11 +66,17 @@
       "flags": {},
       "order": 3,
       "mode": 0,
-      "inputs": [{"name": "image", "type": "IMAGE", "link": 2}],
+      "inputs": [
+        {"name": "image", "type": "IMAGE", "link": 2},
+        {"name": "upscale_method", "type": "COMBO", "link": null, "widget": {"name": "upscale_method"}},
+        {"name": "width", "type": "INT", "link": null, "widget": {"name": "width"}},
+        {"name": "height", "type": "INT", "link": null, "widget": {"name": "height"}},
+        {"name": "crop", "type": "COMBO", "link": null, "widget": {"name": "crop"}}
+      ],
       "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [6]}],
       "properties": {"Node name for S&R": "ImageScale"},
-      "widgets_values": ["lanczos", 1280, 720, "disabled"],
-      "title": "📐 Downscale Mask to 720p"
+      "widgets_values": ["lanczos", 1920, 1080, "disabled"],
+      "title": "📐 Scale Mask to 1080p"
     },
     {
       "id": 3,
@@ -98,8 +110,8 @@
         {"name": "MASK_DILATE", "type": "MASK", "links": null}
       ],
       "properties": {"Node name for S&R": "ProPainterInpaint"},
-      "widgets_values": [1280, 720, 5, 8, 10, 2, 10, 5, "enable"],
-      "title": "🎨 ProPainter Inpaint (720p)"
+      "widgets_values": [1920, 1080, 5, 8, 10, 2, 10, 5, "enable"],
+      "title": "🎨 ProPainter Inpaint (1080p)"
     },
     {
       "id": 10,
@@ -109,11 +121,17 @@
       "flags": {},
       "order": 6,
       "mode": 0,
-      "inputs": [{"name": "image", "type": "IMAGE", "link": 4}],
+      "inputs": [
+        {"name": "image", "type": "IMAGE", "link": 4},
+        {"name": "upscale_method", "type": "COMBO", "link": null, "widget": {"name": "upscale_method"}},
+        {"name": "width", "type": "INT", "link": null, "widget": {"name": "width"}},
+        {"name": "height", "type": "INT", "link": null, "widget": {"name": "height"}},
+        {"name": "crop", "type": "COMBO", "link": null, "widget": {"name": "crop"}}
+      ],
       "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [8]}],
       "properties": {"Node name for S&R": "ImageScale"},
       "widgets_values": ["lanczos", 1920, 1080, "disabled"],
-      "title": "📐 Upscale to 1080p"
+      "title": "📐 Output to 1080p"
     },
     {
       "id": 5,

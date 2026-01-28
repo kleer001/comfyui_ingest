@@ -109,12 +109,13 @@ def start_docker_container(
     env = os.environ.copy()
     env["VFX_PROJECTS_DIR"] = str(project_dir.parent)
     env["VFX_MODELS_DIR"] = str(models_dir)
+    env["HOST_UID"] = str(os.getuid())
+    env["HOST_GID"] = str(os.getgid())
 
     cmd = [
         "docker", "compose",
         "-f", str(REPO_ROOT / "docker-compose.yml"),
         "run",
-        "--rm",
         "--name", CONTAINER_NAME,
         "-d",
         "-p", "8188:8188",
@@ -134,11 +135,21 @@ def start_docker_container(
             timeout=60
         )
         if result.returncode != 0:
-            print(f"Error starting container: {result.stderr}", file=sys.stderr)
+            print(f"Error starting container:", file=sys.stderr)
+            if result.stdout:
+                print(f"  stdout: {result.stdout}", file=sys.stderr)
+            if result.stderr:
+                print(f"  stderr: {result.stderr}", file=sys.stderr)
             return False
+        if result.stdout:
+            print(f"  Container ID: {result.stdout.strip()[:12]}")
         return True
     except subprocess.TimeoutExpired:
         print("Timeout starting container", file=sys.stderr)
+        logs = get_container_logs()
+        if logs:
+            print("Container logs:", file=sys.stderr)
+            print(logs, file=sys.stderr)
         return False
 
 
@@ -208,8 +219,11 @@ def copy_workflow_to_comfyui_output(project_name: str) -> bool:
     print(f"  From: {container_workflow}")
     print(f"  To:   {dest_file}")
 
+    uid = os.getuid()
+    gid = os.getgid()
+
     check_source_cmd = [
-        "docker", "exec", CONTAINER_NAME,
+        "docker", "exec", "-u", f"{uid}:{gid}", CONTAINER_NAME,
         "grep", "-o", "source/frames[^\"]*", container_workflow
     ]
     check_result = subprocess.run(
@@ -221,7 +235,7 @@ def copy_workflow_to_comfyui_output(project_name: str) -> bool:
     print(f"  Source file contains path: {check_result.stdout.strip() or '(not found)'}")
 
     copy_cmd = [
-        "docker", "exec", CONTAINER_NAME,
+        "docker", "exec", "-u", f"{uid}:{gid}", CONTAINER_NAME,
         "cp", container_workflow, dest_file
     ]
 
@@ -239,7 +253,7 @@ def copy_workflow_to_comfyui_output(project_name: str) -> bool:
         print(f"  Copy successful")
 
         verify_cmd = [
-            "docker", "exec", CONTAINER_NAME,
+            "docker", "exec", "-u", f"{uid}:{gid}", CONTAINER_NAME,
             "grep", "-o", "source/frames[^\"]*", dest_file
         ]
         verify_result = subprocess.run(
@@ -269,8 +283,14 @@ def prepare_workflow_in_container(project_name: str) -> bool:
     """
     container_project_path = f"/workspace/projects/{project_name}"
 
+    # Run as HOST_UID:HOST_GID so files are owned by host user
+    uid = os.getuid()
+    gid = os.getgid()
+
     cmd = [
-        "docker", "exec", CONTAINER_NAME,
+        "docker", "exec", "-u", f"{uid}:{gid}",
+        "-e", "HOME=/tmp",
+        CONTAINER_NAME,
         "python3", "/app/scripts/launch_interactive_segmentation.py",
         container_project_path,
         "--internal-prepare-only"
@@ -321,9 +341,14 @@ def get_container_logs(tail: int = 50) -> str:
         return ""
 
 
-def stop_docker_container() -> None:
-    """Stop and remove the Docker container."""
-    print("\nStopping Docker container...")
+def stop_docker_container(quiet: bool = False) -> None:
+    """Stop and remove the Docker container.
+
+    Args:
+        quiet: If True, don't print status messages
+    """
+    if not quiet:
+        print("\nStopping Docker container...")
     try:
         subprocess.run(
             ["docker", "stop", CONTAINER_NAME],
@@ -335,7 +360,8 @@ def stop_docker_container() -> None:
             capture_output=True,
             timeout=10
         )
-        print("Container stopped.")
+        if not quiet:
+            print("Container stopped.")
     except subprocess.TimeoutExpired:
         subprocess.run(["docker", "kill", CONTAINER_NAME], capture_output=True)
         subprocess.run(["docker", "rm", "-f", CONTAINER_NAME], capture_output=True)
@@ -401,6 +427,9 @@ def run_docker_mode(
     signal.signal(signal.SIGTERM, signal_handler)
 
     try:
+        # Clean up any existing container first (handles port conflicts)
+        stop_docker_container(quiet=True)
+
         if not start_docker_container(project_dir, models_dir):
             return 1
 
@@ -480,7 +509,9 @@ def populate_workflow(workflow_data: dict, project_dir: Path) -> dict:
         if node_type == "VHS_LoadImagesPath":
             old_path = widgets[0]
             if isinstance(old_path, str) and "source/frames" in old_path:
-                new_path = str(project_dir / "source" / "frames")
+                # Use path relative to ComfyUI input dir (symlinked in entrypoint)
+                # This allows VHS to browse/preview files
+                new_path = f"projects/{project_dir.name}/source/frames"
                 widgets[0] = new_path
                 print(f"    VHS_LoadImagesPath: '{old_path}' -> '{new_path}'")
 

@@ -112,7 +112,7 @@
         {"name": "video_state", "type": "SAM3_VIDEO_STATE", "links": null, "slot_index": 2}
       ],
       "properties": {"Node name for S&R": "SAM3Propagate"},
-      "widgets_values": [0, -1, "bidirectional", false],
+      "widgets_values": [0, -1, "both", false],
       "title": "🔄 Propagate Through Video"
     },
     {
