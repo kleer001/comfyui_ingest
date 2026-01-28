@@ -26,12 +26,21 @@ setup_user() {
 
     echo -e "${GREEN}Setting up user with UID:${uid} GID:${gid}${NC}"
 
+    # Create group if it doesn't exist
     if ! getent group "$gid" > /dev/null 2>&1; then
-        groupadd -g "$gid" vfxgroup
+        groupadd -g "$gid" vfxgroup 2>/dev/null || true
     fi
 
-    if ! id -u "$VFX_USER" > /dev/null 2>&1; then
-        useradd -u "$uid" -g "$gid" -m -d "$VFX_HOME" -s /bin/bash "$VFX_USER"
+    # Check if user already exists with this UID
+    local existing_user=$(getent passwd "$uid" | cut -d: -f1)
+    if [ -n "$existing_user" ]; then
+        # Use existing user
+        VFX_USER="$existing_user"
+        VFX_HOME=$(getent passwd "$uid" | cut -d: -f6)
+        echo -e "${GREEN}Using existing user: ${VFX_USER}${NC}"
+    elif ! id -u "$VFX_USER" > /dev/null 2>&1; then
+        # Create new user with -o to allow non-unique UID if needed
+        useradd -o -u "$uid" -g "$gid" -m -d "$VFX_HOME" -s /bin/bash "$VFX_USER" 2>/dev/null || true
     fi
 
     chown -R "$uid:$gid" "$VFX_HOME" 2>/dev/null || true
