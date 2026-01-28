@@ -219,8 +219,11 @@ def copy_workflow_to_comfyui_output(project_name: str) -> bool:
     print(f"  From: {container_workflow}")
     print(f"  To:   {dest_file}")
 
+    uid = os.getuid()
+    gid = os.getgid()
+
     check_source_cmd = [
-        "docker", "exec", CONTAINER_NAME,
+        "docker", "exec", "-u", f"{uid}:{gid}", CONTAINER_NAME,
         "grep", "-o", "source/frames[^\"]*", container_workflow
     ]
     check_result = subprocess.run(
@@ -232,7 +235,7 @@ def copy_workflow_to_comfyui_output(project_name: str) -> bool:
     print(f"  Source file contains path: {check_result.stdout.strip() or '(not found)'}")
 
     copy_cmd = [
-        "docker", "exec", CONTAINER_NAME,
+        "docker", "exec", "-u", f"{uid}:{gid}", CONTAINER_NAME,
         "cp", container_workflow, dest_file
     ]
 
@@ -250,7 +253,7 @@ def copy_workflow_to_comfyui_output(project_name: str) -> bool:
         print(f"  Copy successful")
 
         verify_cmd = [
-            "docker", "exec", CONTAINER_NAME,
+            "docker", "exec", "-u", f"{uid}:{gid}", CONTAINER_NAME,
             "grep", "-o", "source/frames[^\"]*", dest_file
         ]
         verify_result = subprocess.run(
@@ -280,8 +283,14 @@ def prepare_workflow_in_container(project_name: str) -> bool:
     """
     container_project_path = f"/workspace/projects/{project_name}"
 
+    # Run as HOST_UID:HOST_GID so files are owned by host user
+    uid = os.getuid()
+    gid = os.getgid()
+
     cmd = [
-        "docker", "exec", CONTAINER_NAME,
+        "docker", "exec", "-u", f"{uid}:{gid}",
+        "-e", "HOME=/tmp",
+        CONTAINER_NAME,
         "python3", "/app/scripts/launch_interactive_segmentation.py",
         container_project_path,
         "--internal-prepare-only"
