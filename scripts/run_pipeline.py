@@ -74,20 +74,35 @@ LAST_PROJECT_FILE = INSTALL_DIR / ".last_project"
 
 def save_last_project(project_dir: Path) -> None:
     """Save the last used project directory."""
-    INSTALL_DIR.mkdir(parents=True, exist_ok=True)
-    LAST_PROJECT_FILE.write_text(str(project_dir.resolve()))
+    # In containers, /app is read-only - use projects dir instead
+    if is_in_container():
+        last_project_file = project_dir.parent / ".last_project"
+    else:
+        last_project_file = LAST_PROJECT_FILE
+        INSTALL_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        last_project_file.write_text(str(project_dir.resolve()))
+    except PermissionError:
+        pass  # Skip if we can't write (not critical)
 
 
 def get_last_project() -> Optional[Path]:
     """Get the last used project directory, if it exists."""
-    if not LAST_PROJECT_FILE.exists():
-        return None
-    try:
-        path = Path(LAST_PROJECT_FILE.read_text().strip())
-        if path.exists() and path.is_dir():
-            return path
-    except Exception:
-        pass
+    # Check both possible locations
+    possible_files = [LAST_PROJECT_FILE]
+    if is_in_container():
+        # In container, also check the projects directory
+        projects_dir = Path(os.environ.get("VFX_PROJECTS_DIR", "/workspace/projects"))
+        possible_files.insert(0, projects_dir / ".last_project")
+
+    for last_project_file in possible_files:
+        if last_project_file.exists():
+            try:
+                path = Path(last_project_file.read_text().strip())
+                if path.exists() and path.is_dir():
+                    return path
+            except Exception:
+                pass
     return None
 
 
