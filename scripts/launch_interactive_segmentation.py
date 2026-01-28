@@ -116,7 +116,6 @@ def start_docker_container(
         "docker", "compose",
         "-f", str(REPO_ROOT / "docker-compose.yml"),
         "run",
-        "--rm",
         "--name", CONTAINER_NAME,
         "-d",
         "-p", "8188:8188",
