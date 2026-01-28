@@ -51,6 +51,7 @@ from workflow_utils import (
     refresh_workflow_from_template,
     update_segmentation_prompt,
     update_matanyone_input,
+    update_matanyone_resolution,
     update_cleanplate_resolution,
 )
 from stage_runners import (
@@ -657,6 +658,7 @@ def run_pipeline(
                 out_dir.mkdir(parents=True, exist_ok=True)
 
                 update_matanyone_input(workflow_path, person_dir, out_dir, project_dir)
+                update_matanyone_resolution(workflow_path, source_frames_dir)
                 if not run_comfyui_workflow(
                     workflow_path, comfyui_url,
                     output_dir=out_dir,

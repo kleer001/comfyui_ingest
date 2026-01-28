@@ -15,6 +15,7 @@ __all__ = [
     "refresh_workflow_from_template",
     "update_segmentation_prompt",
     "update_matanyone_input",
+    "update_matanyone_resolution",
     "update_cleanplate_resolution",
 ]
 
@@ -171,6 +172,56 @@ def update_matanyone_input(
                 except ValueError:
                     relative_path = output_dir
                 widgets[0] = str(relative_path / "matte")
+                node["widgets_values"] = widgets
+
+    with open(workflow_path, 'w') as f:
+        json.dump(workflow, f, indent=2)
+
+
+def update_matanyone_resolution(
+    workflow_path: Path,
+    source_frames_dir: Path,
+    processing_width: int = None,
+    processing_height: int = None,
+    output_width: int = None,
+    output_height: int = None
+) -> None:
+    """Update MatAnyone workflow resolution for VRAM optimization.
+
+    MatAnyone processes at a reduced resolution to save VRAM, then scales
+    output back up. Default is 720p processing, 1080p output.
+
+    Args:
+        workflow_path: Path to workflow JSON
+        source_frames_dir: Directory containing source frames
+        processing_width: Width for MatAnyone processing (default: MATANYONE_WIDTH env or 1280)
+        processing_height: Height for MatAnyone processing (default: MATANYONE_HEIGHT env or 720)
+        output_width: Output width after upscaling (default: MATANYONE_OUTPUT_WIDTH env or 1920)
+        output_height: Output height after upscaling (default: MATANYONE_OUTPUT_HEIGHT env or 1080)
+    """
+    if processing_width is None:
+        processing_width = int(os.environ.get("MATANYONE_WIDTH", "1280"))
+    if processing_height is None:
+        processing_height = int(os.environ.get("MATANYONE_HEIGHT", "720"))
+    if output_width is None:
+        output_width = int(os.environ.get("MATANYONE_OUTPUT_WIDTH", "1920"))
+    if output_height is None:
+        output_height = int(os.environ.get("MATANYONE_OUTPUT_HEIGHT", "1080"))
+
+    with open(workflow_path) as f:
+        workflow = json.load(f)
+
+    for node in workflow.get("nodes", []):
+        node_title = node.get("title", "")
+        if node.get("type") == "ImageScale":
+            widgets = node.get("widgets_values", [])
+            if len(widgets) >= 4:
+                if "720p" in node_title or "Scale Source" in node_title or "Scale Mask" in node_title:
+                    widgets[1] = processing_width
+                    widgets[2] = processing_height
+                elif "1080p" in node_title or "Output" in node_title:
+                    widgets[1] = output_width
+                    widgets[2] = output_height
                 node["widgets_values"] = widgets
 
     with open(workflow_path, 'w') as f:
