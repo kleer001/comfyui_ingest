@@ -291,6 +291,7 @@ def load_template_workflow() -> dict:
 def generate_chunk_workflow(
     template: dict,
     chunk: ChunkInfo,
+    project_dir: Path,
     output_prefix: str
 ) -> dict:
     """Generate a workflow for a specific chunk.
@@ -298,6 +299,7 @@ def generate_chunk_workflow(
     Args:
         template: Base workflow template
         chunk: Chunk information
+        project_dir: Absolute path to project directory
         output_prefix: Output path prefix for SaveImage
 
     Returns:
@@ -305,11 +307,19 @@ def generate_chunk_workflow(
     """
     workflow = json.loads(json.dumps(template))
 
+    source_frames_dir = str(project_dir / "source" / "frames")
+    roto_dir = str(project_dir / "roto")
+
     for node in workflow.get("nodes", []):
         node_type = node.get("type", "")
         widgets = node.get("widgets_values", [])
+        title = node.get("title", "")
 
         if node_type == "VHS_LoadImagesPath" and widgets and len(widgets) >= 3:
+            if "Source" in title or widgets[0] == "source/frames":
+                widgets[0] = source_frames_dir
+            elif "Roto" in title or widgets[0] == "roto":
+                widgets[0] = roto_dir
             widgets[1] = chunk.frame_count
             widgets[2] = chunk.start_frame
 
@@ -394,7 +404,7 @@ def process_chunk(
     """
     output_prefix = f"cleanplate/chunks/{chunk.name}/clean"
 
-    workflow = generate_chunk_workflow(template, chunk, output_prefix)
+    workflow = generate_chunk_workflow(template, chunk, project_dir, output_prefix)
 
     workflow_path = save_chunk_workflow(workflow, project_dir, chunk)
 
