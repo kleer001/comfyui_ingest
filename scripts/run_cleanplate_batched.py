@@ -590,6 +590,8 @@ def run_batched_cleanplate(
     Returns:
         True if successful
     """
+    start_time = time.time()
+
     print(f"\n{'='*60}")
     print("Batched Cleanplate Processing")
     print(f"{'='*60}")
@@ -684,10 +686,15 @@ def run_batched_cleanplate(
         print("\nError: Blending failed", file=sys.stderr)
         return False
 
+    elapsed_seconds = int(time.time() - start_time)
+    elapsed_hours = elapsed_seconds // 3600
+    elapsed_minutes = (elapsed_seconds % 3600) // 60
+
     print(f"\n{'='*60}")
     print("✓ Batched cleanplate complete!")
     print(f"{'='*60}")
     print(f"\nOutput: {project_dir}/cleanplate/final/")
+    print(f"\nClean Plate Batch Time : {elapsed_hours:02d}:{elapsed_minutes:02d}")
 
     return True
 
