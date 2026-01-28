@@ -426,3 +426,35 @@ def kill_all_comfyui_processes() -> int:
 
     print(f"  → Killed {killed} ComfyUI process(es)")
     return killed
+
+
+def prepare_comfyui_for_processing(
+    url: str = DEFAULT_COMFYUI_URL,
+    auto_start: bool = True
+) -> bool:
+    """Prepare ComfyUI for processing - cleanup stale processes and start if needed.
+
+    Args:
+        url: ComfyUI API URL
+        auto_start: If True, start ComfyUI if not running. If False, just check.
+
+    Returns:
+        True if ComfyUI is ready for processing
+    """
+    print("\n[GPU Cleanup]")
+    kill_all_comfyui_processes()
+
+    if auto_start:
+        print("\n[ComfyUI] Starting ComfyUI...")
+        if not ensure_comfyui(url=url):
+            print("Error: Failed to start ComfyUI", file=sys.stderr)
+            print("Install ComfyUI with the install wizard or start it manually", file=sys.stderr)
+            return False
+        return True
+
+    if not is_comfyui_running(url):
+        print(f"\nError: ComfyUI not running at {url}", file=sys.stderr)
+        print("Start ComfyUI first or enable auto-start", file=sys.stderr)
+        return False
+
+    return True

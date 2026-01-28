@@ -32,11 +32,11 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from comfyui_utils import (
     DEFAULT_COMFYUI_URL,
-    check_comfyui_running,
     free_comfyui_memory,
     queue_workflow,
     wait_for_completion,
 )
+from comfyui_manager import prepare_comfyui_for_processing
 from workflow_utils import WORKFLOW_TEMPLATES_DIR
 from matte_utils import prepare_roto_for_cleanplate
 
@@ -404,6 +404,7 @@ def run_batched_cleanplate(
     resume: bool = False,
     no_blend: bool = False,
     timeout: int = 1800,
+    auto_start_comfyui: bool = True,
 ) -> bool:
     """Run batched cleanplate processing.
 
@@ -416,6 +417,7 @@ def run_batched_cleanplate(
         resume: If True, skip completed chunks
         no_blend: If True, skip blending step
         timeout: Timeout per chunk in seconds
+        auto_start_comfyui: Auto-start ComfyUI if not running (default: True)
 
     Returns:
         True if successful
@@ -457,9 +459,7 @@ def run_batched_cleanplate(
         print("\n[DRY RUN] Would process the above chunks")
         return True
 
-    if not check_comfyui_running(comfyui_url):
-        print(f"\nError: ComfyUI not running at {comfyui_url}", file=sys.stderr)
-        print("Start ComfyUI first (Docker or local)", file=sys.stderr)
+    if not prepare_comfyui_for_processing(url=comfyui_url, auto_start=auto_start_comfyui):
         return False
 
     template = load_template_workflow()
@@ -572,6 +572,11 @@ def main():
         default=1800,
         help="Timeout per chunk in seconds (default: 1800)"
     )
+    parser.add_argument(
+        "--no-auto-comfyui",
+        action="store_true",
+        help="Don't auto-start ComfyUI (requires manual start)"
+    )
 
     args = parser.parse_args()
 
@@ -588,6 +593,7 @@ def main():
         resume=args.resume,
         no_blend=args.no_blend,
         timeout=args.timeout,
+        auto_start_comfyui=not args.no_auto_comfyui,
     )
 
     sys.exit(0 if success else 1)

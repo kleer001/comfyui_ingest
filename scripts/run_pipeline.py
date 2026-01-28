@@ -31,7 +31,7 @@ from typing import Optional
 
 from env_config import check_conda_env_or_warn, DEFAULT_PROJECTS_DIR, is_in_container, INSTALL_DIR
 from comfyui_utils import DEFAULT_COMFYUI_URL, run_comfyui_workflow
-from comfyui_manager import ensure_comfyui, stop_comfyui, kill_all_comfyui_processes
+from comfyui_manager import stop_comfyui, prepare_comfyui_for_processing
 
 from pipeline_constants import (
     START_FRAME,
@@ -370,19 +370,11 @@ def run_pipeline(
     comfyui_stages = {"depth", "roto", "matanyone", "cleanplate"}
     needs_comfyui = bool(comfyui_stages & set(stages))
 
-    if needs_comfyui:
-        print("\n[GPU Cleanup]")
-        kill_all_comfyui_processes()
-        clear_gpu_memory(comfyui_url)
-
     comfyui_was_started = False
-    if needs_comfyui and auto_start_comfyui:
-        print("\n[ComfyUI] Starting ComfyUI...")
-        if not ensure_comfyui(url=comfyui_url):
-            print("Error: Failed to start ComfyUI", file=sys.stderr)
-            print("Install ComfyUI with the install wizard or start it manually", file=sys.stderr)
+    if needs_comfyui:
+        if not prepare_comfyui_for_processing(url=comfyui_url, auto_start=auto_start_comfyui):
             return False
-        comfyui_was_started = True
+        comfyui_was_started = auto_start_comfyui
 
     if not project_name:
         if input_path:
