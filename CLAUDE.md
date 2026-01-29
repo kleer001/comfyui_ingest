@@ -332,6 +332,30 @@ Refs: #123
 - [ ] No debugging code left in (console.log, print statements)
 - [ ] No sensitive data committed (check with `git diff`)
 
+**Pre-Commit Verification (Cognitive):**
+
+Before committing any change, verify:
+
+1. **Variable/function names exist in scope**
+   - Read surrounding code to confirm variable names
+   - Grep for the identifier if uncertain: `grep -n "variable_name" file.py`
+
+2. **Apply fixes consistently**
+   - When fixing a bug, search the entire codebase for the same pattern
+   - `grep -r "broken_pattern" .` and fix all occurrences together
+
+3. **Trace data flow end-to-end**
+   - For path/file operations: verify where data is written and where it's read
+   - For API calls: confirm input format matches what the receiver expects
+
+4. **Test before commit**
+   - Run the actual code path that was modified
+   - For Docker/container changes: test inside the container, not just locally
+
+5. **Match existing patterns**
+   - Before implementing, check how similar functionality works elsewhere in the codebase
+   - Copy working patterns rather than inventing new approaches
+
 ---
 
 ## Output Requirements
@@ -444,6 +468,6 @@ This ensures:
 
 ---
 
-**Version:** 1.0
-**Last Updated:** 2026-01-25
+**Version:** 1.1
+**Last Updated:** 2026-01-29
 **Maintained By:** Project Team
